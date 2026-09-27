@@ -28,19 +28,18 @@ distribution/ Source SideStore générée automatiquement
 | iPhone | iOS 17 ou plus récent, [Tailscale](https://apps.apple.com/app/tailscale/id1470499037), un identifiant Apple (gratuit) |
 | En ligne | Un compte GitHub |
 
-### 2. Publier le dépôt sur GitHub
-Crée un dépôt **public** vide nommé `application-road-trip` (public = minutes de compilation macOS gratuites ; aucun secret n'est jamais dans le code), puis dans ce dossier :
+### 2. Dépôt GitHub (déjà fait)
+Le dépôt public est <https://github.com/plandefab-design/application-road-trip> (public = minutes de compilation macOS gratuites ; aucun secret n'est jamais dans le code). Pour un nouveau PC :
 ```powershell
-git remote add origin https://github.com/<ton-compte>/application-road-trip.git
-git push -u origin main
+git clone https://github.com/plandefab-design/application-road-trip.git
 ```
-Onglet **Actions** : les workflows `TripCore tests`, `Companion tests` et `iOS build` démarrent.
-À la fin d'`iOS build` (≈ 15–25 min), une **Release** contient `MotoTrip-1.0.N.ipa` et `distribution/source.json` est créé automatiquement.
+Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin d'`iOS build` (quelques minutes), une **Release** contient `MotoTrip-1.0.N.ipa` et `distribution/source.json` est mis à jour automatiquement.
+Toutes les versions : <https://github.com/plandefab-design/application-road-trip/releases>
 
 ### 3. Installer l'app sur l'iPhone (sans Mac)
 1. Installe **SideStore** sur l'iPhone en suivant le guide officiel : <https://docs.sidestore.io> (installation initiale depuis le PC Windows, iPhone branché en USB, avec ton identifiant Apple).
 2. Dans SideStore › **Sources** › **+**, ajoute :
-   `https://raw.githubusercontent.com/<ton-compte>/application-road-trip/main/distribution/source.json`
+   `https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/source.json`
 3. Installe **MotoTrip** depuis cette source. Chaque nouvelle version poussée sur `main` y apparaîtra automatiquement.
 
 Alternative ponctuelle : télécharger l'IPA de la Release et l'installer avec [Sideloadly](https://sideloadly.io) (renouvellement à refaire tous les 7 jours).

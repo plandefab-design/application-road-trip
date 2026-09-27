@@ -1,11 +1,11 @@
 # Avancement
 
-Dernière mise à jour : 2026-09-28 — ébauche initiale.
+Dernière mise à jour : 2026-09-28 — CI verte (TripCore Linux + Windows, iOS build, companion), IPA 1.0.2 publiée.
 
 | Milestone | État | Détail |
 |---|---|---|
-| M0 — CI → IPA → SideStore | 🟡 Écrit, **à valider au 1er push** | `ios-build.yml` (macos-15, Xcode 16.4, IPA non signée, Release, source SideStore). Carte en ligne OpenFreeMap ; carte hors ligne (S2) à faire. |
-| M1 — TripCore | 🟡 Écrit + tests, **à valider en CI** | Modèle trip.json v1 (décodage tolérant), validateur, géo (distance, cap, projection, rééchantillonnage), ETA à l'allure (§5.1), pleins (§5.2), sinuosité (§5.6), hors tracé (§5.7), cohérence du formulaire, GPX lecture/écriture, calcul du bandeau de navigation. |
+| M0 — CI → IPA → SideStore | 🟢 CI verte, **installation iPhone à valider** | `ios-build.yml` → release v1.0.2 (IPA 3,7 Mo), source SideStore à jour (macos-15, Xcode 16.4, IPA non signée, Release, source SideStore). Carte en ligne OpenFreeMap ; carte hors ligne (S2) à faire. |
+| M1 — TripCore | 🟢 Tests verts en CI (Linux + Windows) | Modèle trip.json v1 (décodage tolérant), validateur, géo (distance, cap, projection, rééchantillonnage), ETA à l'allure (§5.1), pleins (§5.2), sinuosité (§5.6), hors tracé (§5.7), cohérence du formulaire, GPX lecture/écriture, calcul du bandeau de navigation. |
 | M2 — Companion | 🟡 Squelette testé | API FastAPI (health, trips, chat, route), planner Agent SDK, GraphHopper 11.0 + modèles `moto_curvy` / `moto_fast`. 12 tests Python OK. Profil sinueux à calibrer (S4). |
 | M3 — App : écrans | 🟡 Ébauche | Trips (import GPX/JSON), détail (carte, étapes, adresses avec statut vérifié, export GPX), Réglages (garage, SOS, companion, TomTom), Créer (formulaire 13 paramètres + cohérence), chat planner. |
 | M4 — Navigation | 🟠 Mode « suivre le tracé » | Local : bandeaux plein / arrêt / fin avec heure d'arrivée à l'allure, avance/retard, hors tracé + cap de retour, voix, écran allumé, SOS SMS, trace réelle. **Guidage virage par virage Ferrostar : à intégrer (S3).** |
@@ -22,10 +22,10 @@ Dernière mise à jour : 2026-09-28 — ébauche initiale.
 - Versions épinglées réelles : MapLibre iOS 6.31.0, GraphHopper 11.0, (Ferrostar 0.57.0 prévu).
 
 ## Non vérifié (pas de Swift ni de Mac dans l'environnement de création)
-- Compilation de `core/` et de l'app, exécution des tests Swift → **premier push = premier vrai test**. Corriger les erreurs signalées par la CI avant d'aller plus loin.
+- Comportement réel de l'app sur iPhone (installation SideStore, import GPX, mode « Rouler », arrière-plan) : pas encore testé.
 
 ## Prochaines tâches pour Claude Code (dans l'ordre)
-1. Pousser, lire les logs `TripCore tests` et `iOS build`, corriger jusqu'au vert.
+1. ~~Pousser, lire les logs, corriger jusqu'au vert~~ ✅ (seule erreur : `Polyline` non `Hashable`).
 2. Installer l'IPA via SideStore, tester l'import d'un GPX et le mode « Rouler » en conditions réelles (S7 : écran verrouillé 2 h).
 3. S2 : carte hors ligne (PMTiles ou MBTiles servi par le companion).
 4. S3 : Ferrostar (`FerrostarCore` 0.57.0) derrière un protocole `NavigationEngine`, itinéraire `/navigate` GraphHopper.
