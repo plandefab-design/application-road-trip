@@ -1,0 +1,30 @@
+import SwiftUI
+
+@main
+struct MotoTripApp: App {
+    @StateObject private var store = TripStore()
+    @StateObject private var settings = AppSettings()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environmentObject(store)
+                .environmentObject(settings)
+                .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
+                .preferredColorScheme(settings.forceDark ? .dark : nil)
+        }
+    }
+}
+
+struct RootView: View {
+    var body: some View {
+        TabView {
+            TripsListView()
+                .tabItem { Label("Trips", systemImage: "map") }
+            CreateTripView()
+                .tabItem { Label("Créer", systemImage: "plus.circle") }
+            SettingsView()
+                .tabItem { Label("Réglages", systemImage: "gearshape") }
+        }
+    }
+}

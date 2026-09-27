@@ -1,0 +1,100 @@
+{
+  "_note": "Zones proposées dans le formulaire. Noms uniquement : aucune donnée factuelle (ouvertures, distances).",
+  "regions": [
+    {
+      "id": "FR-PROVENCE",
+      "name": "Provence (Luberon, Verdon, Ventoux)",
+      "country": "FR"
+    },
+    {
+      "id": "FR-ALPES-SUD",
+      "name": "Alpes du Sud (Mercantour, Queyras, Ubaye)",
+      "country": "FR"
+    },
+    {
+      "id": "FR-ALPES-NORD",
+      "name": "Alpes du Nord (Savoie, Vercors, Chartreuse)",
+      "country": "FR"
+    },
+    {
+      "id": "FR-CEVENNES",
+      "name": "Cévennes et Gorges du Tarn",
+      "country": "FR"
+    },
+    {
+      "id": "FR-MASSIF-CENTRAL",
+      "name": "Massif central (Auvergne, Cantal)",
+      "country": "FR"
+    },
+    {
+      "id": "FR-PYRENEES",
+      "name": "Pyrénées françaises",
+      "country": "FR"
+    },
+    {
+      "id": "FR-JURA",
+      "name": "Jura",
+      "country": "FR"
+    },
+    {
+      "id": "FR-VOSGES",
+      "name": "Vosges",
+      "country": "FR"
+    },
+    {
+      "id": "FR-CORSE",
+      "name": "Corse",
+      "country": "FR"
+    },
+    {
+      "id": "IT-DOLOMITI",
+      "name": "Dolomites",
+      "country": "IT"
+    },
+    {
+      "id": "IT-LOMBARDIA",
+      "name": "Lombardie (Stelvio, Gavia)",
+      "country": "IT"
+    },
+    {
+      "id": "IT-PIEMONTE",
+      "name": "Piémont",
+      "country": "IT"
+    },
+    {
+      "id": "IT-LIGURIA",
+      "name": "Ligurie",
+      "country": "IT"
+    },
+    {
+      "id": "CH-GRAUBUENDEN",
+      "name": "Grisons",
+      "country": "CH"
+    },
+    {
+      "id": "CH-VALAIS",
+      "name": "Valais",
+      "country": "CH"
+    },
+    {
+      "id": "CH-OBERLAND",
+      "name": "Oberland bernois",
+      "country": "CH"
+    },
+    {
+      "id": "AT-TIROL",
+      "name": "Tyrol",
+      "country": "AT"
+    },
+    {
+      "id": "ES-PIRINEOS",
+      "name": "Pyrénées espagnoles",
+      "country": "ES"
+    },
+    {
+      "id": "ES-ANDALUCIA",
+      "name": "Andalousie",
+      "country": "ES"
+    }
+  ]
+}

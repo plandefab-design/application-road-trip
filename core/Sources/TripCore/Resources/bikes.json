@@ -1,0 +1,18 @@
+{
+  "_note": "Modèles proposés dans le garage. L'autonomie réelle est saisie par le pilote : jamais pré-remplie.",
+  "models": [
+    "Suzuki GSX-R1000",
+    "Suzuki GSX-S1000",
+    "Kawasaki ZX-10R",
+    "Yamaha FZ1 Fazer",
+    "Yamaha MT-10",
+    "BMW S1000R",
+    "BMW S1000RR",
+    "Honda CBR1000RR-R",
+    "Aprilia Tuono V4",
+    "Ducati Streetfighter V4",
+    "KTM 1290 Super Duke R",
+    "Triumph Speed Triple 1200",
+    "Suzuki Bandit 600"
+  ]
+}

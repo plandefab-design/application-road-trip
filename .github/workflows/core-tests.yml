@@ -1,0 +1,35 @@
+# Fast feedback on the business logic (Linux + Windows, no Mac minutes consumed).
+name: TripCore tests
+
+on:
+  push:
+    paths: ["core/**", ".github/workflows/core-tests.yml"]
+  pull_request:
+    paths: ["core/**"]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    container: swift:6.1-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: core
+        run: swift test
+
+  windows:
+    # FAB develops on Windows: keep TripCore portable. Non-blocking until the toolchain setup is proven.
+    runs-on: windows-2022
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.1-release
+          tag: 6.1-RELEASE
+      - name: swift test
+        working-directory: core
+        run: swift test

@@ -1,0 +1,48 @@
+# GraphHopper 11.0 — motorcycle routing for curvy roads.
+# Based on config-example.yml and the official motorcycle.json / curvature.json custom models.
+graphhopper:
+  datareader.file: ""
+  graph.location: /data/graph-cache
+  custom_models.directory: /opt/custom_models
+
+  graph.encoded_values: car_access, car_average_speed, road_access, road_class, road_environment, curvature, track_type, surface, max_speed, toll
+
+  profiles:
+    # Main profile: twisty roads first (tunable per request thanks to LM).
+    - name: moto_curvy
+      custom_model_files: [moto_curvy.json]
+    # Link profile: fastest road on the rare transfer stretches (plan B, return home).
+    - name: moto_fast
+      custom_model_files: [moto_fast.json]
+
+  # LM keeps per-request custom model changes possible (avoid motorway, curviness level…).
+  profiles_lm:
+    - profile: moto_curvy
+    - profile: moto_fast
+
+  # Elevation (ascent per day, SPEC §4.2). Enable once the first import works (spike S4):
+  # graph.elevation.provider: srtm
+  # graph.elevation.cache_dir: /data/srtm
+
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+  routing.non_ch.max_waypoint_distance: 1000000
+  import.osm.ignored_highways: footway,construction,cycleway,path,steps,bridleway,pedestrian
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 0.0.0.0     # inside the Docker network only (host port bound to 127.0.0.1)
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: localhost
+  request_log:
+    appenders: []
+
+logging:
+  appenders:
+    - type: console
+      time_zone: UTC

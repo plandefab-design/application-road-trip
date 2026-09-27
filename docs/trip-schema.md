@@ -1,0 +1,67 @@
+# trip.json — schéma v1 (format exact)
+
+Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est inclus dans la consigne du planner.
+
+Écart volontaire avec l'exemple de SPEC §6 : les coordonnées sont regroupées dans un objet `point`
+(`{"lat", "lon", "ele?"}`), et les repas/hébergements d'une étape référencent les POI par `poiId`.
+
+## Règles
+- Dates : `"yyyy-MM-dd"`. Distances en km, durées en minutes, altitudes en mètres.
+- `status` : `draft | proposed | validated | ready | active | done`.
+- `pois[].type` : `meal | lodging | fuel | pass | viewpoint`.
+- `pois[].verification` : `verified` **uniquement** si `source` contient une URL vérifiable ; sinon `unverified` (forcé par le PC et par l'iPhone).
+- Champs facultatifs : peuvent être omis. Listes absentes = listes vides.
+- `days[].index` commence à 1 et se suit.
+- `days[].fuelStops[].kmFromStart` : distance depuis le départ de l'étape ; écart entre deux pleins ≤ `params.maxFuelIntervalKm` et ≤ autonomie utile de la moto la plus limitante.
+- `days[].track` : géométrie de l'étape (liste de points) quand elle est connue ; sinon omis (le PC la calcule avec GraphHopper).
+
+## Exemple complet (valeurs fictives)
+```json
+{
+  "schemaVersion": 1,
+  "id": "3F2A0C1E-0000-0000-0000-000000000001",
+  "name": "Exemple",
+  "status": "proposed",
+  "params": {
+    "start": {"name": "Ville A", "point": {"lat": 43.50, "lon": 5.40}},
+    "end": null,
+    "dateStart": "2027-06-01",
+    "dateEnd": "2027-06-03",
+    "zone": ["FR-ALPES-SUD"],
+    "bikes": [{"id": "b1", "model": "Suzuki GSX-S1000", "rangeKm": 230, "reserveMarginPct": 15}],
+    "riders": "solo",
+    "luggage": false,
+    "maxKmPerDay": 300,
+    "style": 0.2,
+    "budgetPerDayEur": 150,
+    "mandatoryStops": [],
+    "constraints": "",
+    "roads": {"avoidMotorway": true, "avoidTrunk": true, "curvinessLevel": 5},
+    "maxFuelIntervalKm": 200
+  },
+  "days": [
+    {
+      "index": 1,
+      "date": "2027-06-01",
+      "distanceKm": 240,
+      "drivingTimeMin": 330,
+      "curvinessScore": 70,
+      "ascentM": 3500,
+      "highlights": [{"name": "Col X", "type": "pass", "point": {"lat": 44.1, "lon": 6.8}}],
+      "fuelStops": [{"name": "Station Y", "point": {"lat": 44.0, "lon": 6.5}, "kmFromStart": 150}],
+      "planBRefs": [],
+      "meals": [{"poiId": "poi-meal-1", "selected": false}],
+      "lodging": [{"poiId": "poi-hotel-1", "selected": false}]
+    }
+  ],
+  "pois": [
+    {"id": "poi-meal-1", "type": "meal", "name": "Auberge Z", "address": "…", "phone": "…",
+     "website": "https://…", "point": {"lat": 44.2, "lon": 6.7},
+     "source": "https://… (page consultée)", "verification": "verified", "verifiedAt": "2026-09-28",
+     "note": "horaires non confirmés"},
+    {"id": "poi-hotel-1", "type": "lodging", "name": "Hôtel W", "verification": "unverified"}
+  ],
+  "checklist": [{"id": "c1", "label": "Vérifier l'ouverture du col X", "due": "J-15", "done": false, "auto": true}],
+  "offlinePack": {"integrity": "unknown"}
+}
+```

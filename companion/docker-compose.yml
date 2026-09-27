@@ -1,0 +1,34 @@
+# PC companion — start once: `docker compose up -d --build`
+# Docker Desktop must be set to "Start when you sign in"; `restart: unless-stopped` brings
+# the services back after a reboot or a crash (automation A4).
+services:
+  graphhopper:
+    build: ./graphhopper
+    restart: unless-stopped
+    environment:
+      JAVA_OPTS: "-Xmx${GH_HEAP:-6g} -Xms1g"
+      GH_PBF: "/data/osm/region.osm.pbf"
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8989:8989"     # local only — exposed to the iPhone through the planner, never directly
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8989/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 30m           # first import of the OSM extract can be long
+
+  planner:
+    build: ./planner
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GRAPHHOPPER_URL: "http://graphhopper:8989"
+      DATA_DIR: "/data"
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8080:8080"     # published on the tailnet with: tailscale serve --bg 8080
+    depends_on:
+      - graphhopper

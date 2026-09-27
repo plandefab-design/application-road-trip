@@ -1,0 +1,95 @@
+# A1 — Build + tests + publication of the unsigned IPA, then SideStore source update (A2).
+name: iOS build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "distribution/**"
+      - "**.md"
+      - "companion/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15            # pinned — never macos-latest (CLAUDE.md)
+    timeout-minutes: 45
+    env:
+      XCODE_APP: /Applications/Xcode_16.4.app
+      VERSION: 1.0.${{ github.run_number }}
+      BUILD: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "$XCODE_APP"
+          xcodebuild -version
+
+      - name: TripCore tests
+        working-directory: core
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: app
+        run: xcodegen generate
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: app/.spm
+          key: spm-${{ runner.os }}-${{ hashFiles('app/project.yml') }}
+
+      - name: Archive (unsigned)
+        working-directory: app
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project MotoTrip.xcodeproj \
+            -scheme MotoTrip \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/MotoTrip.xcarchive \
+            -clonedSourcePackagesDirPath .spm \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tail -n 200
+
+      - name: Package IPA
+        run: |
+          mkdir -p dist/Payload
+          cp -R app/build/MotoTrip.xcarchive/Products/Applications/MotoTrip.app dist/Payload/
+          cd dist && zip -qry "MotoTrip-$VERSION.ipa" Payload
+          echo "IPA_SIZE=$(stat -f%z "MotoTrip-$VERSION.ipa")" >> "$GITHUB_ENV"
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: MotoTrip ${{ env.VERSION }}
+          files: dist/MotoTrip-${{ env.VERSION }}.ipa
+          body: "Build ${{ env.BUILD }} — commit ${{ github.sha }}. Installer via SideStore (source : distribution/source.json)."
+
+      - name: Update SideStore source
+        run: |
+          python3 scripts/update_source.py \
+            --source distribution/source.json \
+            --repo "${{ github.repository }}" \
+            --version "$VERSION" --build "$BUILD" --size "$IPA_SIZE" \
+            --url "https://github.com/${{ github.repository }}/releases/download/v$VERSION/MotoTrip-$VERSION.ipa"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add distribution/source.json
+          git commit -m "chore(distribution): MotoTrip $VERSION [skip ci]"
+          git push
