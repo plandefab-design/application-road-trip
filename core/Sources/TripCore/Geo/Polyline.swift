@@ -13,7 +13,7 @@ public struct PolylineMatch: Equatable, Sendable {
 }
 
 /// An ordered list of points with cached cumulative distances.
-public struct Polyline: Codable, Equatable, Sendable {
+public struct Polyline: Codable, Hashable, Sendable {
     public let points: [GeoPoint]
     /// cumulative[i] = distance from points[0] to points[i], metres.
     public let cumulative: [Double]
