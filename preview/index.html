@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MotoTrip — aperçu</title>
+<style>
+  :root{
+    --bg:#0e0f12; --panel:#17181d; --panel2:#1f2128; --line:#2a2d36; --text:#f2f2f4; --muted:#9a9dab;
+    --accent:#ff6b00; --green:#2ecc71; --red:#ff3b30; --blue:#3d8bff; --orange:#ff9f0a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(circle at 30% 20%,#23252d,#0a0b0d 70%);color:var(--text);
+       font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;min-height:100vh;
+       display:flex;gap:40px;align-items:center;justify-content:center;padding:24px;flex-wrap:wrap}
+  .side{max-width:320px;color:var(--muted);font-size:14px;line-height:1.55}
+  .side h1{color:var(--text);font-size:26px;margin-bottom:8px}
+  .side h1 span{color:var(--accent)}
+  .side .note{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#15161a}
+  .side b{color:var(--text)}
+  .side button{margin:4px 4px 0 0}
+  /* phone */
+  .phone{width:390px;height:844px;border-radius:54px;background:#000;padding:12px;
+         box-shadow:0 0 0 2px #333,0 30px 80px rgba(0,0,0,.6);position:relative;flex:none}
+  .screen{width:100%;height:100%;border-radius:44px;overflow:hidden;background:var(--bg);position:relative;display:flex;flex-direction:column}
+  .island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:120px;height:34px;background:#000;border-radius:20px;z-index:50}
+  .status{height:50px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 30px 6px;font-size:15px;font-weight:600;flex:none}
+  .view{flex:1;overflow-y:auto;display:none}
+  .view.active{display:block}
+  .view::-webkit-scrollbar{display:none}
+  .title{font-size:32px;font-weight:800;padding:8px 18px 12px;display:flex;justify-content:space-between;align-items:center}
+  .title .ic{font-size:20px;color:var(--accent);cursor:pointer}
+  .nav-bar{display:flex;align-items:center;gap:10px;padding:6px 14px;font-size:17px;font-weight:700}
+  .back{color:var(--accent);cursor:pointer;font-weight:500}
+  .card{background:var(--panel);border-radius:14px;margin:0 14px 12px;overflow:hidden}
+  .row{padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+  .row:last-child{border-bottom:none}
+  .row h3{font-size:16px;display:flex;justify-content:space-between;align-items:center}
+  .row p{font-size:13px;color:var(--muted);margin-top:3px}
+  .section{font-size:13px;text-transform:uppercase;color:var(--muted);margin:14px 30px 6px;letter-spacing:.3px}
+  .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .b-ready{background:#1f3b2a;color:var(--green)} .b-prop{background:#2b2d33;color:#b8bac4} .b-valid{background:#1d2c46;color:var(--blue)}
+  .v{color:var(--green);font-size:11px;font-weight:700} .nv{color:var(--orange);font-size:11px;font-weight:700}
+  .tabbar{height:82px;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding-top:8px;background:#121317;flex:none}
+  .tab{display:flex;flex-direction:column;align-items:center;font-size:11px;color:var(--muted);cursor:pointer;gap:3px}
+  .tab.on{color:var(--accent)}
+  .tab svg{width:26px;height:26px}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:12px 16px;font-size:16px;font-weight:700;cursor:pointer}
+  .btn.ghost{background:var(--panel2);color:var(--text)}
+  .btn.full{width:calc(100% - 28px);margin:6px 14px}
+  .field{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line);font-size:15px}
+  .field:last-child{border-bottom:none}
+  .field select,.field input[type=text],.field input[type=date]{background:transparent;border:none;color:var(--muted);font-size:15px;text-align:right;outline:none;max-width:60%}
+  .field select option{background:#222}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .toggle{width:50px;height:30px;border-radius:15px;background:#3a3c44;position:relative;cursor:pointer;flex:none;transition:.2s}
+  .toggle::after{content:"";position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;transition:.2s}
+  .toggle.on{background:var(--green)} .toggle.on::after{left:22px}
+  .q{color:var(--orange);font-size:13px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .ok{color:var(--green);font-size:13px;padding:10px 14px}
+  /* map */
+  .map{width:100%;display:block;background:#1b2a22}
+  /* chat */
+  .chat{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+  .msg{max-width:85%;padding:10px 12px;border-radius:14px;font-size:14px;line-height:1.4}
+  .msg.me{align-self:flex-end;background:rgba(255,107,0,.25)}
+  .msg.ai{align-self:flex-start;background:var(--panel2)}
+  .composer{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+  .composer input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:18px;padding:9px 12px;color:var(--text);outline:none}
+  /* navigation */
+  #v-nav{position:relative;background:#101a14}
+  #v-nav.active{display:flex;flex-direction:column}
+  .navmap{position:absolute;inset:0}
+  .top{position:relative;z-index:5;margin:6px 10px;border-radius:18px;padding:14px;display:flex;align-items:center;gap:14px;background:rgba(0,0,0,.82)}
+  .top.off{background:rgba(255,59,48,.92)}
+  .top .arrow{font-size:40px;font-weight:900;width:44px;text-align:center;transition:transform .3s}
+  .top .t1{font-size:21px;font-weight:800} .top .t2{font-size:16px;color:#ddd}
+  .speed{margin-left:auto;text-align:center} .speed b{font-size:38px;display:block;line-height:1}
+  .bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;padding:0 10px 14px}
+  .delay{display:inline-block;margin:0 0 8px;padding:6px 14px;border-radius:20px;font-weight:700;color:#000;font-size:15px}
+  .cards{display:flex;gap:8px}
+  .ncard{flex:1;background:rgba(0,0,0,.85);border-radius:16px;padding:10px 4px;text-align:center;min-height:98px}
+  .ncard .h{font-size:14px;font-weight:700} .ncard .d{font-size:22px;font-weight:800;margin-top:4px} .ncard .e{font-size:17px;font-variant-numeric:tabular-nums}
+  .ctrls{display:flex;gap:8px;margin-top:8px}
+  .ctrls div{flex:1;height:58px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;cursor:pointer;user-select:none}
+  .sos{background:var(--red);position:relative;overflow:hidden}
+  .sos .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.35)}
+  .quit{background:#555}
+  .toast{position:absolute;left:50%;top:120px;transform:translateX(-50%);background:rgba(0,0,0,.9);padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;display:none;max-width:320px;text-align:center}
+  .voice{position:absolute;left:14px;right:14px;top:110px;z-index:6;background:rgba(61,139,255,.95);padding:8px 12px;border-radius:12px;font-size:14px;display:none}
+  .simctl{position:absolute;right:10px;top:170px;z-index:7;display:flex;flex-direction:column;gap:6px}
+  .simctl span{background:rgba(0,0,0,.7);border:1px solid #444;border-radius:10px;padding:6px 8px;font-size:11px;cursor:pointer;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="side">
+  <h1>Moto<span>Trip</span> — aperçu</h1>
+  <p>Maquette interactive de l'application iPhone telle que codée dans <b>app/</b>. Les données sont <b>fictives</b> (démo) et la carte est stylisée.</p>
+  <p style="margin-top:10px">À tester :</p>
+  <p>• <b>Trips</b> → ouvre « Démo Alpes du Sud » → <b>Rouler</b><br>
+     • En navigation : accélère, sors du tracé, maintiens <b>SOS</b><br>
+     • <b>Créer</b> → formulaire → <b>Vérifier</b> → <b>Continuer avec Claude</b><br>
+     • <b>Réglages</b> → garage, companion</p>
+  <div class="note">Sur l'iPhone, la vraie app affiche la carte MapLibre (OpenStreetMap) et utilise le GPS. Ici le trajet est simulé : les distances, heures d'arrivée et le calcul de l'allure suivent la même logique que <b>TripCore</b>.</div>
+  <div class="note">Raccourcis :<br>
+    <button class="btn ghost" onclick="go('trips')">Trips</button>
+    <button class="btn ghost" onclick="openTrip()">Détail</button>
+    <button class="btn ghost" onclick="startNav()">Navigation</button>
+    <button class="btn ghost" onclick="go('create')">Créer</button>
+  </div>
+</div>
+
+<div class="phone"><div class="screen">
+  <div class="island"></div>
+  <div class="status"><span id="clock">09:41</span><span>●●●● 5G ▮</span></div>
+
+  <!-- TRIPS -->
+  <div class="view active" id="v-trips">
+    <div class="title">Mes trips <span class="ic" onclick="toast('Import d\'un trip.json ou d\'un GPX (Fichiers, AirDrop)')">⤓</span></div>
+    <div class="card">
+      <div class="row" onclick="openTrip()">
+        <h3>Démo Alpes du Sud <span class="badge b-ready">Prêt</span></h3>
+        <p>2027-06-12 → 2027-06-14 · 3 étape(s) · 612 km</p>
+      </div>
+      <div class="row" onclick="toast('Trip proposé par Claude — en attente de tes choix')">
+        <h3>Démo Provence <span class="badge b-prop">Proposé</span></h3>
+        <p>2027-05-08 → 2027-05-09 · 2 étape(s) · 390 km</p>
+      </div>
+      <div class="row" onclick="toast('Trip validé — pack hors ligne à télécharger')">
+        <h3>Démo Dolomites <span class="badge b-valid">Validé</span></h3>
+        <p>2027-07-03 → 2027-07-09 · 7 étape(s) · 1 840 km</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRIP DETAIL -->
+  <div class="view" id="v-trip">
+    <div class="nav-bar"><span class="back" onclick="go('trips')">‹ Trips</span><span style="flex:1;text-align:center">Démo Alpes du Sud</span><span class="btn" style="padding:6px 12px;font-size:14px" onclick="startNav()">Rouler</span></div>
+    <svg class="map" id="tripmap" viewBox="0 0 390 260"></svg>
+    <div class="section">Étapes</div>
+    <div class="card" id="days"></div>
+    <div class="section">Adresses</div>
+    <div class="card">
+      <div class="row"><h3>Auberge du Col (démo) <span class="v">vérifié</span></h3><p>Repas · jour 1 · source citée</p></div>
+      <div class="row"><h3>Hôtel des Lacets (démo) <span class="nv">non vérifié</span></h3><p>Hébergement · jour 1 · horaires non confirmés</p></div>
+      <div class="row"><h3>Refuge Belvédère (démo) <span class="v">vérifié</span></h3><p>Repas · jour 2 · source citée</p></div>
+    </div>
+    <div class="section">Préparation</div>
+    <div class="card">
+      <div class="row"><h3>○ Vérifier l'ouverture des cols <span class="badge b-prop">J-15</span></h3></div>
+      <div class="row"><h3>○ Rafraîchir SideStore <span class="badge b-prop">J-1</span></h3></div>
+      <div class="row"><h3>● Pack hors ligne vérifié <span class="badge b-ready">OK</span></h3></div>
+    </div>
+    <button class="btn ghost full" style="margin-bottom:20px" onclick="toast('GPX exporté : trace par jour + pleins, cols, repas, hôtels')">⤴ Exporter le GPX</button>
+  </div>
+
+  <!-- CREATE -->
+  <div class="view" id="v-create">
+    <div class="title">Nouveau trip</div>
+    <div class="section">Trip</div>
+    <div class="card">
+      <div class="field">Nom <input type="text" id="c-name" placeholder="ex. Aix-Stelvio"></div>
+      <div class="field">Départ <input type="text" id="c-start" placeholder="Ville"></div>
+      <div class="field">Boucle <div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="section">Période</div>
+    <div class="card">
+      <div class="field">Départ <input type="date" id="c-d1" value="2027-06-12"></div>
+      <div class="field">Retour <input type="date" id="c-d2" value="2027-06-14"></div>
+    </div>
+    <div class="section">Zone et moto</div>
+    <div class="card">
+      <div class="field">Zone <select id="c-zone"><option value="">Choisir</option><option>Alpes du Sud</option><option>Provence</option><option>Dolomites</option><option>Pyrénées</option><option>Corse</option></select></div>
+      <div class="field">Moto <select id="c-bike"><option value="">Choisir</option><option value="230">GSX-S1000 — 230 km</option><option value="160">Bandit 600 — 160 km</option></select></div>
+      <div class="field">Pilotes <select><option>Solo</option><option>Duo</option></select></div>
+      <div class="field">Bagagerie <div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="section">Rythme</div>
+    <div class="card">
+      <div class="field" style="flex-direction:column;align-items:stretch;gap:6px">Km/jour max : <b id="kmv">300</b><input type="range" min="100" max="500" step="10" value="300" id="c-km" oninput="kmv.textContent=this.value"></div>
+      <div class="field" style="flex-direction:column;align-items:stretch;gap:6px">Style : <b id="stv">conduite pure</b><input type="range" min="0" max="100" value="20" oninput="stv.textContent=this.value<34?'conduite pure':this.value<67?'équilibré':'contemplatif'"></div>
+      <div class="field">Sinuosité <select><option>5/5</option><option selected>4/5</option><option>3/5</option></select></div>
+      <div class="field">Exclure autoroutes <div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="card" id="checks" style="display:none"></div>
+    <button class="btn ghost full" onclick="checkForm()">Vérifier la cohérence</button>
+    <button class="btn full" style="margin-bottom:20px" onclick="startChat()">Continuer avec Claude</button>
+  </div>
+
+  <!-- CHAT -->
+  <div class="view" id="v-chat">
+    <div class="nav-bar"><span class="back" onclick="go('create')">‹ Créer</span><span style="flex:1;text-align:center" id="chat-title">Nouveau trip</span><span class="back" onclick="toast('Trip enregistré')">Enregistrer</span></div>
+    <svg class="map" id="chatmap" viewBox="0 0 390 200"></svg>
+    <div class="chat" id="chat"></div>
+    <div class="composer"><input id="chat-in" placeholder="Ajoute un col, change le déjeuner…" onkeydown="if(event.key==='Enter')sendChat()"><button class="btn" style="padding:8px 14px" onclick="sendChat()">➤</button></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="view" id="v-settings">
+    <div class="title">Réglages</div>
+    <div class="section">Garage</div>
+    <div class="card">
+      <div class="row"><h3>Suzuki GSX-S1000</h3><p>Autonomie 230 km · marge 15 % · utile 195 km</p></div>
+      <div class="row" onclick="toast('Modèle (liste) + autonomie réelle + marge de sécurité')"><h3 style="color:var(--accent)">Ajouter une moto</h3></div>
+    </div>
+    <div class="section">Pilote</div>
+    <div class="card">
+      <div class="field">Contact SOS <input type="text" value="Contact d'urgence"></div>
+      <div class="field">Km/jour par défaut <span style="color:var(--muted)">300</span></div>
+    </div>
+    <div class="section">Companion (PC via Tailscale)</div>
+    <div class="card">
+      <div class="field">URL <input type="text" value="https://mon-pc.xxxx.ts.net"></div>
+      <div class="field">Jeton <input type="text" value="••••••••••"></div>
+      <div class="row" onclick="testCompanion()"><h3 style="color:var(--accent)">Tester la connexion</h3><p id="health">Non testé</p></div>
+    </div>
+    <div class="section">Navigation</div>
+    <div class="card">
+      <div class="field">Guidage vocal <div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+      <div class="field">Annonces radar <div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      <div class="field">Clé TomTom <input type="text" placeholder="facultatif"></div>
+    </div>
+    <div class="section">État du système</div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="field">Coefficient d'allure (cols) <span style="color:var(--muted)" id="kcoef">1.00</span></div>
+      <div class="field">Version <span style="color:var(--muted)">1.0.1</span></div>
+    </div>
+  </div>
+
+  <!-- NAVIGATION -->
+  <div class="view" id="v-nav">
+    <svg class="navmap" id="navmap" viewBox="0 0 390 794" preserveAspectRatio="xMidYMid slice"></svg>
+    <div class="top" id="top">
+      <div class="arrow" id="arrow">↑</div>
+      <div><div class="t1" id="t1">Suivre le tracé</div><div class="t2" id="t2">Étape 1 · 214 km</div></div>
+      <div class="speed"><b id="spd">0</b>km/h</div>
+    </div>
+    <div class="voice" id="voice"></div>
+    <div class="simctl">
+      <span onclick="speedMul=speedMul>=8?1:speedMul*2;this.textContent='Vitesse ×'+speedMul">Vitesse ×1</span>
+      <span onclick="forceOff=!forceOff">Sortir du tracé</span>
+      <span onclick="paceBias=paceBias===1?0.75:1;this.textContent=paceBias===1?'Allure normale':'Allure lente'">Allure normale</span>
+    </div>
+    <div class="bottom">
+      <div class="delay" id="delay" style="background:var(--green)">Avance 0 min</div>
+      <div class="cards">
+        <div class="ncard"><div class="h">⛽ Plein</div><div class="d" id="f-d">—</div><div class="e" id="f-e"></div></div>
+        <div class="ncard"><div class="h">🍴 Arrêt</div><div class="d" id="s-d">—</div><div class="e" id="s-e"></div></div>
+        <div class="ncard"><div class="h">🏁 Fin</div><div class="d" id="e-d">—</div><div class="e" id="e-e"></div></div>
+      </div>
+      <div class="ctrls">
+        <div class="quit" id="quit" onclick="quitNav()">✕ Quitter</div>
+        <div class="sos" id="sos"><div class="fill" id="sosfill"></div><span style="position:relative">SOS (maintenir)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="tabbar" id="tabbar">
+    <div class="tab on" data-t="trips" onclick="go('trips')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>Trips</div>
+    <div class="tab" data-t="create" onclick="go('create')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Créer</div>
+    <div class="tab" data-t="settings" onclick="go('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Réglages</div>
+  </div>
+</div></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function go(v){
+  document.querySelectorAll('.view').forEach(e=>e.classList.remove('active'));
+  $('v-'+v).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t===v||(v==='trip'&&t.dataset.t==='trips')||(v==='chat'&&t.dataset.t==='create')));
+  $('tabbar').style.display = v==='nav' ? 'none' : 'flex';
+  if(v!=='nav') stopNav();
+}
+let toastT;
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>t.style.display='none',2600)}
+function fmtD(m){return m>=10000?Math.round(m/1000)+' km':m>=1000?(m/1000).toFixed(1).replace('.',',')+' km':Math.round(m/10)*10+' m'}
+function fmtT(d){return d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+
+/* ---------- synthetic twisty route (fictional) ---------- */
+function makeRoute(n, w, h, seed, wig=0.04, turns=5){
+  const pts=[]; let x=w*0.2, y=h*0.9;
+  for(let i=0;i<n;i++){
+    const t=i/n;
+    x = w*0.5 + Math.sin(t*Math.PI*turns+seed)*w*0.28 + Math.sin(t*Math.PI*23)*w*wig;
+    y = h*0.93 - t*h*0.86 + Math.cos(t*Math.PI*31)*h*0.012*(wig/0.04);
+    pts.push([x,y]);
+  }
+  return pts;
+}
+function pathD(p){return 'M'+p.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' L')}
+function terrain(svg,w,h){
+  let s=`<defs><radialGradient id="g1"><stop offset="0" stop-color="#2c3d31"/><stop offset="1" stop-color="#172219"/></radialGradient></defs>
+  <rect width="${w}" height="${h}" fill="#172219"/>`;
+  for(let i=0;i<9;i++){const cx=(i*97)%w, cy=(i*151)%h, r=60+(i*37)%90;
+    s+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#g1)" opacity=".7"/>`;
+    for(let k=1;k<4;k++) s+=`<circle cx="${cx}" cy="${cy}" r="${r*k/4}" fill="none" stroke="#2f4636" stroke-width=".8"/>`}
+  s+=`<path d="M0 ${h*0.62} C ${w*0.3} ${h*0.55}, ${w*0.6} ${h*0.75}, ${w} ${h*0.68}" stroke="#3b6ea5" stroke-width="3" fill="none" opacity=".6"/>`;
+  svg.innerHTML=s;
+}
+
+/* ---------- trip detail ---------- */
+const days=[
+  {i:1,km:214,min:285,c:82,a:4100,hl:'Col fictif A · Combe fictive',fuel:'Station démo (km 150)'},
+  {i:2,km:196,min:285,c:77,a:3600,hl:'Col fictif B · Gorges fictives',fuel:'Station démo (km 120)'},
+  {i:3,km:202,min:270,c:69,a:2900,hl:'Corniche fictive',fuel:'Station démo (km 160)'}
+];
+function openTrip(){
+  go('trip');
+  const svg=$('tripmap'); terrain(svg,390,260);
+  const cols=['#ff6b00','#ffa45c','#ffd0a8'];
+  days.forEach((d,k)=>{const r=makeRoute(160,130,240,k*1.3,0.01,3).map(p=>[p[0]+k*125+5,p[1]+10]);
+    svg.insertAdjacentHTML('beforeend',`<path d="${pathD(r)}" stroke="${cols[k]}" stroke-width="${k===0?5:3}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`)});
+  svg.insertAdjacentHTML('beforeend','<text x="10" y="252" font-size="9" fill="#8a9">© OpenStreetMap (dans l\'app)</text>');
+  $('days').innerHTML=days.map(d=>`<div class="row" onclick="startNav(${d.i})"><h3>Jour ${d.i} <span style="color:var(--accent);font-size:13px">Rouler ›</span></h3>
+   <p>${d.km} km · ${Math.floor(d.min/60)} h ${String(d.min%60).padStart(2,'0')} · sinuosité ${d.c}/100 · ${d.a} m D+</p>
+   <p style="color:var(--text)">${d.hl}</p><p>⛽ ${d.fuel}</p></div>`).join('');
+}
+
+/* ---------- create + chat ---------- */
+function checkForm(){
+  const q=[]; const km=+$('c-km').value;
+  if(!$('c-zone').value) q.push('Quelle zone veux-tu rouler ? (région, massif ou pays)');
+  if(!$('c-bike').value) q.push('Quelle moto ? L\'autonomie est nécessaire pour placer les pleins.');
+  else if(+$('c-bike').value*0.85<200) q.push(`Autonomie utile ≈ ${Math.round($('c-bike').value*0.85)} km : les pleins seront placés à cet intervalle au lieu de 200 km.`);
+  const d=(new Date($('c-d2').value)-new Date($('c-d1').value))/864e5+1;
+  if(d<1) q.push('La date de retour est avant la date de départ.');
+  if(km*d<400 && $('c-zone').value==='Dolomites') q.push(`${d} j × ${km} km : capacité faible pour les Dolomites depuis la Provence. Allonger la durée ou le km/jour ?`);
+  $('checks').style.display='block';
+  $('checks').innerHTML = q.length ? q.map(x=>`<div class="q">? ${x}</div>`).join('') : '<div class="ok">✓ Paramètres cohérents</div>';
+}
+let chatRoute=[];
+function startChat(){
+  $('chat-title').textContent=$('c-name').value||'Nouveau trip';
+  go('chat'); $('chat').innerHTML='';
+  terrain($('chatmap'),390,200);
+  addMsg('ai','Claude prépare l\'itinéraire…');
+  setTimeout(()=>{ $('chat').lastChild.remove();
+    addMsg('ai','Proposition (démo) : 3 étapes, ~610 km, uniquement des routes sinueuses. Jour 1 : 214 km, 2 cols, plein au km 150. Repas : 3 propositions, hébergement : 3 propositions — chacune avec sa source et son statut vérifié / non vérifié.');
+    drawChatRoute(0); },1400);
+}
+function drawChatRoute(extra){
+  const svg=$('chatmap'); svg.querySelectorAll('.r').forEach(e=>e.remove());
+  [0,1,2].forEach(k=>{const r=makeRoute(140,130,190,k*1.3+extra,0.01,3).map(p=>[p[0]+k*125+5,p[1]+5]);
+    svg.insertAdjacentHTML('beforeend',`<path class="r" d="${pathD(r)}" stroke="${k?'#ffa45c':'#ff6b00'}" stroke-width="${k?3:5}" fill="none" stroke-linecap="round"/>`)});
+}
+function addMsg(who,t){$('chat').insertAdjacentHTML('beforeend',`<div class="msg ${who}">${t}</div>`);$('v-chat').scrollTop=1e6}
+function sendChat(){const v=$('chat-in').value.trim(); if(!v) return; $('chat-in').value=''; addMsg('me',v);
+  setTimeout(()=>{addMsg('ai','C\'est ajusté (démo) : le tracé du jour 1 est modifié sur la carte. Les nouvelles adresses sont marquées « non vérifié » tant qu\'aucune source n\'est trouvée.'); drawChatRoute(Math.random()*2)},900)}
+function testCompanion(){$('health').textContent='Test…';setTimeout(()=>$('health').textContent='OK · routage ok · planner ok (démo)',800)}
+
+/* ---------- navigation simulation (mirrors TripCore NavigationComputer) ---------- */
+const DAY_M=214000, FUEL_AT=150000, LUNCH_AT=105000, LUNCH_S=75*60, FUEL_S=600;
+let navTimer=null, prog=0, speedMul=1, forceOff=false, paceBias=1, k=1, win={t:0,a:0,e:0}, offCount=0, isOff=false, simTime, startTime, spoken={};
+let navPts=[], navLen=[];
+function startNav(day){
+  go('nav');
+  const svg=$('navmap'); terrain(svg,390,794);
+  navPts=makeRoute(600,390,794,0.4);
+  navLen=[0]; for(let i=1;i<navPts.length;i++){const dx=navPts[i][0]-navPts[i-1][0],dy=navPts[i][1]-navPts[i-1][1];navLen.push(navLen[i-1]+Math.hypot(dx,dy))}
+  svg.insertAdjacentHTML('beforeend',`<path d="${pathD(navPts)}" stroke="#ff6b00" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".95"/>
+    <path id="done" d="" stroke="#777" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <g id="fuelm"></g><g id="me"><circle r="13" fill="#3d8bff" stroke="#fff" stroke-width="3"/><path d="M0 -7 L5 5 L0 2 L-5 5Z" fill="#fff"/></g>`);
+  const fp=ptAt(FUEL_AT/DAY_M), lp=ptAt(LUNCH_AT/DAY_M);
+  $('fuelm').innerHTML=`<circle cx="${fp[0]}" cy="${fp[1]}" r="11" fill="#111" stroke="#ff9f0a" stroke-width="2"/><text x="${fp[0]-6}" y="${fp[1]+5}" font-size="13">⛽</text>
+     <circle cx="${lp[0]}" cy="${lp[1]}" r="11" fill="#111" stroke="#2ecc71" stroke-width="2"/><text x="${lp[0]-6}" y="${lp[1]+5}" font-size="13">🍴</text>`;
+  prog=0;k=1;win={t:0,a:0,e:0};isOff=false;offCount=0;forceOff=false;spoken={};
+  startTime=new Date();startTime.setHours(9,0,0,0);simTime=new Date(startTime);
+  say('Navigation démarrée. Étape '+(day||1)+', 214 kilomètres.');
+  clearInterval(navTimer); navTimer=setInterval(tick,200);
+  setupSOS();
+}
+function stopNav(){clearInterval(navTimer);navTimer=null}
+function quitNav(){const q=$('quit'); if(q.dataset.c){delete q.dataset.c; q.textContent='✕ Quitter'; go('trip'); openTrip();} else {q.dataset.c=1;q.textContent='Appuie encore';setTimeout(()=>{delete q.dataset.c;q.textContent='✕ Quitter'},3000)}}
+function ptAt(f){const L=navLen[navLen.length-1]*Math.min(Math.max(f,0),1);let i=navLen.findIndex(v=>v>=L);if(i<=0)return navPts[0];const t=(L-navLen[i-1])/(navLen[i]-navLen[i-1]||1);return[navPts[i-1][0]+(navPts[i][0]-navPts[i-1][0])*t,navPts[i-1][1]+(navPts[i][1]-navPts[i-1][1])*t]}
+function say(t){const v=$('voice');v.textContent='🔊 '+t;v.style.display='block';clearTimeout(v._t);v._t=setTimeout(()=>v.style.display='none',3000)}
+
+function tick(){
+  const dt=1*speedMul*6;                         // simulated seconds per tick
+  const routing=45/3.6;                          // routing speed on curvy roads
+  const wobble=1+0.12*Math.sin(simTime/60000);
+  const v=routing*paceBias*wobble*(isOff?0.5:1);  // actual speed, m/s
+  // PaceEstimator: EMA(0.2) of actual/expected over 60 s windows, moving only, clamped 0.4…1.6
+  win.t+=dt;win.a+=v*dt;win.e+=routing*dt;
+  if(win.t>=60){k=Math.min(1.6,Math.max(0.4,k+0.2*(win.a/win.e-k)));win={t:0,a:0,e:0};$('kcoef').textContent=k.toFixed(2)}
+  simTime=new Date(simTime.getTime()+dt*1000);
+  if(!isOff) prog=Math.min(DAY_M,prog+v*dt);
+  // off-route detector: >40 m for 3 samples → off; recover after 2 samples
+  if(forceOff){offCount++; if(offCount>=3&&!isOff){isOff=true;say('Hors tracé. Rejoins l\'itinéraire.')}}
+  else if(isOff){offCount--; if(offCount<=0){isOff=false;offCount=0;say('Retour sur l\'itinéraire.')}}
+  else offCount=0;
+  render(v);
+  if(prog>=DAY_M){stopNav();say('Fin de l\'étape 1.')}
+}
+function eta(target){
+  const d=target-prog; if(d<=0) return null;
+  let t=d/(routing()*k);
+  if(LUNCH_AT>prog&&LUNCH_AT<target) t+=LUNCH_S;
+  if(FUEL_AT>prog&&FUEL_AT<target) t+=FUEL_S;
+  return {d, e:new Date(simTime.getTime()+t*1000)};
+}
+function routing(){return 45/3.6}
+function render(v){
+  const f=prog/DAY_M, p=ptAt(f), p2=ptAt(f+0.003);
+  const ang=Math.atan2(p2[0]-p[0],-(p2[1]-p[1]))*180/Math.PI;
+  const off=isOff?[18,-10]:[0,0];
+  $('me').setAttribute('transform',`translate(${p[0]+off[0]} ${p[1]+off[1]}) rotate(${ang})`);
+  const doneIdx=Math.floor(f*(navPts.length-1)); $('done').setAttribute('d',doneIdx>1?pathD(navPts.slice(0,doneIdx+1)):'');
+  // camera follow
+  const svg=$('navmap'); const cy=Math.min(Math.max(p[1]-420,0),794-794); svg.setAttribute('viewBox',`${p[0]-195} ${p[1]-470} 390 794`);
+  $('spd').textContent=Math.round(v*3.6);
+  $('t1').textContent=isOff?'Hors tracé':'Suivre le tracé';
+  $('t2').textContent=isOff?'Tracé à 60 m':'Étape 1 · reste '+fmtD(DAY_M-prog);
+  $('top').classList.toggle('off',isOff); $('arrow').style.transform=isOff?'rotate(-120deg)':'none';
+  const F=eta(FUEL_AT),S=eta(LUNCH_AT),E=eta(DAY_M);
+  $('f-d').textContent=F?fmtD(F.d):'—'; $('f-e').textContent=F?fmtT(F.e):'';
+  $('s-d').textContent=S?fmtD(S.d):'—'; $('s-e').textContent=S?fmtT(S.e):'';
+  $('e-d').textContent=E?fmtD(E.d):'—'; $('e-e').textContent=E?fmtT(E.e):'';
+  if(E){const planned=new Date(startTime.getTime()+(DAY_M/routing()+LUNCH_S+FUEL_S)*1000);const m=Math.round((E.e-planned)/60000);
+    const el=$('delay');el.textContent=m>0?`Retard ${m} min`:`Avance ${-m} min`;el.style.background=m>0?'var(--orange)':'var(--green)'}
+  if(F&&F.d<5000&&!spoken.f){spoken.f=1;say('Plein dans '+Math.max(1,Math.round(F.d/1000))+' kilomètres, station démo.')}
+  $('clock').textContent=fmtT(simTime);
+}
+function setupSOS(){
+  const s=$('sos'),fill=$('sosfill');let t0,raf;
+  const up=()=>{cancelAnimationFrame(raf);fill.style.width='0'};
+  s.onpointerdown=()=>{t0=performance.now();const step=()=>{const p=Math.min(1,(performance.now()-t0)/1500);fill.style.width=p*100+'%';
+     if(p>=1){up();toast('SMS prêt pour le contact SOS : « SOS moto — besoin d\'aide. Position : … lien carte »');} else raf=requestAnimationFrame(step)};raf=requestAnimationFrame(step)};
+  s.onpointerup=s.onpointerleave=up;
+}
+</script>
+</body>
+</html>

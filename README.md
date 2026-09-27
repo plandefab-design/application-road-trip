@@ -7,6 +7,7 @@ et les **suivre en temps réel** (navigation 100 % locale, sans IA, sans dépend
 - Consignes pour Claude Code : [CLAUDE.md](CLAUDE.md)
 - Format des trips : [docs/trip-schema.md](docs/trip-schema.md)
 - Avancement : [docs/STATUS.md](docs/STATUS.md)
+- **Aperçu de l'app sans iPhone** : double-clic sur [preview/index.html](preview/index.html) (maquette interactive, données fictives)
 
 ```
 app/          Application iOS (SwiftUI) — compilée dans le cloud (GitHub Actions)
