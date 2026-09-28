@@ -237,6 +237,37 @@ public struct PlanBRef: Codable, Hashable, Sendable {
     }
 }
 
+/// Maneuver kinds, mapped from GraphHopper instruction signs by the companion (schema v2).
+public enum Maneuver: String, Codable, CaseIterable, Sendable {
+    case depart, straight, slightLeft, slightRight, turnLeft, turnRight, sharpLeft, sharpRight
+    case keepLeft, keepRight, uTurn, roundabout, via, arrive
+
+    /// Tolerant: an unknown maneuver from a newer companion reads as `straight` instead of failing the whole trip.
+    public init(from decoder: Decoder) throws {
+        self = Maneuver(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .straight
+    }
+}
+
+/// One turn-by-turn instruction of a day, positioned along the day's track (schema v2).
+public struct TurnInstruction: Codable, Hashable, Sendable {
+    /// Distance from the start of the day's track to the maneuver, metres.
+    public var along: Double
+    public var maneuver: Maneuver
+    /// French text from the routing engine, e.g. « Tournez à gauche sur D943 ».
+    public var text: String
+    public var street: String?
+    /// Roundabout exit number.
+    public var exit: Int?
+
+    public init(along: Double, maneuver: Maneuver, text: String, street: String? = nil, exit: Int? = nil) {
+        self.along = along
+        self.maneuver = maneuver
+        self.text = text
+        self.street = street
+        self.exit = exit
+    }
+}
+
 public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     public var index: Int
     public var date: String?
@@ -253,13 +284,16 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     public var fuelStops: [FuelStopRef]
     public var meals: [POIChoice]
     public var lodging: [POIChoice]
+    /// Turn-by-turn guidance along `track` (schema v2; empty for GPX imports and v1 trips).
+    public var instructions: [TurnInstruction]
 
     public var id: Int { index }
 
     public init(index: Int, date: String? = nil, distanceKm: Double? = nil, drivingTimeMin: Double? = nil,
                 curvinessScore: Double? = nil, ascentM: Double? = nil, highlights: [Highlight] = [],
                 routeRef: String? = nil, track: Polyline? = nil, planBRefs: [PlanBRef] = [],
-                fuelStops: [FuelStopRef] = [], meals: [POIChoice] = [], lodging: [POIChoice] = []) {
+                fuelStops: [FuelStopRef] = [], meals: [POIChoice] = [], lodging: [POIChoice] = [],
+                instructions: [TurnInstruction] = []) {
         self.index = index
         self.date = date
         self.distanceKm = distanceKm
@@ -273,11 +307,12 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         self.fuelStops = fuelStops
         self.meals = meals
         self.lodging = lodging
+        self.instructions = instructions
     }
 
     enum CodingKeys: String, CodingKey {
         case index, date, distanceKm, drivingTimeMin, curvinessScore, ascentM, highlights, routeRef, track
-        case planBRefs, fuelStops, meals, lodging
+        case planBRefs, fuelStops, meals, lodging, instructions
     }
 
     /// Lenient: missing lists default to empty (planner output robustness).
@@ -296,6 +331,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         fuelStops = try c.decodeIfPresent([FuelStopRef].self, forKey: .fuelStops) ?? []
         meals = try c.decodeIfPresent([POIChoice].self, forKey: .meals) ?? []
         lodging = try c.decodeIfPresent([POIChoice].self, forKey: .lodging) ?? []
+        instructions = try c.decodeIfPresent([TurnInstruction].self, forKey: .instructions) ?? []
     }
 }
 
@@ -334,7 +370,8 @@ public struct OfflinePack: Codable, Hashable, Sendable {
 }
 
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
-    public static let currentSchemaVersion = 1
+    /// v2 (additive): `days[].instructions`. v1 files are migrated on decode.
+    public static let currentSchemaVersion = 2
 
     public var schemaVersion: Int
     public var id: String
@@ -395,6 +432,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1 → v2: only adds optional fields
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

@@ -1,11 +1,12 @@
-"""trip.json v1 helpers shared by the API and the planner (mirror of core/Sources/TripCore/Model/Trip.swift)."""
+"""trip.json helpers shared by the API and the planner (mirror of core/Sources/TripCore/Model/Trip.swift)."""
 from __future__ import annotations
 
 import json
 import re
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2          # v2 (additive): days[].instructions. v1 input is upgraded.
+ACCEPTED_VERSIONS = {1, 2}
 POI_TYPES = {"meal", "lodging", "fuel", "pass", "viewpoint"}
 STATUSES = {"draft", "proposed", "validated", "ready", "active", "done"}
 
@@ -26,7 +27,9 @@ def sanitize_trip(trip: dict[str, Any]) -> dict[str, Any]:
 def validate_trip(trip: dict[str, Any]) -> list[str]:
     """Minimal structural validation (the iPhone runs the full TripValidator)."""
     errors: list[str] = []
-    if trip.get("schemaVersion") != SCHEMA_VERSION:
+    if trip.get("schemaVersion") in ACCEPTED_VERSIONS:
+        trip["schemaVersion"] = SCHEMA_VERSION
+    else:
         errors.append(f"schemaVersion must be {SCHEMA_VERSION}")
     for key in ("id", "name", "status", "params"):
         if key not in trip:

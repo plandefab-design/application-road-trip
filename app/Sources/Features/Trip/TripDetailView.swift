@@ -30,8 +30,11 @@ struct TripDetailContent: View {
     @State private var traceProgress: String?
     @State private var traceMessage: String?
 
-    /// Days planned by Claude have no geometry until the PC computes it (needed to ride and export).
-    private var missingTracks: Bool { !trip.days.isEmpty && trip.days.contains { $0.track == nil } }
+    /// Days planned by Claude have no geometry (nor turn-by-turn) until the PC computes it. GPX imports
+    /// (no highlights) keep their own track: rerouting them would replace the rider's GPX.
+    private var missingTracks: Bool {
+        trip.days.contains { $0.track == nil || ($0.instructions.isEmpty && !$0.highlights.isEmpty) }
+    }
 
     /// Selected day if it can be ridden, else the first day that has a track.
     private var rideDay: TripDay? {
@@ -56,14 +59,14 @@ struct TripDetailContent: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
                 } footer: {
-                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal : pleins, arrêts, hors tracé, fin d'étape.")
+                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal virage par virage, pleins, hors tracé, fin d'étape.")
                 }
             }
 
             if missingTracks || tracing {
                 Section {
                     Button { Task { await computeTracks() } } label: {
-                        Label(tracing ? "Calcul du tracé en cours…" : "Calculer le tracé des étapes",
+                        Label(tracing ? "Calcul du tracé en cours…" : "Calculer le tracé et le guidage",
                               systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                     }
                     .disabled(tracing)
@@ -71,7 +74,7 @@ struct TripDetailContent: View {
                         ProgressView(traceProgress ?? "Localisation des lieux…").font(.caption)
                     }
                 } footer: {
-                    Text("Calculé par le PC (routes moto sinueuses). Nécessaire pour rouler et exporter le GPX ; ensuite la navigation n'a plus besoin du PC.")
+                    Text("Calculé par le PC (routes moto sinueuses, instructions virage par virage). Nécessaire pour rouler et exporter le GPX ; ensuite la navigation n'a plus besoin du PC.")
                 }
             }
 

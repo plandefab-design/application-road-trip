@@ -36,3 +36,11 @@ def test_validate_fills_defaults_and_checks_indexes():
 def test_prompt_contains_trip_and_message():
     p = build_prompt("Ajoute la Bonnette", {"id": "t"})
     assert "Ajoute la Bonnette" in p and '"id": "t"' in p
+
+
+def test_prompt_omits_geometry():
+    trip = {"id": "t", "days": [{"index": 1, "track": {"points": [{"lat": 1, "lon": 2}] * 50},
+                                 "instructions": [{"along": 0}], "highlights": [{"name": "Col"}]}]}
+    prompt = build_prompt("Salut", trip)
+    assert "track" not in prompt and "instructions" not in prompt and "Col" in prompt
+    assert "track" in trip["days"][0]   # original untouched

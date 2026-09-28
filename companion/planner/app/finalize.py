@@ -54,7 +54,7 @@ def distance_km(a: Point, b: Point) -> float:
     lat1, lat2 = math.radians(a["lat"]), math.radians(b["lat"])
     dlat, dlon = lat2 - lat1, math.radians(b["lon"] - a["lon"])
     h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
-    return 2 * 6371 * math.asin(math.sqrt(h))
+    return 2 * 6371.0088 * math.asin(math.sqrt(h))   # same radius as TripCore (Geo.earthRadius)
 
 
 MAX_HOP_KM = 200   # a waypoint farther than this from the previous one is a homonym, not the intended place
@@ -133,6 +133,38 @@ def graphhopper_router(base_url: str) -> Route:
     return route
 
 
+# GraphHopper instruction sign → trip.json maneuver (schema v2). Leaving a roundabout is silent.
+SIGN_TO_MANEUVER = {
+    -98: "uTurn", -8: "uTurn", 8: "uTurn", -7: "keepLeft", 7: "keepRight", -6: "straight", 6: "roundabout",
+    -3: "sharpLeft", -2: "turnLeft", -1: "slightLeft", 0: "straight", 1: "slightRight", 2: "turnRight",
+    3: "sharpRight", 4: "arrive", 5: "via",
+}
+
+
+def instructions_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
+    """Turn-by-turn list positioned by distance along the track (same haversine as TripCore)."""
+    coords = path.get("points", {}).get("coordinates", [])
+    cumulative = [0.0]
+    for (lon1, lat1, *_), (lon2, lat2, *_) in zip(coords, coords[1:]):
+        cumulative.append(cumulative[-1] + distance_km({"lat": lat1, "lon": lon1}, {"lat": lat2, "lon": lon2}) * 1000)
+    out: list[dict[str, Any]] = []
+    for n, ins in enumerate(path.get("instructions", []) or []):
+        start = (ins.get("interval") or [0])[0]
+        if not 0 <= start < len(cumulative):
+            continue
+        item: dict[str, Any] = {
+            "along": round(cumulative[start], 1),
+            "maneuver": "depart" if n == 0 else SIGN_TO_MANEUVER.get(ins.get("sign"), "straight"),
+            "text": ins.get("text", ""),
+        }
+        if ins.get("street_name"):
+            item["street"] = ins["street_name"]
+        if ins.get("exit_number"):
+            item["exit"] = ins["exit_number"]
+        out.append(item)
+    return out
+
+
 def _valid(point: Any) -> bool:
     return isinstance(point, dict) and isinstance(point.get("lat"), (int, float)) and isinstance(point.get("lon"), (int, float))
 
@@ -207,5 +239,6 @@ async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
         day["track"] = {"points": [{"lat": round(c[1], 6), "lon": round(c[0], 6)} for c in coords]}
         day["distanceKm"] = round(path.get("distance", 0) / 1000)
         day["drivingTimeMin"] = round(path.get("time", 0) / 60_000)
+        day["instructions"] = instructions_from_path(path)
         previous = waypoints[-1]
     return warnings

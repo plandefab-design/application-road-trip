@@ -54,6 +54,12 @@ struct NavigationView: View {
                     Text("Hors tracé").font(.title2.bold())
                     if let d = session.rejoinDistance { Text("Tracé à \(Format.distance(d))").font(.title3) }
                 }
+            } else if let turn = session.nextTurn {
+                Image(systemName: Self.symbol(for: turn.instruction.maneuver)).font(.system(size: 44, weight: .bold))
+                VStack(alignment: .leading) {
+                    Text(Format.distance(turn.distance)).font(.title.bold())
+                    Text(turn.instruction.text).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
+                }
             } else {
                 Image(systemName: "arrow.up").font(.system(size: 44, weight: .bold))
                 VStack(alignment: .leading) {
@@ -70,6 +76,19 @@ struct NavigationView: View {
         .padding(14)
         .foregroundStyle(.white)
         .background(session.offRoute ? Color.red.opacity(0.9) : Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    static func symbol(for maneuver: Maneuver) -> String {
+        switch maneuver {
+        case .depart, .straight, .via: "arrow.up"
+        case .slightLeft, .keepLeft: "arrow.up.left"
+        case .slightRight, .keepRight: "arrow.up.right"
+        case .turnLeft, .sharpLeft: "arrow.turn.up.left"
+        case .turnRight, .sharpRight: "arrow.turn.up.right"
+        case .uTurn: "arrow.uturn.down"
+        case .roundabout: "arrow.triangle.turn.up.right.circle"
+        case .arrive: "flag.checkered"
+        }
     }
 
     // MARK: Bottom cards (fuel · next stop · end of day)

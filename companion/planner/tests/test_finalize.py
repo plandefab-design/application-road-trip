@@ -108,3 +108,39 @@ def test_far_existing_point_is_located_again():
     t = trip([{"index": 1, "highlights": [{"name": "Col A", "point": {"lat": 48.0, "lon": 2.0}}]}])
     run(t, calls)
     assert t["days"][0]["highlights"][0]["point"] == KNOWN["Col A"]
+
+
+def test_instructions_positioned_along_the_track():
+    from app.finalize import instructions_from_path
+    # Synthetic straight line: 3 points about 1.11 km apart (0.01° of latitude).
+    path = {
+        "points": {"coordinates": [[5.0, 43.0], [5.0, 43.01], [5.0, 43.02]]},
+        "instructions": [
+            {"text": "Continuez sur D1", "sign": 0, "interval": [0, 1], "street_name": "D1"},
+            {"text": "Tournez à gauche sur D2", "sign": -2, "interval": [1, 2], "street_name": "D2"},
+            {"text": "Au rond-point, prenez la 2e sortie", "sign": 6, "interval": [1, 2], "exit_number": 2},
+            {"text": "Arrivée", "sign": 4, "interval": [2, 2]},
+            {"text": "Hors limites", "sign": 2, "interval": [9, 9]},
+        ],
+    }
+    out = instructions_from_path(path)
+    assert [i["maneuver"] for i in out] == ["depart", "turnLeft", "roundabout", "arrive"]
+    assert out[0]["along"] == 0 and out[0]["street"] == "D1"
+    assert 1_100 < out[1]["along"] < 1_125
+    assert out[2]["exit"] == 2
+    assert 2_200 < out[3]["along"] < 2_250
+
+
+def test_finalize_writes_instructions():
+    calls = []
+    t = trip([{"index": 1}])
+    run(t, calls)
+    assert t["days"][0]["instructions"] == []     # fake router returns no instructions
+
+
+def test_schema_v1_is_upgraded():
+    from app.trip_schema import validate_trip
+    t = {"schemaVersion": 1, "id": "t", "name": "n", "status": "draft", "params": {}}
+    assert validate_trip(t) == []
+    assert t["schemaVersion"] == 2
+    assert validate_trip({"schemaVersion": 7, "id": "t", "name": "n", "status": "draft", "params": {}})

@@ -4,7 +4,8 @@ import TripCore
 import UIKit
 
 /// Local, deterministic navigation for one day of a trip (no AI, no companion, no network required).
-/// Draft mode: "follow the track" guidance. Turn-by-turn (Ferrostar) is added in milestone M4.
+/// Turn-by-turn from the instructions stored in the trip (computed on the PC before departure);
+/// "follow the track" guidance when a day has none (GPX import).
 @MainActor
 final class NavigationSession: ObservableObject {
     @Published private(set) var snapshot: NavigationSnapshot?
@@ -13,6 +14,8 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var rejoinBearing: Double?
     @Published private(set) var speedKmh: Double = 0
     @Published private(set) var recorded: [GeoPoint] = []
+    /// Next maneuver and its distance, for the top banner (nil: no instructions, or none left).
+    @Published private(set) var nextTurn: (instruction: TurnInstruction, distance: Double)?
 
     let trip: Trip
     let day: TripDay
@@ -96,6 +99,14 @@ final class NavigationSession: ObservableObject {
             rejoinDistance = nil
             rejoinBearing = nil
             if wasOff { voice.say("Retour sur l'itinéraire.", key: "onroute", cooldown: 30) }
+        }
+
+        if !offRoute, !day.instructions.isEmpty {
+            let next = TurnGuide.next(day.instructions, progress: snap.progress)
+            nextTurn = next.map { (instruction: $0.instruction, distance: $0.distance) }
+            if let a = TurnGuide.announcement(day.instructions, progress: snap.progress, speed: max(0, fix.speed)) {
+                voice.say(a.text, key: a.key, cooldown: 3_600)
+            }
         }
 
         if let fuel = snap.nextFuel, fuel.distance < 5_000 {

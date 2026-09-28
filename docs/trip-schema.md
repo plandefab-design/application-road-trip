@@ -14,11 +14,16 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 - `days[].index` commence à 1 et se suit.
 - `days[].fuelStops[].kmFromStart` : distance depuis le départ de l'étape ; écart entre deux pleins ≤ `params.maxFuelIntervalKm` et ≤ autonomie utile de la moto la plus limitante.
 - `days[].track` : géométrie de l'étape (liste de points) quand elle est connue ; sinon omis (le PC la calcule avec GraphHopper).
+- `days[].instructions` (**v2**) : guidage virage par virage calculé par le PC avec la route, `[{"along": mètres depuis le début du tracé, "maneuver": depart|straight|slightLeft|slightRight|turnLeft|turnRight|sharpLeft|sharpRight|keepLeft|keepRight|uTurn|roundabout|via|arrive, "text": "Tournez à gauche sur D943", "street"?, "exit"?}]`. Jamais écrit par Claude.
+
+### Versions
+- **v2** : ajout de `days[].instructions` (optionnel). Un fichier v1 est lu tel quel et passe en v2 (aucun champ supprimé ni renommé).
+- v1 : version initiale.
 
 ## Exemple complet (valeurs fictives)
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "3F2A0C1E-0000-0000-0000-000000000001",
   "name": "Exemple",
   "status": "proposed",
