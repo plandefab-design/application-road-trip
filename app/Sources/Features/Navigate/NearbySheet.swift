@@ -73,7 +73,7 @@ struct NearbySheet: View {
     @State private var addressText = ""
     @State private var addressError: String?
     @StateObject private var completer = AddressCompleter()
-    @ObservedObject private var places = FavoritePlaces.shared
+    @ObservedObject private var saved = FavoritePlaces.shared
 
     /// « Aller à une adresse », like a classic GPS: favourites and recents in one tap, suggestions while typing
     /// (typing is meant for when stopped).
@@ -105,9 +105,9 @@ struct NearbySheet: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         if addressText.trimmingCharacters(in: .whitespaces).count < 2 {
-                            ForEach(places.favorites) { p in savedRow(p, icon: "star.fill", tint: .yellow) }
-                            ForEach(places.recents.filter { !places.isFavorite($0) }) { p in savedRow(p, icon: "clock.arrow.circlepath", tint: .secondary) }
-                            if places.favorites.isEmpty && places.recents.isEmpty {
+                            ForEach(saved.favorites) { p in savedRow(p, icon: "star.fill", tint: .yellow) }
+                            ForEach(saved.recents.filter { !saved.isFavorite($0) }) { p in savedRow(p, icon: "clock.arrow.circlepath", tint: .secondary) }
+                            if saved.favorites.isEmpty && saved.recents.isEmpty {
                                 Text("Tape une adresse : des suggestions s'affichent. Touche ☆ pour l'ajouter aux favoris.")
                                     .font(.caption).foregroundStyle(.secondary).padding(.vertical, 8)
                             }
@@ -138,8 +138,8 @@ struct NearbySheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            Button { places.toggleFavorite(p) } label: {
-                Image(systemName: places.isFavorite(p) ? "star.fill" : "star").foregroundStyle(.yellow)
+            Button { saved.toggleFavorite(p) } label: {
+                Image(systemName: saved.isFavorite(p) ? "star.fill" : "star").foregroundStyle(.yellow)
             }
             .buttonStyle(.plain)
         }
@@ -158,7 +158,7 @@ struct NearbySheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            Button { Task { if let p = await resolve(s) { places.toggleFavorite(p) } } } label: {
+            Button { Task { if let p = await resolve(s) { saved.toggleFavorite(p) } } } label: {
                 Image(systemName: "star").foregroundStyle(.yellow)
             }
             .buttonStyle(.plain)
@@ -188,7 +188,7 @@ struct NearbySheet: View {
             addressError = "Position GPS indisponible."
             return
         }
-        places.addRecent(p)
+        saved.addRecent(p)
         routing = p.name
         let route = NearbySearch.withAlerts(await NearbySearch.route(to: p.point, name: p.name, from: from))
         routing = nil
