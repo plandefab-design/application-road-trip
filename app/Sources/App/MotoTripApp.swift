@@ -23,14 +23,24 @@ struct MotoTripApp: App {
 }
 
 struct RootView: View {
+    enum Tab: Hashable { case home, trips, create, settings }
+    @State private var tab: Tab = .home
+
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
+            HomeView(tab: $tab)
+                .tabItem { Label("Accueil", systemImage: "house.fill") }
+                .tag(Tab.home)
             TripsListView()
-                .tabItem { Label("Trips", systemImage: "map") }
+                .tabItem { Label("Trips", systemImage: "map.fill") }
+                .tag(Tab.trips)
             CreateTripView()
-                .tabItem { Label("Créer", systemImage: "plus.circle") }
+                .tabItem { Label("Créer", systemImage: "sparkles") }
+                .tag(Tab.create)
             SettingsView()
-                .tabItem { Label("Réglages", systemImage: "gearshape") }
+                .tabItem { Label("Réglages", systemImage: "gearshape.fill") }
+                .tag(Tab.settings)
         }
+        .tint(.orange)
     }
 }
