@@ -13,6 +13,15 @@
       "tintColor": "FF6B00",
       "versions": [
         {
+          "version": "1.0.17",
+          "buildVersion": "17",
+          "date": "2026-09-28T10:03:08Z",
+          "localizedDescription": "Build 17",
+          "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.17/MotoTrip-1.0.17.ipa",
+          "size": 3906064,
+          "minOSVersion": "17.0"
+        },
+        {
           "version": "1.0.16",
           "buildVersion": "16",
           "date": "2026-09-28T09:58:36Z",
@@ -46,15 +55,6 @@
           "localizedDescription": "Build 11",
           "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.11/MotoTrip-1.0.11.ipa",
           "size": 3832239,
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.10",
-          "buildVersion": "10",
-          "date": "2026-09-28T09:31:51Z",
-          "localizedDescription": "Build 10",
-          "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.10/MotoTrip-1.0.10.ipa",
-          "size": 3808424,
           "minOSVersion": "17.0"
         }
       ],
