@@ -40,12 +40,22 @@ public enum AlertGuide {
         let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(distance))
         switch alert.kind {
         case .speedCamera, .sectionCamera:
+            // Label from the source: « radar », « radar discriminant », « zone de radar itinérant », « radar tronçon »…
+            let fallback = alert.kind == .sectionCamera ? "radar tronçon" : "radar"
+            let label = alert.label.lowercased().contains("radar") ? alert.label : fallback
             let limit = alert.maxspeed.map { ", limité à \($0)" } ?? ""
-            return "\(alert.kind == .sectionCamera ? "Radar tronçon" : "Radar") \(when)\(limit)"
+            return "\(sentenceCase(label)) \(when)\(limit)"
         case .redLightCamera:
-            return "Radar feu rouge \(when)"
+            return "\(sentenceCase(alert.label.lowercased().contains("radar") ? alert.label : "radar feu rouge")) \(when)"
         case .hazard:
             return "Attention, \(alert.label) \(when)"
         }
+    }
+}
+
+extension AlertGuide {
+    static func sentenceCase(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return first.uppercased() + s.dropFirst()
     }
 }

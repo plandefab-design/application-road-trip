@@ -135,7 +135,7 @@ def alerts_along(track: list[dict[str, float]], cameras: list[dict[str, Any]],
             along, offset = _project(track, f["lat"], f["lon"])
             if offset > MAX_OFFSET_M:
                 continue
-            alert = make(f["props"])
+            alert = dict(f["alert"]) if "alert" in f else make(f["props"])
             alert["along"] = round(along, 1)
             alert["point"] = {"lat": round(f["lat"], 6), "lon": round(f["lon"], 6)}
             out.append(alert)

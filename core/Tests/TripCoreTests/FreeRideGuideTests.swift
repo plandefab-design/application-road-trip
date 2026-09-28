@@ -57,3 +57,24 @@ final class FreeRideGuideTests: XCTestCase {
         XCTAssertFalse(spoken.contains("free-1") || spoken.contains("free-2"))  // parallel road, camera behind
     }
 }
+
+final class AlertPackLabelTests: XCTestCase {
+    func testOfficialLabelsAndKinds() throws {
+        let json = #"{"version":"8","cameras":[[43.0,5.0,null,2,"radar tronçon"],[43.1,5.0,90,0,"zone de radar itinérant"],[43.2,5.0,null,1,"radar passage à niveau"]],"hazards":[]}"#
+        let alerts = try JSONDecoder().decode(AlertPack.self, from: Data(json.utf8)).alerts
+        XCTAssertEqual(alerts.map(\.alert.kind), [.sectionCamera, .speedCamera, .redLightCamera])
+        XCTAssertEqual(AlertGuide.text(for: alerts[0].alert, distance: 500), "Radar tronçon dans 500 mètres")
+        XCTAssertEqual(AlertGuide.text(for: alerts[1].alert, distance: 500), "Zone de radar itinérant dans 500 mètres, limité à 90")
+        XCTAssertEqual(AlertGuide.text(for: alerts[2].alert, distance: 300), "Radar passage à niveau dans 300 mètres")
+    }
+
+    func testNearbyForTheMap() {
+        let guide = FreeRideGuide(alerts: [
+            PositionedAlert(point: GeoPoint(lat: 43.0, lon: 5.01), alert: RoadAlert(along: 0, kind: .speedCamera, label: "radar")),
+            PositionedAlert(point: GeoPoint(lat: 43.2, lon: 5.0), alert: RoadAlert(along: 0, kind: .hazard, label: "verglas")),
+        ])
+        let near = guide.near(GeoPoint(lat: 43.0, lon: 5.0), radius: 3_000)
+        XCTAssertEqual(near.count, 1)                      // behind or ahead: all around, within 3 km
+        XCTAssertEqual(near[0].alert.label, "radar")
+    }
+}

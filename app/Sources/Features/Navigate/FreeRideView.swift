@@ -18,6 +18,7 @@ struct FreeRideView: View {
     var body: some View {
         ZStack {
             TripMapView(content: MapContent(lines: [.init(id: "ride", points: session.trackPreview, highlighted: true)],
+                                            alerts: session.nearbyAlerts,
                                             followUser: true))
                 .ignoresSafeArea()
             VStack(spacing: 8) {
@@ -73,7 +74,7 @@ struct FreeRideView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.gray)
-            SOSButton(name: settings.sosName, phone: settings.sosPhone, position: nil)
+            SOSButton(name: settings.sosName, phone: settings.sosPhone, position: session.trackPreview.last)
         }
     }
 }

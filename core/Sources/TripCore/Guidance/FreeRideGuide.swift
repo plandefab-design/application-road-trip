@@ -21,10 +21,12 @@ public struct AlertPack: Codable, Equatable, Sendable {
         out.reserveCapacity(cameras.count + hazards.count)
         for row in cameras {
             guard row.count >= 2, let lat = row[0].number, let lon = row[1].number else { continue }
-            let red = row.count > 3 && row[3].number == 1
+            let code = row.count > 3 ? Int(row[3].number ?? 0) : 0
+            let kind: RoadAlertKind = code == 1 ? .redLightCamera : code == 2 ? .sectionCamera : .speedCamera
+            let fallback = kind == .redLightCamera ? "radar feu rouge" : kind == .sectionCamera ? "radar tronçon" : "radar"
             out.append(PositionedAlert(point: GeoPoint(lat: lat, lon: lon),
-                                       alert: RoadAlert(along: 0, kind: red ? .redLightCamera : .speedCamera,
-                                                        label: red ? "radar feu rouge" : "radar",
+                                       alert: RoadAlert(along: 0, kind: kind,
+                                                        label: (row.count > 4 ? row[4].text : nil) ?? fallback,
                                                         maxspeed: row.count > 2 ? row[2].number.map { Int($0) } : nil)))
         }
         for row in hazards {
@@ -109,6 +111,22 @@ public struct FreeRideGuide: Sendable {
             }
         }
         return out.sorted { $0.2 < $1.2 }.map { (index: $0.0, alert: $0.1, distance: $0.2) }
+    }
+
+    /// Alerts within `radius` metres whatever the direction (map display), nearest first.
+    public func near(_ position: GeoPoint, radius: Double = 3_000) -> [PositionedAlert] {
+        let span = Int64((radius / 111_000 / Self.cell).rounded(.up))
+        let cLat = Int64((position.lat / Self.cell).rounded(.down)), cLon = Int64((position.lon / Self.cell).rounded(.down))
+        var out: [(PositionedAlert, Double)] = []
+        for dLat in -span...span {
+            for dLon in -span...span {
+                for i in grid[(cLat + dLat) * 100_000 + cLon + dLon] ?? [] {
+                    let d = Geo.distance(position, alerts[i].point)
+                    if d <= radius { out.append((alerts[i], d)) }
+                }
+            }
+        }
+        return out.sorted { $0.1 < $1.1 }.map(\.0)
     }
 
     /// Spoken warnings due now: cameras at 500 m then 150 m, hazards at 300 m. Keys are unique per alert and phase.

@@ -167,7 +167,7 @@ def test_alert_pack(client, tmp_path):
     (osm / "hazards.geojsonseq").write_text(json.dumps({"type": "Feature", "geometry": {"type": "Point", "coordinates": [5.2, 43.7]},
                                                        "properties": {"hazard": "falling_rocks"}}) + "\n", encoding="utf-8")
     pack = client.get("/alerts-pack", headers=AUTH).json()
-    assert pack["cameras"] == [[43.6, 5.1, 80, 0]]
+    assert pack["cameras"] == [[43.6, 5.1, 80, 0, "radar"]]
     assert pack["hazards"] == [[43.7, 5.2, "chutes de pierres"]]
     assert pack["version"] == client.get("/alerts-pack/version", headers=AUTH).json()["version"] != ""
     assert client.get("/alerts-pack").status_code == 401

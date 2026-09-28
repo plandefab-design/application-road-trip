@@ -246,20 +246,38 @@ struct NavigationView: View {
     }
 }
 
-/// SOS: long press (1.5 s) opens Messages with the position pre-filled. No server involved.
+/// SOS: long press (1.5 s) CALLS the SOS contact; the small button sends the position by SMS. No server involved.
 struct SOSButton: View {
     let name: String
     let phone: String
     let position: GeoPoint?
 
     var body: some View {
-        Label("SOS (maintenir)", systemImage: "sos")
-            .font(.title3.bold())
-            .frame(maxWidth: .infinity, minHeight: 60)
-            .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
-            .foregroundStyle(.white)
-            .onLongPressGesture(minimumDuration: 1.5) { send() }
-            .opacity(phone.isEmpty ? 0.4 : 1)
+        HStack(spacing: 6) {
+            Label(name.isEmpty ? "SOS (maintenir)" : "SOS \(name)", systemImage: "phone.fill")
+                .font(.title3.bold())
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(.white)
+                .onLongPressGesture(minimumDuration: 1.5) { call() }
+            Button { send() } label: {
+                Image(systemName: "message.fill").font(.title3.bold()).frame(width: 52, height: 60)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red.opacity(0.75))
+            .accessibilityLabel("Envoyer ma position par SMS")
+        }
+        .opacity(phone.isEmpty ? 0.4 : 1)
+        .disabled(phone.isEmpty)
+    }
+
+    private var number: String { phone.filter { "+0123456789".contains($0) } }
+
+    /// Phone call to the SOS contact (iOS asks for a single confirmation tap).
+    private func call() {
+        guard !number.isEmpty, let url = URL(string: "tel:\(number)") else { return }
+        UIApplication.shared.open(url)
     }
 
     private func send() {
@@ -269,7 +287,6 @@ struct SOSButton: View {
             body += String(format: " Position : %.5f, %.5f https://www.openstreetmap.org/?mlat=%.5f&mlon=%.5f#map=16/%.5f/%.5f",
                            p.lat, p.lon, p.lat, p.lon, p.lat, p.lon)
         }
-        let number = phone.filter { "+0123456789".contains($0) }
         var comps = URLComponents()
         comps.scheme = "sms"
         comps.path = number

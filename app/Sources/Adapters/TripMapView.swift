@@ -11,6 +11,10 @@ struct MapContent: Equatable {
         let points: [GeoPoint]
         let highlighted: Bool
     }
+    struct AlertDot: Equatable {
+        let point: GeoPoint
+        let isCamera: Bool
+    }
     struct Marker: Equatable {
         let id: String
         let point: GeoPoint
@@ -19,6 +23,8 @@ struct MapContent: Equatable {
     }
     var lines: [Line] = []
     var markers: [Marker] = []
+    /// Speed cameras (red) and hazards (orange), drawn as dots in their own layers.
+    var alerts: [AlertDot] = []
     /// true = follow the rider with heading-up camera (navigation mode).
     var followUser = false
 }
@@ -35,6 +41,9 @@ extension MapContent {
             }
             for h in day.highlights {
                 if let p = h.point { c.markers.append(.init(id: "hl-\(day.index)-\(h.name)", point: p, title: "⛰ \(h.name)", subtitle: nil)) }
+            }
+            for a in day.alerts {
+                if let p = a.point { c.alerts.append(.init(point: p, isCamera: a.kind.isCamera)) }
             }
         }
         for poi in trip.pois {
@@ -98,6 +107,28 @@ struct TripMapView: UIViewRepresentable {
                 layer.lineWidth = NSExpression(forConstantValue: line.highlighted ? 6 : 3)
                 layer.lineCap = NSExpression(forConstantValue: "round")
                 layer.lineJoin = NSExpression(forConstantValue: "round")
+                style.addLayer(layer)
+            }
+
+            // Speed cameras and hazards: dots in two layers (constant colors, no expression needed).
+            for id in ["mt-alerts-cam", "mt-alerts-haz"] {
+                if let layer = style.layer(withIdentifier: id) { style.removeLayer(layer) }
+                if let source = style.source(withIdentifier: id) { style.removeSource(source) }
+            }
+            for (id, isCamera, color) in [("mt-alerts-cam", true, UIColor.systemRed), ("mt-alerts-haz", false, UIColor.systemOrange)] {
+                let features: [MLNPointFeature] = content.alerts.filter { $0.isCamera == isCamera }.map { a in
+                    let f = MLNPointFeature()
+                    f.coordinate = CLLocationCoordinate2D(latitude: a.point.lat, longitude: a.point.lon)
+                    return f
+                }
+                guard !features.isEmpty else { continue }
+                let source = MLNShapeSource(identifier: id, features: features, options: nil)
+                style.addSource(source)
+                let layer = MLNCircleStyleLayer(identifier: id, source: source)
+                layer.circleColor = NSExpression(forConstantValue: color)
+                layer.circleRadius = NSExpression(forConstantValue: 6)
+                layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                layer.circleStrokeWidth = NSExpression(forConstantValue: 2)
                 style.addLayer(layer)
             }
 

@@ -12,6 +12,8 @@ final class FreeRideSession: ObservableObject {
     @Published private(set) var startedAt = Date()
     @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
     @Published private(set) var trackPreview: [GeoPoint] = [] // refreshed every 15 fixes (map)
+    /// Cameras and hazards within 3 km, for the map (refreshed with the track preview).
+    @Published private(set) var nearbyAlerts: [MapContent.AlertDot] = []
     let hasPack: Bool
 
     private var points: [GeoPoint] = []
@@ -57,7 +59,12 @@ final class FreeRideSession: ObservableObject {
         times.append(fix.time)
         speeds.append(fix.speed)
         speedKmh = max(0, fix.speed) * 3.6
-        if points.count % 15 == 0 { trackPreview = points }
+        if points.count % 15 == 0 || points.count == 1 {
+            trackPreview = points
+            nearbyAlerts = (guide?.near(fix.point) ?? [])
+                .filter { camerasEnabled || !$0.alert.kind.isCamera }
+                .map { MapContent.AlertDot(point: $0.point, isCamera: $0.alert.kind.isCamera) }
+        }
 
         // GPS course is only meaningful when moving.
         let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil

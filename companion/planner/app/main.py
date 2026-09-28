@@ -1,11 +1,13 @@
 """MotoTrip companion API — reachable only through Tailscale (`tailscale serve --bg 8080`) + bearer token."""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 import secrets
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -16,13 +18,22 @@ from pydantic import BaseModel, Field
 from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
 from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
+from .radar_sources import merged_cameras, official_fr, refresh_loop
 from .trip_schema import sanitize_trip, validate_trip
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
 GRAPHHOPPER_URL = os.environ.get("GRAPHHOPPER_URL", "http://localhost:8989")
 TRIP_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
-app = FastAPI(title="MotoTrip companion", version="0.1.0")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Official French speed cameras refreshed every 24 h in the background (never blocks the API).
+    task = asyncio.create_task(refresh_loop(DATA_DIR))
+    yield
+    task.cancel()
+
+
+app = FastAPI(title="MotoTrip companion", version="0.1.0", lifespan=lifespan)
 planner = Planner(DATA_DIR)
 
 
@@ -110,9 +121,15 @@ def list_rides() -> list[str]:
 
 # ---------------------------------------------------------------- offline alert pack (free ride)
 
+def all_cameras() -> list[dict[str, Any]]:
+    """Official French list + OpenStreetMap, merged (see radar_sources)."""
+    return merged_cameras(load_features(DATA_DIR / "osm" / "speed_cameras.geojsonseq"), official_fr(DATA_DIR), camera_alert)
+
+
 def alert_pack_version() -> str:
     osm = DATA_DIR / "osm"
-    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq") if (osm / f).exists()]
+    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq", "radars_fr.json")
+              if (osm / f).exists()]
     return str(max(stamps)) if stamps else ""
 
 
@@ -126,9 +143,11 @@ def get_alert_pack() -> dict[str, Any]:
     """Every speed camera and hazard of the map, compact, for riding without an itinerary (stored on the iPhone)."""
     osm = DATA_DIR / "osm"
     cameras = []
-    for f in load_features(osm / "speed_cameras.geojsonseq"):
-        a = camera_alert(f["props"])
-        cameras.append([round(f["lat"], 5), round(f["lon"], 5), a.get("maxspeed"), 1 if a["kind"] == "redLightCamera" else 0])
+    kind_code = {"speedCamera": 0, "redLightCamera": 1, "sectionCamera": 2}
+    for f in all_cameras():
+        a = f["alert"]
+        # [lat, lon, maxspeed|null, 0 speed / 1 red light / 2 section, label]
+        cameras.append([round(f["lat"], 5), round(f["lon"], 5), a.get("maxspeed"), kind_code.get(a["kind"], 0), a["label"]])
     hazards = [[round(f["lat"], 5), round(f["lon"], 5), hazard_alert(f["props"])["label"]]
                for f in load_features(osm / "hazards.geojsonseq")]
     return {"version": alert_pack_version(), "cameras": cameras, "hazards": hazards}
@@ -189,7 +208,7 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
     if not trip.get("days"):
         return ""
     osm = DATA_DIR / "osm"
-    cameras, hazards = load_features(osm / "speed_cameras.geojsonseq"), load_features(osm / "hazards.geojsonseq")
+    cameras, hazards = all_cameras(), load_features(osm / "hazards.geojsonseq")
     fuel = load_features(osm / "fuel_stations.geojsonseq")
     pause_spots = load_features(osm / "pauses.geojsonseq")
     params = trip.get("params") or {}
