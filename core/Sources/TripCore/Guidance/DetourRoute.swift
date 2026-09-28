@@ -9,6 +9,8 @@ public struct DetourRoute: Equatable, Sendable {
     public let instructions: [TurnInstruction]
     /// false = no route available (offline): straight line, direction only.
     public let isRoad: Bool
+    /// Cameras and hazards on this route (from the iPhone's latest pack), announced along it.
+    public var alerts: [RoadAlert] = []
 
     public init(name: String, destination: GeoPoint, track: Polyline, instructions: [TurnInstruction], isRoad: Bool) {
         self.name = name
@@ -54,7 +56,7 @@ public struct DetourRoute: Equatable, Sendable {
 
         public init(route: DetourRoute) { self.route = route }
 
-        public mutating func update(position: GeoPoint, speed: Double) -> Update {
+        public mutating func update(position: GeoPoint, speed: Double, cameras: Bool = true) -> Update {
             let direct = Geo.distance(position, route.destination)
             var remaining = direct
             if route.isRoad, let m = route.track.locate(position, hint: progress, window: 3_000) ?? route.track.locate(position) {
@@ -64,6 +66,11 @@ public struct DetourRoute: Equatable, Sendable {
             // Keys prefixed so they never collide with the trip's own announcements.
             var announcements = TurnGuide.announcement(route.instructions, progress: progress, speed: speed)
                 .map { [TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text)] } ?? []
+            // Cameras and hazards positioned along this route (500 m / 150 m / 300 m like on a trip).
+            if route.isRoad {
+                announcements += AlertGuide.announcements(route.alerts, progress: progress, cameras: cameras)
+                    .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text) }
+            }
             if !arrived && (direct < 50 || (route.isRoad && remaining < 30)) {
                 arrived = true
                 announcements.append(.init(key: "detour-arrived", text: "Vous êtes arrivé : \(route.name)."))

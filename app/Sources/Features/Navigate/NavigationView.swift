@@ -105,7 +105,12 @@ struct NavigationView: View {
         c.lines = c.lines.filter { $0.id == "day\(session.day.index)" }
         c.followUser = true
         c.recenter = recenter
-        c.detour = (session.detour ?? session.rejoin)?.route.track.points ?? []
+        let extra = session.detour ?? session.rejoin
+        c.detour = extra?.route.track.points ?? []
+        // Up-to-date cameras and hazards: the day's (merged with the latest pack) and the detour's.
+        c.alerts = (session.alerts + (extra?.route.alerts ?? []))
+            .filter { settings.radarAnnouncements || !$0.kind.isCamera }
+            .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
         return c
     }
 

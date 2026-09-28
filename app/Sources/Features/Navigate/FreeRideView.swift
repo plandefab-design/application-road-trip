@@ -12,8 +12,14 @@ struct FreeRideView: View {
     private let location: LocationService
     private let onFinished: (RideLog?) -> Void
 
-    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, onFinished: @escaping (RideLog?) -> Void) {
+    /// true = opened from « Aller à une adresse »: the address field is shown right away.
+    private let startWithAddress: Bool
+    @State private var askAddress = false
+
+    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, startWithAddress: Bool = false,
+         onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
+        self.startWithAddress = startWithAddress
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled,
                                                              location: location, voice: voice))
@@ -22,7 +28,9 @@ struct FreeRideView: View {
     var body: some View {
         ZStack {
             TripMapView(content: MapContent(lines: [.init(id: "ride", points: session.trackPreview, highlighted: true)],
-                                            alerts: session.nearbyAlerts,
+                                            alerts: session.nearbyAlerts + (session.detour?.route.alerts ?? [])
+                                                .filter { settings.radarAnnouncements || !$0.kind.isCamera }
+                                                .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } },
                                             followUser: true, recenter: recenter,
                                             detour: session.detour?.route.track.points ?? []))
                 .ignoresSafeArea()
@@ -62,13 +70,20 @@ struct FreeRideView: View {
             .padding(.bottom, 6)
         }
         .sheet(isPresented: $showNearby) {
-            NearbySheet(location: location, trip: nil) { route in
+            NearbySheet(location: location, trip: nil, startWithAddress: askAddress) { route in
+                askAddress = false
                 session.startDetour(route)
                 recenter += 1
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear { session.start() }
+        .onAppear {
+            session.start()
+            if startWithAddress {
+                askAddress = true
+                showNearby = true
+            }
+        }
         .onDisappear {
             session.stop()
             onFinished(session.finishedRide)

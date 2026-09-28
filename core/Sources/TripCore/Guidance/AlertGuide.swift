@@ -54,6 +54,16 @@ public enum AlertGuide {
 }
 
 extension AlertGuide {
+    /// A route's alerts completed with fresher ones (e.g. the iPhone's latest pack): an extra alert of the same
+    /// family within `within` metres along the route of an existing one is a duplicate. Sorted by `along`.
+    public static func merge(_ primary: [RoadAlert], with extra: [RoadAlert], within: Double = 60) -> [RoadAlert] {
+        var out = primary
+        for e in extra where !out.contains(where: { $0.kind.isCamera == e.kind.isCamera && abs($0.along - e.along) <= within }) {
+            out.append(e)
+        }
+        return out.sorted { $0.along < $1.along }
+    }
+
     static func sentenceCase(_ s: String) -> String {
         guard let first = s.first else { return s }
         return first.uppercased() + s.dropFirst()

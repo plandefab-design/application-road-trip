@@ -14,6 +14,7 @@ struct HomeView: View {
     @StateObject private var location = LocationService()
     @State private var voice = VoiceService()
     @State private var freeRiding = false
+    @State private var goToAddress = false
     @State private var showRides = false
     @State private var pendingRide: RideLog?
     @State private var shownRide: RideLog?
@@ -23,6 +24,17 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     freeRideButton
+                    Button {
+                        voice.enabled = settings.voiceEnabled
+                        goToAddress = true
+                        freeRiding = true
+                    } label: {
+                        Label("Aller à une adresse (itinéraire simple, radars inclus)", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.blue)
                     if !settings.sosPhone.isEmpty {
                         Button {
                             Task { await Messaging.sendCheckpoint(to: settings.sosPhone, location: location) }
@@ -80,7 +92,8 @@ struct HomeView: View {
                     Task { await sync.sync(store: store, rides: rides, settings: settings) }
                 }
             }) {
-                FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements) { ride in
+                FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
+                             startWithAddress: goToAddress) { ride in
                     guard let ride else { return }
                     pendingRide = RideFinish.record(ride, settings: settings, rides: rides, maintenance: maintenance)
                 }
@@ -93,6 +106,7 @@ struct HomeView: View {
     private var freeRideButton: some View {
         Button {
             voice.enabled = settings.voiceEnabled
+            goToAddress = false
             freeRiding = true
         } label: {
             HStack(spacing: 12) {

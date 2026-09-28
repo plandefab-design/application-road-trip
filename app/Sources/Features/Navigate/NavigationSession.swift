@@ -54,6 +54,9 @@ final class NavigationSession: ObservableObject {
     let trip: Trip
     let day: TripDay
     let route: Polyline
+    /// The day's cameras and hazards, completed at start with the iPhone's latest pack (a trip prepared weeks
+    /// ago still gets the new cameras, e.g. the daily official French list).
+    let alerts: [RoadAlert]
 
     private let computer: NavigationComputer
     private var pace: PaceEstimator
@@ -74,6 +77,7 @@ final class NavigationSession: ObservableObject {
         self.trip = trip
         self.day = day
         self.route = r
+        self.alerts = AlertGuide.merge(day.alerts, with: AlertPackStore.shared.guide?.along(r) ?? [])
         self.location = location
         self.voice = voice
         self.pace = pace
@@ -129,7 +133,7 @@ final class NavigationSession: ObservableObject {
             self.rejoinTask = nil
             guard let road, self.offRoute else { return }        // offline: the arrow toward the point stays
             self.rejoinId = String(UUID().uuidString.prefix(6))
-            self.rejoin = DetourRoute.Guidance(route: road)
+            self.rejoin = DetourRoute.Guidance(route: NearbySearch.withAlerts(road))
             self.voice.say("Itinéraire de retour calculé : \(TurnGuide.spokenDistance(road.track.length).replacingOccurrences(of: "Dans ", with: "")).",
                            key: "\(self.rejoinId)-start", cooldown: 5)
         }
@@ -160,14 +164,17 @@ final class NavigationSession: ObservableObject {
         speedKmh = max(0, fix.speed) * 3.6
 
         if var d = detour {
-            let u = d.update(position: fix.point, speed: max(0, fix.speed))
+            let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
             detour = d
             detourUpdate = u
             for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
-            // Cameras and hazards stay announced during the detour (offline pack, direction of travel).
-            let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
-            for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
-                voice.say(a.text, key: a.key, cooldown: 600)
+            // Road detour: its cameras and hazards are announced along it (above). Straight line (offline):
+            // the pack's alerts ahead in the direction of travel.
+            if !d.route.isRoad {
+                let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
+                for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
+                    voice.say(a.text, key: a.key, cooldown: 600)
+                }
             }
             return
         }
@@ -195,7 +202,7 @@ final class NavigationSession: ObservableObject {
             }
             if !wasOff { voice.say("Hors tracé. Je cherche le meilleur chemin pour rejoindre l'itinéraire.", key: "offroute", cooldown: 30) }
             if var r = rejoin {
-                let u = r.update(position: fix.point, speed: max(0, fix.speed))
+                let u = r.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
                 rejoin = r
                 rejoinUpdate = u
                 for a in u.announcements where a.key != "detour-arrived" {
@@ -221,14 +228,14 @@ final class NavigationSession: ObservableObject {
             }
         }
 
-        if !offRoute, !day.alerts.isEmpty {
-            let next = AlertGuide.next(day.alerts, progress: snap.progress, cameras: camerasEnabled)
+        if !offRoute, !alerts.isEmpty {
+            let next = AlertGuide.next(alerts, progress: snap.progress, cameras: camerasEnabled)
             if let n = next, n.distance <= AlertGuide.cameraLead {
                 nextAlert = (alert: n.alert, distance: n.distance)
             } else {
                 nextAlert = nil
             }
-            for a in AlertGuide.announcements(day.alerts, progress: snap.progress, cameras: camerasEnabled) {
+            for a in AlertGuide.announcements(alerts, progress: snap.progress, cameras: camerasEnabled) {
                 voice.say(a.text, key: a.key, cooldown: 3_600)
             }
         }

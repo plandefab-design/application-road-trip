@@ -113,6 +113,30 @@ public struct FreeRideGuide: Sendable {
         return out.sorted { $0.2 < $1.2 }.map { (index: $0.0, alert: $0.1, distance: $0.2) }
     }
 
+    /// Alerts of the pack lying on a route (within `maxOffset` metres), positioned along it, in route order.
+    /// Used for any computed route (address, « autour de moi », rejoin) and to refresh a trip's alerts.
+    public func along(_ track: Polyline, maxOffset: Double = 40) -> [RoadAlert] {
+        guard track.points.count > 1 else { return [] }
+        var candidates = Set<Int>()
+        var d = 0.0
+        while d <= track.length {
+            if let p = track.point(at: d) {
+                let cLat = Int64((p.lat / Self.cell).rounded(.down)), cLon = Int64((p.lon / Self.cell).rounded(.down))
+                for dLat in -1...1 { for dLon in -1...1 { candidates.formUnion(grid[(cLat + Int64(dLat)) * 100_000 + cLon + Int64(dLon)] ?? []) } }
+            }
+            d += 1_000
+        }
+        return candidates.compactMap { i -> RoadAlert? in
+            let a = alerts[i]
+            guard let m = track.locate(a.point), m.lateralOffset <= maxOffset else { return nil }
+            var alert = a.alert
+            alert.along = m.distanceAlong
+            alert.point = a.point
+            return alert
+        }
+        .sorted { $0.along < $1.along }
+    }
+
     /// Alerts within `radius` metres whatever the direction (map display), nearest first.
     public func near(_ position: GeoPoint, radius: Double = 3_000) -> [PositionedAlert] {
         let span = Int64((radius / 111_000 / Self.cell).rounded(.up))

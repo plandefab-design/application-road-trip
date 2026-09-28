@@ -81,7 +81,7 @@ final class FreeRideSession: ObservableObject {
             speeds.append(fix.speed)
         }
         if var d = detour {
-            let u = d.update(position: fix.point, speed: max(0, fix.speed))
+            let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
             detour = d
             detourUpdate = u
             for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
@@ -96,8 +96,11 @@ final class FreeRideSession: ObservableObject {
         // GPS course is only meaningful when moving.
         let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
         guard let guide else { nextAlert = nil; return }
-        for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
-            voice.say(a.text, key: a.key, cooldown: 600)      // same alert again only after 10 min (way back)
+        // On a road detour its own alerts are announced along it; otherwise the ones ahead in the direction of travel.
+        if detour?.route.isRoad != true {
+            for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
+                voice.say(a.text, key: a.key, cooldown: 600)      // same alert again only after 10 min (way back)
+            }
         }
         nextAlert = guide.ahead(of: fix.point, heading: heading)
             .first { camerasEnabled || !$0.alert.kind.isCamera }

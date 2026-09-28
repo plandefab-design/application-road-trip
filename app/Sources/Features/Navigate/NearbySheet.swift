@@ -53,6 +53,7 @@ struct NearbySheet: View {
     @Environment(\.dismiss) private var dismiss
     let location: LocationService
     let trip: Trip?
+    var startWithAddress = false
     let onPick: (DetourRoute) -> Void
 
     @State private var category: NearbySearch.Category = .fuel
@@ -68,6 +69,53 @@ struct NearbySheet: View {
     @State private var locating = false
     @State private var cityError: String?
 
+    @State private var addressOpen = false
+    @State private var addressText = ""
+    @State private var addressError: String?
+
+    /// « Aller à une adresse »: any address, town or place typed (when stopped) → simple guided route.
+    private var addressBar: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { addressOpen.toggle() } label: {
+                Label("Aller à une adresse", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .tint(.blue)
+            if addressOpen {
+                HStack {
+                    TextField("Adresse, ville ou lieu (à l'arrêt)", text: $addressText)
+                        .textFieldStyle(.roundedBorder)
+                        .submitLabel(.go)
+                        .onSubmit { Task { await goToAddress() } }
+                    Button("Y aller") { Task { await goToAddress() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(addressText.trimmingCharacters(in: .whitespaces).isEmpty || routing != nil)
+                }
+                if let addressError { Text(addressError).font(.caption).foregroundStyle(.orange) }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private func goToAddress() async {
+        addressError = nil
+        guard let target = await NearbySearch.locate(addressText), let point = target.point else {
+            addressError = "Adresse introuvable (ou pas de réseau)."
+            return
+        }
+        guard let from = await location.currentPosition() ?? here else {
+            addressError = "Position GPS indisponible."
+            return
+        }
+        routing = target.name
+        let route = NearbySearch.withAlerts(await NearbySearch.route(to: point, name: target.name, from: from))
+        routing = nil
+        onPick(route)
+        dismiss()
+    }
+
     private var centers: [NearbySearch.Center] {
         [.here] + typedCenters + NearbySearch.tripCenters(trip).filter { c in !typedCenters.contains { $0.name == c.name } }
     }
@@ -75,6 +123,7 @@ struct NearbySheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
+                addressBar
                 centerBar
                 HStack(spacing: 8) {
                     ForEach(NearbySearch.Category.allCases) { c in
@@ -124,6 +173,7 @@ struct NearbySheet: View {
                 }
             }
             .task(id: "\(category.rawValue)|\(center.name)") { await load() }
+            .onAppear { if startWithAddress { addressOpen = true } }
         }
     }
 
@@ -214,7 +264,7 @@ struct NearbySheet: View {
     private func go(to place: NearbySearch.Place) async {
         guard let from = await location.currentPosition() ?? here else { return }
         routing = place.name
-        let route = await NearbySearch.route(to: place, from: from)
+        let route = NearbySearch.withAlerts(await NearbySearch.route(to: place, from: from))
         routing = nil
         onPick(route)
         dismiss()

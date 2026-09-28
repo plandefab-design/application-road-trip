@@ -147,6 +147,14 @@ enum NearbySearch {
         await roadRoute(to: target, name: name, from: here) ?? DetourRoute.straight(name: name, from: here, to: target)
     }
 
+    /// Attaches the cameras and hazards of the iPhone's latest pack lying on the route (announced along it).
+    @MainActor
+    static func withAlerts(_ route: DetourRoute) -> DetourRoute {
+        var r = route
+        if r.isRoad, let guide = AlertPackStore.shared.guide { r.alerts = guide.along(r.track) }
+        return r
+    }
+
     /// nil when no road route could be obtained (offline, timeout).
     static func roadRoute(to target: GeoPoint, name: String, from here: GeoPoint) async -> DetourRoute? {
         await withTimeout { () -> DetourRoute in
