@@ -124,7 +124,8 @@ def official_es(data_dir: Path) -> list[dict[str, Any]]:
 
 MAPATLAS_URL = "https://mapatlas.eu/data/camera-index/{code}.geojson"
 MAPATLAS_REFRESH_S = 30 * 24 * 3600
-# Countries within ~4 000 km of Salon-de-Provence (missing ones simply answer 404).
+# Camera countries around Salon-de-Provence, independent of the routing maps (maps.txt): the iPhone pack is used
+# anywhere, e.g. in free ride. Missing countries simply answer 404.
 MAPATLAS_COUNTRIES = [
     "FR", "BE", "NL", "LU", "DE", "CH", "AT", "IT", "ES", "PT", "GB", "IE", "DK", "NO", "SE", "FI", "IS", "EE", "LV",
     "LT", "PL", "CZ", "SK", "HU", "SI", "HR", "BA", "RS", "ME", "MK", "AL", "GR", "BG", "RO", "MD", "UA", "BY", "RU",

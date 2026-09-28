@@ -1,0 +1,9 @@
+# Cartes OSM du PC (routage, radars OSM, dangers, stations, pauses) — une carte Geofabrik par ligne.
+# Liste complète : https://download.geofabrik.de (ex. europe/spain, europe/italy, europe/france/midi-pyrenees).
+# Pour ajouter un pays : ajoute sa ligne, puis lance
+#   powershell -ExecutionPolicy Bypass -File companion\jobs\update_osm.ps1
+# (téléchargement + calcul du routage : de quelques minutes à quelques heures selon la taille ; la carte actuelle
+# reste en service pendant ce temps).
+europe/alps
+europe/france/provence-alpes-cote-d-azur
+europe/france/languedoc-roussillon

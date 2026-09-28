@@ -136,13 +136,23 @@ def route_profile(params: dict[str, Any]) -> str:
     return {2: "moto_enduro", 1: "moto_adventure"}.get(level, "moto_curvy")
 
 
+def routing_error(status: int, body: str) -> str:
+    """French reason for a failed GraphHopper request; a place outside the installed maps says what to do."""
+    if "Cannot find point" in body or "out of bounds" in body:
+        return ("un lieu est hors des cartes installées sur le PC — ajoute la région ou le pays dans "
+                "companion\\maps.txt puis lance jobs\\update_osm.ps1")
+    if "Connection between locations not found" in body:
+        return "pas de route entre deux lieux (île, route fermée ou fin de carte ?)"
+    return f"GraphHopper {status} : {body[:200]}"
+
+
 def graphhopper_router(base_url: str, profile: str = "moto_curvy", avoid_motorway: bool = True) -> Route:
     async def route(points: list[Point]) -> dict[str, Any]:
         payload = graphhopper_payload([(p["lat"], p["lon"]) for p in points], profile, avoid_motorway)
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(f"{base_url}/route", json=payload)
         if r.status_code != 200:
-            raise RuntimeError(f"GraphHopper {r.status_code} : {r.text[:200]}")
+            raise RuntimeError(routing_error(r.status_code, r.text))
         return r.json()["paths"][0]
     return route
 

@@ -172,3 +172,12 @@ def test_speed_limits_merged_along_the_track():
     assert [l["kmh"] for l in limits] == [80, 50]
     assert limits[0]["from"] == 0 and 2_200 < limits[0]["to"] < 2_250     # two 80 km/h stretches merged
     assert 3_300 < limits[1]["from"] < 3_350
+
+
+def test_routing_error_explains_places_outside_the_maps():
+    from app.finalize import routing_error
+
+    out = routing_error(400, '{"message":"Cannot find point 1: 45.764,4.835"}')
+    assert "hors des cartes" in out and "maps.txt" in out
+    assert "pas de route" in routing_error(400, '{"message":"Connection between locations not found"}')
+    assert routing_error(500, "boom") == "GraphHopper 500 : boom"
