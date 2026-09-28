@@ -30,6 +30,8 @@ struct TripDetailContent: View {
     @State private var tracing = false
     @State private var traceProgress: String?
     @State private var traceMessage: String?
+    @State private var checkingWeather = false
+    @State private var weatherReport: [String] = []
 
     /// Days planned by Claude have no geometry (nor turn-by-turn) until the PC computes it. GPX imports
     /// (no highlights) keep their own track: rerouting them would replace the rider's GPX.
@@ -134,6 +136,24 @@ struct TripDetailContent: View {
 
             if trip.days.contains(where: { $0.track != nil }) {
                 offlineMapSection
+
+                Section {
+                    Button(checkingWeather ? "Vérification de la météo…" : "Vérifier la météo sur la route") {
+                        Task {
+                            checkingWeather = true
+                            weatherReport = await WeatherClient().tripReport(trip, pace: settings.pace)
+                            checkingWeather = false
+                        }
+                    }
+                    .disabled(checkingWeather)
+                    ForEach(weatherReport, id: \.self) { line in
+                        Text(line).font(.subheadline)
+                    }
+                } header: {
+                    Text("Météo sur la route")
+                } footer: {
+                    Text("Prévision Open-Meteo à l'heure de passage estimée (départ 9 h), un point tous les 15 km : pluie > 0,5 mm/h, rafales > 60 km/h, < 5 °C, visibilité < 1 km. En roulant, mise à jour toutes les 20 min si réseau.")
+                }
 
                 Section {
                     ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {

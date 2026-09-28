@@ -25,8 +25,12 @@ struct NavigationView: View {
             VStack(spacing: 8) {
                 topBanner
                 Spacer()
-                if let status = session.trafficStatus {
-                    Text(status).font(.caption.bold())
+                if let h = session.weatherAhead, let progress = session.snapshot?.progress, h.along - progress <= 60_000 {
+                    weatherBadge(h, distance: h.along - progress)
+                }
+                let online = [session.weatherStatus, session.trafficStatus].compactMap { $0 }
+                if !online.isEmpty {
+                    Text(online.joined(separator: " · ")).font(.caption.bold())
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(Color.black.opacity(0.7), in: Capsule())
                         .foregroundStyle(.white)
@@ -131,6 +135,23 @@ struct NavigationView: View {
         .frame(maxWidth: .infinity, minHeight: 96)
         .foregroundStyle(.white)
         .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Next weather hazard on the route within 60 km (Open-Meteo).
+    private func weatherBadge(_ h: RouteWeather.Hazard, distance: Double) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: h.kinds.contains(.rain) ? "cloud.rain.fill" : h.kinds.contains(.wind) ? "wind" :
+                    h.kinds.contains(.cold) ? "thermometer.snowflake" : "cloud.fog.fill")
+                .font(.system(size: 28, weight: .bold))
+            VStack(alignment: .leading) {
+                Text(h.summary).font(.headline).lineLimit(2)
+                Text("\(Format.distance(distance)) · vers \(Format.time(h.eta))").font(.subheadline.monospacedDigit())
+            }
+            Spacer()
+        }
+        .padding(10)
+        .foregroundStyle(.white)
+        .background(Color.blue.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// Live traffic incident within 10 km (TomTom).

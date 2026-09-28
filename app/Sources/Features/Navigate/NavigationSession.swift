@@ -27,6 +27,14 @@ final class NavigationSession: ObservableObject {
     private var located: [IncidentAhead] = []
     private var lastTrafficFetch: Date?
     private var trafficTask: Task<Void, Never>?
+    /// Next weather hazard on the route (Open-Meteo every 20 min when online, SPEC §5.3) and its status line.
+    @Published private(set) var weatherAhead: RouteWeather.Hazard?
+    @Published private(set) var weatherStatus: String?
+    private let weather = WeatherClient()
+    private var weatherHazards: [RouteWeather.Hazard] = []
+    private var lastWeatherFetch: Date?
+    private var weatherUpdatedAt: Date?
+    private var weatherTask: Task<Void, Never>?
 
     let trip: Trip
     let day: TripDay
@@ -82,6 +90,7 @@ final class NavigationSession: ObservableObject {
     func stop() {
         cancellable = nil
         trafficTask?.cancel()
+        weatherTask?.cancel()
         location.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         onPaceUpdate(pace)
@@ -139,6 +148,13 @@ final class NavigationSession: ObservableObject {
 
         if !offRoute {
             refreshTrafficIfNeeded(progress: snap.progress)
+            refreshWeatherIfNeeded(progress: snap.progress)
+            weatherAhead = weatherHazards.first { $0.along > snap.progress }
+            if let h = weatherAhead {
+                let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(h.along - snap.progress))
+                voice.say("Météo : \(h.summary) prévu \(when), vers \(WeatherClient.hour(h.eta)).",
+                          key: "weather-\(Int(h.along / 1000))", cooldown: 3_600)
+            }
             incidentsAhead = located.filter { $0.along > snap.progress }
             for a in TrafficIncidents.announcements(incidentsAhead, progress: snap.progress) {
                 voice.say(a.text, key: a.key, cooldown: 3_600)
@@ -171,6 +187,28 @@ final class NavigationSession: ObservableObject {
                 self?.trafficStatus = "Trafic indisponible (pas de réseau)"
             }
             self?.trafficTask = nil
+        }
+    }
+
+    /// Every 20 min when online: forecasts at the passing time of the next ~180 km (12 points, one request).
+    /// Offline, the last forecast is kept and shown as « météo du HH:MM ».
+    private func refreshWeatherIfNeeded(progress: Double) {
+        guard weatherTask == nil else { return }
+        if let last = lastWeatherFetch, Date().timeIntervalSince(last) < 20 * 60 { return }
+        lastWeatherFetch = Date()
+        let samples = RouteWeather.samples(route: route, from: progress, maxCount: 12)
+        let etas = RouteWeather.etas(samples: samples, route: route, progress: progress, start: Date(), pace: pace)
+        weatherTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let forecasts = try await self.weather.forecasts(for: samples, timeout: 5)
+                self.weatherHazards = RouteWeather.hazards(samples: samples, etas: etas, forecasts: forecasts)
+                self.weatherUpdatedAt = Date()
+                self.weatherStatus = "Météo \(Format.time(Date()))"
+            } catch {
+                self.weatherStatus = self.weatherUpdatedAt.map { "Météo du \(Format.time($0))" } ?? "Météo indisponible"
+            }
+            self.weatherTask = nil
         }
     }
 
