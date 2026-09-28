@@ -35,11 +35,11 @@ struct TripsListView: View {
             .toolbar {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
             }
-            .fileImporter(isPresented: $importing, allowedContentTypes: [Self.gpxType, .json], allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls): urls.forEach(store.importFile)
-                case .failure(let error): store.lastError = "Import impossible : \(TripStore.describe(error))"
-                }
+            .sheet(isPresented: $importing) {
+                DocumentPicker(types: [Self.gpxType, .json],
+                               onPick: { urls in urls.forEach(store.importFile) },
+                               onClose: { importing = false })
+                    .ignoresSafeArea()
             }
             .alert("Erreur", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
                 Button("OK", role: .cancel) {}
