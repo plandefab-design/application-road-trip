@@ -142,5 +142,21 @@ def test_schema_v1_is_upgraded():
     from app.trip_schema import validate_trip
     t = {"schemaVersion": 1, "id": "t", "name": "n", "status": "draft", "params": {}}
     assert validate_trip(t) == []
-    assert t["schemaVersion"] == 4
+    assert t["schemaVersion"] == 5
     assert validate_trip({"schemaVersion": 7, "id": "t", "name": "n", "status": "draft", "params": {}})
+
+
+def test_route_profile_mirrors_tripcore():
+    from app.finalize import route_profile
+    bikes = lambda *cats: {"bikes": [{"category": c} for c in cats]}
+    assert route_profile(bikes("enduro")) == "moto_enduro"
+    assert route_profile(bikes("trail", "enduro")) == "moto_adventure"
+    assert route_profile(bikes("sport", "enduro")) == "moto_curvy"
+    assert route_profile({"bikes": [{}]}) == "moto_curvy"
+    assert route_profile({}) == "moto_curvy"
+    assert route_profile({**bikes("enduro"), "tripStyle": "rapide"}) == "moto_fast"
+
+
+def test_payload_uses_profile():
+    p = graphhopper_payload([(43.0, 5.0), (44.0, 6.0)], "moto_enduro", avoid_motorway=False)
+    assert p["profile"] == "moto_enduro" and "custom_model" not in p

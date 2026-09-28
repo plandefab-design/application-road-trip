@@ -122,9 +122,23 @@ class Geocoder:
         return points
 
 
-def graphhopper_router(base_url: str) -> Route:
+OFFROAD_LEVEL = {"sport": 0, "roadster": 0, "touring": 0, "custom": 0, "trail": 1, "enduro": 2}
+PROFILE_LABELS = {"moto_curvy": "routes sinueuses", "moto_fast": "rapide", "moto_adventure": "trail (pistes roulantes)",
+                  "moto_enduro": "enduro (chemins ouverts aux motos)"}
+
+
+def route_profile(params: dict[str, Any]) -> str:
+    """Mirror of TripCore TripParams.routeProfile: the most road-bound bike decides; « rapide » = fastest roads."""
+    if params.get("tripStyle") == "rapide":
+        return "moto_fast"
+    levels = [OFFROAD_LEVEL.get(b.get("category"), 0) for b in params.get("bikes") or [] if b.get("category")]
+    level = min(levels) if levels else 0
+    return {2: "moto_enduro", 1: "moto_adventure"}.get(level, "moto_curvy")
+
+
+def graphhopper_router(base_url: str, profile: str = "moto_curvy", avoid_motorway: bool = True) -> Route:
     async def route(points: list[Point]) -> dict[str, Any]:
-        payload = graphhopper_payload([(p["lat"], p["lon"]) for p in points])
+        payload = graphhopper_payload([(p["lat"], p["lon"]) for p in points], profile, avoid_motorway)
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(f"{base_url}/route", json=payload)
         if r.status_code != 200:

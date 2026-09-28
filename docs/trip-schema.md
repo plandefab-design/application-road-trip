@@ -19,6 +19,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 - `days[].stations` (**v4**) : stations-service OSM (`amenity=fuel`) à moins de 3 km du tracé, `[{"id", "name", "point"}]`. L'iPhone y place les `fuelStops` (SPEC §5.2, plein complet au départ de chaque jour) et signale les tronçons sans station. Jamais écrit par Claude.
 
 ### Versions
+- **v5** : `params.bikes[].category` (sport|roadster|touring|trail|enduro|custom), `params.tripStyle` (balade|kiff|rapide|tourisme), `params.level` (debutant|intermediaire|confirme|expert), tous optionnels. Ils choisissent le profil de route du PC (moto_curvy, moto_fast, moto_adventure, moto_enduro : la moto la plus « routière » du groupe décide) et guident Claude.
 - **v4** : ajout de `days[].stations` (optionnel).
 - **v3** : ajout de `days[].alerts` (optionnel).
 - **v2** : ajout de `days[].instructions` (optionnel). Un fichier v1 est lu tel quel et passe en v2 (aucun champ supprimé ni renommé).
@@ -27,7 +28,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 ## Exemple complet (valeurs fictives)
 ```json
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "id": "3F2A0C1E-0000-0000-0000-000000000001",
   "name": "Exemple",
   "status": "proposed",

@@ -1,0 +1,29 @@
+// Trail profile: twisty roads first, gravel roads and good tracks allowed (grade 1-3).
+// Tracks closed to motor vehicles stay excluded (car_access follows access / motor_vehicle tags).
+{
+  "distance_influence": 30,
+  "priority": [
+    { "if": "!car_access", "multiply_by": "0" },
+    { "if": "track_type.ordinal() > 3", "multiply_by": "0" },
+    { "if": "road_access == PRIVATE", "multiply_by": "0" },
+    { "if": "road_access == DESTINATION", "multiply_by": "0.1" },
+
+    { "if": "road_class == MOTORWAY", "multiply_by": "0.01" },
+    { "else_if": "road_class == TRUNK", "multiply_by": "0.2" },
+    { "else_if": "road_class == PRIMARY", "multiply_by": "0.6" },
+
+    { "if": "surface == SAND", "multiply_by": "0.1" },
+    { "else_if": "surface == GRASS", "multiply_by": "0.2" },
+
+    { "if": "curvature >= 0.98", "multiply_by": "0.4" },
+    { "else_if": "curvature >= 0.9", "multiply_by": "0.8" },
+
+    { "if": "road_environment == FERRY", "multiply_by": "0.1" },
+    { "if": "toll == ALL", "multiply_by": "0.5" }
+  ],
+  "speed": [
+    { "if": "true", "limit_to": "0.9 * car_average_speed" },
+    { "if": "true", "limit_to": "110" },
+    { "if": "surface == GRAVEL || surface == FINE_GRAVEL || surface == COMPACTED || surface == UNPAVED || surface == DIRT || surface == GROUND || surface == SAND || surface == GRASS", "limit_to": "50" }
+  ]
+}

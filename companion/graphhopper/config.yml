@@ -14,11 +14,19 @@ graphhopper:
     # Link profile: fastest road on the rare transfer stretches (plan B, return home).
     - name: moto_fast
       custom_model_files: [moto_fast.json]
+    # Trail: gravel roads and good tracks allowed.
+    - name: moto_adventure
+      custom_model_files: [moto_adventure.json]
+    # Enduro: tracks sought (only ways open to motor vehicles).
+    - name: moto_enduro
+      custom_model_files: [moto_enduro.json]
 
   # LM keeps per-request custom model changes possible (avoid motorway, curviness level…).
   profiles_lm:
     - profile: moto_curvy
     - profile: moto_fast
+    - profile: moto_adventure
+    - profile: moto_enduro
 
   # Elevation (ascent per day, SPEC §4.2). Enable once the first import works (spike S4):
   # graph.elevation.provider: srtm

@@ -14,7 +14,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .alerts import alerts_along, load_features, stations_along
-from .finalize import Geocoder, finalize_trip, graphhopper_payload, graphhopper_router
+from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
 
@@ -122,13 +122,17 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
     osm = DATA_DIR / "osm"
     cameras, hazards = load_features(osm / "speed_cameras.geojsonseq"), load_features(osm / "hazards.geojsonseq")
     fuel = load_features(osm / "fuel_stations.geojsonseq")
-    warnings = await finalize_trip(trip, geocoder().locate, graphhopper_router(GRAPHHOPPER_URL), on_progress,
+    params = trip.get("params") or {}
+    profile = route_profile(params)
+    avoid_motorway = (params.get("roads") or {}).get("avoidMotorway", True)
+    router = graphhopper_router(GRAPHHOPPER_URL, profile, avoid_motorway)
+    warnings = await finalize_trip(trip, geocoder().locate, router, on_progress,
                                    alerts_for=lambda track: alerts_along(track, cameras, hazards),
                                    stations_for=(lambda track: stations_along(track, fuel)) if fuel else None)
     traced = sum(1 for d in trip["days"] if d.get("track"))
     radars = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] != "hazard")
     dangers = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] == "hazard")
-    summary = f"Tracé calculé pour {traced}/{len(trip['days'])} jour(s) : {radars} radar(s) et {dangers} zone(s) de danger sur le parcours."
+    summary = f"Tracé {PROFILE_LABELS.get(profile, profile)} calculé pour {traced}/{len(trip['days'])} jour(s) : {radars} radar(s) et {dangers} zone(s) de danger sur le parcours."
     if not cameras:
         warnings.append("Base radars absente sur le PC : lance jobs/update_osm.ps1.")
     if not fuel:
@@ -212,7 +216,7 @@ async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
 
 class RouteRequest(BaseModel):
     points: list[tuple[float, float]] = Field(min_length=2, description="[[lat, lon], ...]")
-    profile: str = Field(default="moto_curvy", pattern="^(moto_curvy|moto_fast)$")
+    profile: str = Field(default="moto_curvy", pattern="^(moto_curvy|moto_fast|moto_adventure|moto_enduro)$")
     avoid_motorway: bool = True
 
 

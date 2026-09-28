@@ -28,6 +28,8 @@ struct SettingsView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(bike.model).font(.headline).foregroundStyle(.primary)
+                                    Text(bike.category?.label ?? "Type à renseigner").font(.caption.bold())
+                                        .foregroundStyle(bike.category == nil ? .orange : .secondary)
                                     Text("Autonomie \(Int(bike.rangeKm)) km · marge \(Int(bike.reserveMarginPct)) % · utile \(Int(bike.usableRangeMeters / 1000)) km")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
@@ -138,6 +140,7 @@ struct BikeEditorView: View {
     @State private var custom: String
     @State private var range: Double
     @State private var margin: Double
+    @State private var category: BikeCategory
 
     init(bike: Bike?, onSave: @escaping (Bike) -> Void) {
         self.bike = bike
@@ -149,11 +152,21 @@ struct BikeEditorView: View {
             _custom = State(initialValue: inCatalog ? "" : bike.model)
             _range = State(initialValue: bike.rangeKm)
             _margin = State(initialValue: bike.reserveMarginPct)
+            _category = State(initialValue: bike.category ?? .roadster)
         } else {
+            _category = State(initialValue: .roadster)
             _model = State(initialValue: known.first ?? "")
             _custom = State(initialValue: "")
             _range = State(initialValue: 200)
             _margin = State(initialValue: 15)
+        }
+    }
+
+    private var categoryHint: String {
+        switch category.offroadLevel {
+        case 2: "Itinéraires : chemins et pistes ouverts aux motos, liaisons courtes sur route."
+        case 1: "Itinéraires : routes sinueuses + pistes roulantes et routes gravillonnées."
+        default: "Itinéraires : bitume uniquement, en bon état."
         }
     }
 
@@ -165,6 +178,10 @@ struct BikeEditorView: View {
                     Text("Autre…").tag("")
                 }
                 if model.isEmpty { TextField("Modèle", text: $custom) }
+                Picker("Type", selection: $category) {
+                    ForEach(BikeCategory.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                Text(categoryHint).font(.footnote).foregroundStyle(.secondary)
                 Stepper("Autonomie réelle : \(Int(range)) km", value: $range, in: 80...450, step: 5)
                 Stepper("Marge de sécurité : \(Int(margin)) %", value: $margin, in: 0...40, step: 5)
                 Text("Saisis l'autonomie constatée sur ta moto (réserve comprise), pas la valeur constructeur.")
@@ -180,6 +197,7 @@ struct BikeEditorView: View {
                         saved.model = model.isEmpty ? custom : model
                         saved.rangeKm = range
                         saved.reserveMarginPct = margin
+                        saved.category = category
                         onSave(saved)
                         dismiss()
                     }

@@ -32,9 +32,12 @@ public struct Bike: Codable, Hashable, Identifiable, Sendable {
     public var consumptionLPer100: Double?
     /// Safety margin applied to the range, percent.
     public var reserveMarginPct: Double
+    /// Type of motorcycle (schema v5); nil = not set (treated as asphalt only).
+    public var category: BikeCategory?
 
     public init(id: String = UUID().uuidString, model: String, rangeKm: Double,
-                consumptionLPer100: Double? = nil, reserveMarginPct: Double = 15) {
+                consumptionLPer100: Double? = nil, reserveMarginPct: Double = 15, category: BikeCategory? = nil) {
+        self.category = category
         self.id = id
         self.model = model
         self.rangeKm = rangeKm
@@ -90,6 +93,10 @@ public struct TripParams: Codable, Hashable, Sendable {
     public var maxKmPerDay: Double
     /// 0 = pure riding … 1 = contemplative.
     public var style: Double
+    /// What the rider wants (schema v5). nil = not set.
+    public var tripStyle: TripStyle?
+    /// Rider level (schema v5). nil = not set.
+    public var level: RiderLevel?
     public var budgetPerDayEur: Double?
     public var mandatoryStops: [MandatoryStop]
     public var constraints: String
@@ -101,7 +108,10 @@ public struct TripParams: Codable, Hashable, Sendable {
                 zone: [String] = [], bikes: [Bike] = [], riders: Riders = .solo, luggage: Bool = false,
                 maxKmPerDay: Double = 300, style: Double = 0.3, budgetPerDayEur: Double? = nil,
                 mandatoryStops: [MandatoryStop] = [], constraints: String = "",
-                roads: RoadPreferences = RoadPreferences(), maxFuelIntervalKm: Double = 200) {
+                roads: RoadPreferences = RoadPreferences(), maxFuelIntervalKm: Double = 200,
+                tripStyle: TripStyle? = nil, level: RiderLevel? = nil) {
+        self.tripStyle = tripStyle
+        self.level = level
         self.start = start
         self.end = end
         self.dateStart = dateStart
@@ -121,7 +131,7 @@ public struct TripParams: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case start, end, dateStart, dateEnd, zone, bikes, riders, luggage, maxKmPerDay, style
-        case budgetPerDayEur, mandatoryStops, constraints, roads, maxFuelIntervalKm
+        case budgetPerDayEur, mandatoryStops, constraints, roads, maxFuelIntervalKm, tripStyle, level
     }
 
     /// Lenient: only start and dates are mandatory; everything else falls back to the project defaults.
@@ -142,6 +152,8 @@ public struct TripParams: Codable, Hashable, Sendable {
         constraints = try c.decodeIfPresent(String.self, forKey: .constraints) ?? ""
         roads = try c.decodeIfPresent(RoadPreferences.self, forKey: .roads) ?? RoadPreferences()
         maxFuelIntervalKm = try c.decodeIfPresent(Double.self, forKey: .maxFuelIntervalKm) ?? 200
+        tripStyle = try c.decodeIfPresent(TripStyle.self, forKey: .tripStyle)
+        level = try c.decodeIfPresent(RiderLevel.self, forKey: .level)
     }
 
     /// Group range = the most limiting bike (SPEC §4.2).
@@ -408,8 +420,9 @@ public struct OfflinePack: Codable, Hashable, Sendable {
 }
 
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
-    /// v2 `days[].instructions`, v3 `days[].alerts`, v4 `days[].stations` (all additive). Older files are migrated on decode.
-    public static let currentSchemaVersion = 4
+    /// v2 instructions, v3 alerts, v4 stations, v5 bike category + trip style + level (all additive).
+    /// Older files are migrated on decode.
+    public static let currentSchemaVersion = 5
 
     public var schemaVersion: Int
     public var id: String
@@ -470,7 +483,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v3 → v4: only optional fields were added
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v4 → v5: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

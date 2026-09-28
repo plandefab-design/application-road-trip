@@ -24,7 +24,8 @@ struct CreateTripView: View {
     @State private var riders: Riders = .solo
     @State private var luggage = false
     @State private var maxKmPerDay = 300.0
-    @State private var style = 0.3
+    @State private var tripStyle: TripStyle = .kiff
+    @State private var level: RiderLevel = .confirme
     @State private var budget = 150.0
     @State private var constraints = ""
     @State private var roads = RoadPreferences()
@@ -76,16 +77,22 @@ struct CreateTripView: View {
                     Toggle("Bagagerie (sacoches)", isOn: $luggage)
                 }
 
-                Section("Rythme et budget") {
+                Section {
+                    Picker("Envie", selection: $tripStyle) {
+                        ForEach(TripStyle.allCases, id: \.self) { Text($0.label.components(separatedBy: " ").first ?? $0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(tripStyleHint).font(.footnote).foregroundStyle(.secondary)
+                    Picker("Niveau", selection: $level) {
+                        ForEach(RiderLevel.allCases, id: \.self) { Text($0.label).tag($0) }
+                    }
                     VStack(alignment: .leading) {
                         Text("Km/jour max : \(Int(maxKmPerDay))")
                         Slider(value: $maxKmPerDay, in: 100...500, step: 10)
                     }
-                    VStack(alignment: .leading) {
-                        Text("Style : \(style < 0.34 ? "conduite pure" : style < 0.67 ? "équilibré" : "contemplatif")")
-                        Slider(value: $style, in: 0...1)
-                    }
                     Stepper("Budget : \(Int(budget)) €/jour", value: $budget, in: 50...600, step: 10)
+                } header: {
+                    Text("Envie, niveau et budget")
                 }
 
                 Section("Routes") {
@@ -169,7 +176,8 @@ struct CreateTripView: View {
         riders = p.riders
         luggage = p.luggage
         maxKmPerDay = p.maxKmPerDay
-        style = p.style
+        tripStyle = p.tripStyle ?? (p.style >= 0.8 ? .tourisme : p.style >= 0.5 ? .balade : .kiff)
+        level = p.level ?? .confirme
         budget = p.budgetPerDayEur ?? budget
         constraints = p.constraints
         roads = p.roads
@@ -201,8 +209,18 @@ struct CreateTripView: View {
                    dateStart: ISODate.format(dateStart), dateEnd: ISODate.format(dateEnd),
                    zone: Array(zones).sorted(),
                    bikes: availableBikes.filter { bikeIds.contains($0.id) },
-                   riders: riders, luggage: luggage, maxKmPerDay: maxKmPerDay, style: style,
-                   budgetPerDayEur: budget, constraints: constraints, roads: roads)
+                   riders: riders, luggage: luggage, maxKmPerDay: maxKmPerDay, style: tripStyle.styleValue,
+                   budgetPerDayEur: budget, constraints: constraints, roads: roads,
+                   tripStyle: tripStyle, level: level)
+    }
+
+    private var tripStyleHint: String {
+        switch tripStyle {
+        case .kiff: "Virages, cols, enchaînements : le plaisir de pilotage avant tout."
+        case .balade: "Rythme tranquille, beaux paysages, étapes courtes et pauses."
+        case .rapide: "Relier vite et bien, peu de détours (voies rapides acceptées sauf exclusion)."
+        case .tourisme: "Villages, sites, gastronomie : les visites comptent autant que la route."
+        }
     }
 
     private func startPlanning() {
