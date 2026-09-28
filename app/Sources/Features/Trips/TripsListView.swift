@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct TripsListView: View {
     @EnvironmentObject private var store: TripStore
     @State private var importing = false
+    @ObservedObject private var favorites = FavoritePlaces.shared
 
     private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
 
@@ -23,6 +24,13 @@ struct TripsListView: View {
                     List {
                         ForEach(store.trips) { trip in
                             NavigationLink(value: trip.id) { TripRow(trip: trip) }
+                                .swipeActions(edge: .leading) {
+                                    Button { favorites.toggleTrip(trip.id) } label: {
+                                        Label(favorites.isFavoriteTrip(trip.id) ? "Retirer" : "Favori",
+                                              systemImage: favorites.isFavoriteTrip(trip.id) ? "star.slash" : "star.fill")
+                                    }
+                                    .tint(.yellow)
+                                }
                         }
                         .onDelete { idx in idx.map { store.trips[$0] }.forEach(store.delete) }
                     }
@@ -51,12 +59,14 @@ struct TripsListView: View {
 }
 
 struct TripRow: View {
+    @ObservedObject private var favorites = FavoritePlaces.shared
     let trip: Trip
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(trip.name).font(.headline)
+                if favorites.isFavoriteTrip(trip.id) { Image(systemName: "star.fill").foregroundStyle(.yellow).font(.caption) }
                 Spacer()
                 StatusBadge(status: trip.status)
             }

@@ -16,10 +16,14 @@ struct FreeRideView: View {
     private let startWithAddress: Bool
     @State private var askAddress = false
 
+    /// Favourite destination to be guided to right away (Favoris tab).
+    private let destination: FavoritePlaces.Place?
+
     init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, startWithAddress: Bool = false,
-         onFinished: @escaping (RideLog?) -> Void) {
+         destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
         self.startWithAddress = startWithAddress
+        self.destination = destination
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled,
                                                              location: location, voice: voice))
@@ -79,7 +83,14 @@ struct FreeRideView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             session.start()
-            if startWithAddress {
+            if let destination {
+                Task {
+                    guard let from = await location.currentPosition() else { return }
+                    let route = NearbySearch.withAlerts(await NearbySearch.route(to: destination.point, name: destination.name, from: from))
+                    session.startDetour(route)
+                    recenter += 1
+                }
+            } else if startWithAddress {
                 askAddress = true
                 showNearby = true
             }

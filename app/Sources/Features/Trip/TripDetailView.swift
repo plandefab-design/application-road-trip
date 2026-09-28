@@ -22,6 +22,7 @@ struct TripDetailContent: View {
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var sync: SyncService
     @EnvironmentObject private var maintenance: MaintenanceStore
+    @ObservedObject private var favoritesStore = FavoritePlaces.shared
     @State private var pendingRide: RideLog?
     @State private var shownRide: RideLog?
     @StateObject private var location = LocationService()
@@ -67,6 +68,12 @@ struct TripDetailContent: View {
         .task(id: trip.id) { await offlineMaps.refresh(tripId: trip.id) }
         .navigationTitle(trip.name)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { favoritesStore.toggleTrip(trip.id) } label: {
+                    Image(systemName: favoritesStore.isFavoriteTrip(trip.id) ? "star.fill" : "star").foregroundStyle(.yellow)
+                }
+                .accessibilityLabel("Favori")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { editing = true } label: { Label("Modifier les paramètres", systemImage: "slider.horizontal.3") }

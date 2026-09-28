@@ -24,12 +24,22 @@ final class FavoritePlaces: ObservableObject {
 
     @Published private(set) var favorites: [Place] = []
     @Published private(set) var recents: [Place] = []
+    /// Trips starred by the rider (kept here, not in trip.json).
+    @Published private(set) var favoriteTripIds: [String] = []
     private let defaults = UserDefaults.standard
     static let maxRecents = 8
 
     init() {
         favorites = load("favoritePlaces")
         recents = load("recentPlaces")
+        favoriteTripIds = defaults.stringArray(forKey: "favoriteTripIds") ?? []
+    }
+
+    func isFavoriteTrip(_ id: String) -> Bool { favoriteTripIds.contains(id) }
+
+    func toggleTrip(_ id: String) {
+        if isFavoriteTrip(id) { favoriteTripIds.removeAll { $0 == id } } else { favoriteTripIds.insert(id, at: 0) }
+        defaults.set(favoriteTripIds, forKey: "favoriteTripIds")
     }
 
     private func load(_ key: String) -> [Place] {
