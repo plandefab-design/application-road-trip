@@ -8,12 +8,21 @@ struct HomeView: View {
     @EnvironmentObject private var offlineMaps: OfflineMapStore
     @EnvironmentObject private var maintenance: MaintenanceStore
     @Binding var tab: RootView.Tab
+    @EnvironmentObject private var rides: RideStore
+    @EnvironmentObject private var sync: SyncService
     @State private var path: [String] = []
+    @StateObject private var location = LocationService()
+    @State private var voice = VoiceService()
+    @State private var freeRiding = false
+    @State private var showRides = false
+    @State private var pendingRide: RideLog?
+    @State private var shownRide: RideLog?
 
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    freeRideButton
                     if let expiry = SigningInfo.expirationDate, expiry.timeIntervalSinceNow < 2 * 86_400 {
                         banner("Signature expire \(expiry.formatted(.relative(presentation: .named)))",
                                detail: "Rafraîchis MotoTrip dans SideStore (LocalDevVPN connecté).",
@@ -46,8 +55,47 @@ struct HomeView: View {
             }
             .navigationTitle("MotoTrip")
             .navigationDestination(for: String.self) { TripDetailView(tripId: $0) }
+            .navigationDestination(isPresented: $showRides) { RidesListView() }
             .task(id: nextTrip?.id) { if let id = nextTrip?.id { await offlineMaps.refresh(tripId: id) } }
+            .onAppear { location.requestPermissions() }   // asked here, never while riding
+            .fullScreenCover(isPresented: $freeRiding, onDismiss: {
+                if let ride = pendingRide {
+                    shownRide = ride
+                    pendingRide = nil
+                    Task { await sync.sync(store: store, rides: rides, settings: settings) }
+                }
+            }) {
+                FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements) { ride in
+                    guard let ride else { return }
+                    pendingRide = RideFinish.record(ride, settings: settings, rides: rides, maintenance: maintenance)
+                }
+            }
+            .sheet(item: $shownRide) { RideSummaryView(ride: $0) }
         }
+    }
+
+    /// Ride now, without an itinerary: cameras and hazards spoken, km counted for maintenance.
+    private var freeRideButton: some View {
+        Button {
+            voice.enabled = settings.voiceEnabled
+            freeRiding = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "location.north.line.fill").font(.title)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rouler sans itinéraire").font(.headline)
+                    Text("Radars et dangers annoncés, km comptés pour l'entretien, trace enregistrée")
+                        .font(.caption).opacity(0.85)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+            }
+            .foregroundStyle(.white)
+            .padding()
+            .background(LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing),
+                        in: RoundedRectangle(cornerRadius: 20))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Data
@@ -121,6 +169,7 @@ struct HomeView: View {
         HStack(spacing: 10) {
             tile("Nouveau trip", "sparkles") { tab = .create }
             tile("Mes trips", "map.fill") { tab = .trips }
+            tile("Mes sorties", "point.bottomleft.forward.to.point.topright.scurvepath") { showRides = true }
             tile("Garage", "gauge.with.dots.needle.67percent") { tab = .settings }
         }
     }

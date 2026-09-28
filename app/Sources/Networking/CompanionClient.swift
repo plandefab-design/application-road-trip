@@ -109,6 +109,19 @@ struct CompanionClient {
         guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
     }
 
+    // MARK: Offline alert pack (free ride)
+
+    struct PackVersion: Decodable { let version: String }
+
+    func alertPackVersion() async throws -> String {
+        let v: PackVersion = try await get("alerts-pack/version", timeout: 10)
+        return v.version
+    }
+
+    func alertPack() async throws -> AlertPack {
+        try await get("alerts-pack", timeout: 120)
+    }
+
     struct FinalizeRequest: Encodable { let trip: Trip }
 
     /// Locates the waypoints and computes each day's road track on the PC (GraphHopper), no Claude involved.

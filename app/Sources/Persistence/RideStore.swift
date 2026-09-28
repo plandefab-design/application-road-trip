@@ -45,11 +45,19 @@ final class RideStore: ObservableObject {
 
     /// Builds the log of a finished ride; nil for a ride shorter than 200 m (test start, mistake).
     static func log(trip: Trip, day: TripDay, points: [GeoPoint], times: [Date], speeds: [Double], bikeId: String? = nil) -> RideLog? {
+        log(tripId: trip.id, tripName: trip.name, day: day.index, points: points, times: times, speeds: speeds, bikeId: bikeId)
+    }
+
+    /// Ride without an itinerary (« balade libre »).
+    static let freeRideTripId = "free-ride"
+
+    static func log(tripId: String, tripName: String, day: Int, points: [GeoPoint], times: [Date], speeds: [Double],
+                    bikeId: String? = nil) -> RideLog? {
         let summary = RideSummary.summarize(points: points, times: times, speeds: speeds)
         guard summary.distance >= 200 else { return nil }
         let stamp = Int((summary.startedAt ?? Date()).timeIntervalSince1970)
         let thinned = points.enumerated().filter { $0.offset % 3 == 0 || $0.offset == points.count - 1 }.map(\.element)
-        return RideLog(id: "\(trip.id.prefix(8))-j\(day.index)-\(stamp)", tripId: trip.id, tripName: trip.name,
-                       day: day.index, summary: summary, track: thinned, bikeId: bikeId)
+        return RideLog(id: "\(tripId.prefix(8))-j\(day)-\(stamp)", tripId: tripId, tripName: tripName,
+                       day: day, summary: summary, track: thinned, bikeId: bikeId)
     }
 }

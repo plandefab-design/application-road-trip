@@ -1,0 +1,72 @@
+import Combine
+import Foundation
+import TripCore
+import UIKit
+
+/// Riding without an itinerary: spoken warnings for cameras and hazards ahead (offline pack), distance and time,
+/// recorded track for the ride summary and the maintenance odometer. No network, no PC.
+@MainActor
+final class FreeRideSession: ObservableObject {
+    @Published private(set) var speedKmh: Double = 0
+    @Published private(set) var distance: Double = 0          // metres ridden
+    @Published private(set) var startedAt = Date()
+    @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
+    @Published private(set) var trackPreview: [GeoPoint] = [] // refreshed every 15 fixes (map)
+    let hasPack: Bool
+
+    private var points: [GeoPoint] = []
+    private var times: [Date] = []
+    private var speeds: [Double] = []
+    private(set) var finishedRide: RideLog?
+
+    private let guide: FreeRideGuide?
+    private let camerasEnabled: Bool
+    private let location: LocationService
+    private let voice: VoiceService
+    private var cancellable: AnyCancellable?
+
+    init(guide: FreeRideGuide?, camerasEnabled: Bool, location: LocationService, voice: VoiceService) {
+        self.guide = guide
+        self.hasPack = guide != nil
+        self.camerasEnabled = camerasEnabled
+        self.location = location
+        self.voice = voice
+    }
+
+    func start() {
+        startedAt = Date()
+        UIApplication.shared.isIdleTimerDisabled = true
+        location.startNavigation()
+        cancellable = location.$lastFix.compactMap { $0 }.sink { [weak self] fix in self?.handle(fix) }
+        voice.say(hasPack ? "Balade libre. Radars et dangers actifs." : "Balade libre. Base radars absente : synchronise avec le PC.",
+                  key: "free-start")
+    }
+
+    func stop() {
+        cancellable = nil
+        location.stop()
+        UIApplication.shared.isIdleTimerDisabled = false
+        finishedRide = RideStore.log(tripId: RideStore.freeRideTripId, tripName: "Balade libre", day: 0,
+                                     points: points, times: times, speeds: speeds)
+    }
+
+    private func handle(_ fix: LocationService.Fix) {
+        guard fix.accuracy >= 0, fix.accuracy <= 50 else { return }        // poor fixes would inflate the km
+        if let last = points.last { distance += Geo.distance(last, fix.point) }
+        points.append(fix.point)
+        times.append(fix.time)
+        speeds.append(fix.speed)
+        speedKmh = max(0, fix.speed) * 3.6
+        if points.count % 15 == 0 { trackPreview = points }
+
+        // GPS course is only meaningful when moving.
+        let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
+        guard let guide else { nextAlert = nil; return }
+        for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
+            voice.say(a.text, key: a.key, cooldown: 600)      // same alert again only after 10 min (way back)
+        }
+        nextAlert = guide.ahead(of: fix.point, heading: heading)
+            .first { camerasEnabled || !$0.alert.kind.isCamera }
+            .map { (alert: $0.alert, distance: $0.distance) }
+    }
+}

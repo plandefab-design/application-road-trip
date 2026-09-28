@@ -106,16 +106,9 @@ struct TripDetailContent: View {
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
                            camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey,
                            onFinished: { ride in
-                               guard var ride else { return }
+                               guard let ride else { return }
                                // The km go to « Ma moto »: odometer + maintenance alerts.
-                               if let bike = settings.primaryBike {
-                                   ride.bikeId = bike.id
-                                   _ = maintenance.book(for: bike)
-                                   let newlyDue = maintenance.addRide(bikeId: bike.id, km: ride.summary.distance / 1000)
-                                   Task { await Reminders.notifyMaintenance(bike: bike.model, items: newlyDue) }
-                               }
-                               rides.save(ride)
-                               pendingRide = ride
+                               pendingRide = RideFinish.record(ride, settings: settings, rides: rides, maintenance: maintenance)
                            }) { newPace in
                 settings.pace = newPace
             }

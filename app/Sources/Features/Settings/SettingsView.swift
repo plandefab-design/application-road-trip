@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var sync: SyncService
     @EnvironmentObject private var maintenance: MaintenanceStore
+    @ObservedObject private var alertPack = AlertPackStore.shared
     @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
@@ -105,6 +106,12 @@ struct SettingsView: View {
                 Section("État du système") {
                     LabeledContent("Trips enregistrés", value: "\(store.trips.count)")
                     LabeledContent("Sorties enregistrées", value: "\(rides.rides.count)")
+                    LabeledContent("Radars / dangers hors ligne",
+                                   value: alertPack.version == nil ? "à synchroniser" : "\(alertPack.cameraCount) / \(alertPack.hazardCount)")
+                    if let date = alertPack.updatedAt {
+                        Text("Base du \(date.formatted(date: .abbreviated, time: .shortened)), utilisée en balade libre.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
                     Button(sync.running ? "Synchronisation…" : "Synchroniser avec le PC maintenant") {
                         Task { await sync.sync(store: store, rides: rides, settings: settings) }
                     }

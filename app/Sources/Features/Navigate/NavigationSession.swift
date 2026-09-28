@@ -23,6 +23,7 @@ final class NavigationSession: ObservableObject {
     /// Pause suggested after 1 h 30 of riding (café, viewpoint or water in the next 15 km).
     @Published private(set) var pauseSuggestion: (spot: PauseSpot, distance: Double)?
     private var breaks = BreakTracker()
+    private var overLimitSince: Date?
     /// Next maneuver and its distance, for the top banner (nil: no instructions, or none left).
     @Published private(set) var nextTurn: (instruction: TurnInstruction, distance: Double)?
     /// Next speed camera or hazard ahead, for the banner.
@@ -161,6 +162,16 @@ final class NavigationSession: ObservableObject {
 
         if !offRoute {
             speedLimit = SpeedLimits.limit(day.speedLimits, at: snap.progress)
+            // Spoken warning when staying over a known limit for 3 s (at most once a minute per limit).
+            if let limit = speedLimit, SpeedLimits.isOver(speedKmh: speedKmh, limit: limit) {
+                let since = overLimitSince ?? fix.time
+                overLimitSince = since
+                if fix.time.timeIntervalSince(since) >= 3 {
+                    voice.say("Attention, limitation à \(limit).", key: "speed-\(limit)", cooldown: 60)
+                }
+            } else {
+                overLimitSince = nil
+            }
             pauseSuggestion = PauseAdvisor.suggestion(day.pauses, progress: snap.progress,
                                                       ridingSinceBreak: breaks.ridingSinceBreak)
             if let p = pauseSuggestion {

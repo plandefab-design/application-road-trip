@@ -1,0 +1,60 @@
+import SwiftUI
+import TripCore
+
+/// Every recorded ride (with or without an itinerary), newest first, grouped by month.
+struct RidesListView: View {
+    @EnvironmentObject private var rides: RideStore
+    @State private var shown: RideLog?
+
+    var body: some View {
+        List {
+            if rides.rides.isEmpty {
+                ContentUnavailableView("Aucune sortie enregistrée", systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
+                                       description: Text("Chaque navigation, avec ou sans itinéraire, est enregistrée ici avec sa trace réelle."))
+            } else {
+                Section {
+                    LabeledContent("Total", value: "\(Format.distance(rides.rides.reduce(0) { $0 + $1.summary.distance })) · \(rides.rides.count) sortie(s)")
+                    LabeledContent("Virages", value: "\(rides.rides.reduce(0) { $0 + $1.summary.bends })")
+                }
+                ForEach(months, id: \.self) { month in
+                    Section(month) {
+                        ForEach(rides.rides.filter { monthLabel($0) == month }) { ride in
+                            Button { shown = ride } label: { row(ride) }.buttonStyle(.plain)
+                        }
+                        .onDelete { idx in
+                            let inMonth = rides.rides.filter { monthLabel($0) == month }
+                            idx.map { inMonth[$0] }.forEach(rides.delete)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Mes sorties")
+        .sheet(item: $shown) { RideSummaryView(ride: $0) }
+    }
+
+    private var months: [String] {
+        var seen: [String] = []
+        for r in rides.rides where !seen.contains(monthLabel(r)) { seen.append(monthLabel(r)) }
+        return seen
+    }
+
+    private func monthLabel(_ ride: RideLog) -> String {
+        (ride.summary.startedAt ?? .distantPast).formatted(.dateTime.month(.wide).year()).capitalized
+    }
+
+    private func row(_ ride: RideLog) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: ride.tripId == RideStore.freeRideTripId ? "location.north.line.fill" : "map.fill")
+                .foregroundStyle(.orange).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ride.tripId == RideStore.freeRideTripId ? "Balade libre" : "\(ride.tripName) · jour \(ride.day)")
+                    .font(.subheadline.bold())
+                Text("\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "") · \(Format.distance(ride.summary.distance)) · \(ride.summary.bends) virages")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
+        }
+    }
+}

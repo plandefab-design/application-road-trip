@@ -31,7 +31,11 @@ final class SyncService: ObservableObject {
                     rides.save(ride)
                 } catch { failures += 1 }
             }
-            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)"
+            var packNote = ""
+            do {
+                if try await AlertPackStore.shared.refresh(using: client) { packNote = " · radars à jour" }
+            } catch { failures += 1 }
+            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(packNote)"
             status = failures == 0 ? "Synchronisé \(Format.time(Date())) (\(what))" : "Synchro partielle (\(failures) erreur(s))"
         } catch {
             status = "PC injoignable : synchro reportée"

@@ -202,28 +202,7 @@ struct NavigationView: View {
 
     /// Speed camera (with its limit) or hazard within 500 m.
     private func alertBadge(_ alert: RoadAlert, distance: Double) -> some View {
-        HStack(spacing: 10) {
-            if alert.kind.isCamera, let limit = alert.maxspeed {
-                Text("\(limit)")
-                    .font(.system(size: 26, weight: .heavy, design: .rounded))
-                    .frame(width: 48, height: 48)
-                    .background(Circle().fill(.white))
-                    .overlay(Circle().stroke(.red, lineWidth: 5))
-                    .foregroundStyle(.black)
-            } else {
-                Image(systemName: alert.kind.isCamera ? "camera.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 30, weight: .bold))
-            }
-            VStack(alignment: .leading) {
-                Text(Self.sentenceCase(alert.label))
-                    .font(.title3.bold())
-                Text(Format.distance(distance)).font(.title3.monospacedDigit())
-            }
-            Spacer()
-        }
-        .padding(12)
-        .foregroundStyle(.white)
-        .background((alert.kind.isCamera ? Color.red : Color.orange).opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+        AlertBadge(alert: alert, distance: distance)
     }
 
     static func sentenceCase(_ s: String) -> String {
