@@ -160,13 +160,13 @@ public struct FreeRideGuide: Sendable {
                 guard cameras else { return nil }
                 if item.distance <= Self.nearCamera {
                     let limit = item.alert.maxspeed.map { ", limité à \($0)" } ?? ""
-                    return .init(key: "free-\(item.index)-near", text: "Radar maintenant\(limit)")
+                    return .init(key: "free-\(item.index)-near", text: "Radar maintenant\(limit)", urgent: true)
                 }
                 guard item.distance <= AlertGuide.cameraLead else { return nil }
             } else {
                 guard item.distance <= AlertGuide.hazardLead else { return nil }
             }
-            return .init(key: "free-\(item.index)", text: AlertGuide.text(for: item.alert, distance: item.distance))
+            return .init(key: "free-\(item.index)", text: AlertGuide.text(for: item.alert, distance: item.distance), urgent: true)
         }
     }
 }

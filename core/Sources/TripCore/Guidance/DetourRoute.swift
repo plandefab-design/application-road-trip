@@ -65,11 +65,11 @@ public struct DetourRoute: Equatable, Sendable {
             }
             // Keys prefixed so they never collide with the trip's own announcements.
             var announcements = TurnGuide.announcement(route.instructions, progress: progress, speed: speed)
-                .map { [TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text)] } ?? []
+                .map { [TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text, urgent: $0.urgent)] } ?? []
             // Cameras and hazards positioned along this route (500 m / 150 m / 300 m like on a trip).
             if route.isRoad {
                 announcements += AlertGuide.announcements(route.alerts, progress: progress, cameras: cameras)
-                    .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text) }
+                    .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text, urgent: $0.urgent) }
             }
             if !arrived && (direct < 50 || (route.isRoad && remaining < 30)) {
                 arrived = true

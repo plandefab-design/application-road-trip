@@ -12,7 +12,7 @@ final class AlertGuideTests: XCTestCase {
     func testCameraAnnouncedAt500m() {
         XCTAssertEqual(AlertGuide.announcements(alerts, progress: 400, cameras: true), [])      // 600 m ahead
         XCTAssertEqual(AlertGuide.announcements(alerts, progress: 500, cameras: true),
-                       [.init(key: "alert-0", text: "Radar dans 500 mètres, limité à 80")])
+                       [.init(key: "alert-0", text: "Radar dans 500 mètres, limité à 80", urgent: true)])
     }
 
     func testHazardBehindACameraIsNotMasked() {

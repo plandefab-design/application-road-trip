@@ -19,13 +19,13 @@ struct FreeRideView: View {
     /// Favourite destination to be guided to right away (Favoris tab).
     private let destination: FavoritePlaces.Place?
 
-    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, startWithAddress: Bool = false,
+    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, traffic: TrafficClient?, startWithAddress: Bool = false,
          destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
         self.startWithAddress = startWithAddress
         self.destination = destination
         self.onFinished = onFinished
-        _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled,
+        _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled, traffic: traffic,
                                                              location: location, voice: voice))
     }
 

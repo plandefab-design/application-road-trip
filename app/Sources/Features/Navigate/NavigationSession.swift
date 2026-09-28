@@ -13,7 +13,8 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var rejoinDistance: Double?
     @Published private(set) var rejoinBearing: Double?
     @Published private(set) var speedKmh: Double = 0
-    @Published private(set) var recorded: [GeoPoint] = []
+    /// Precise fixes only (≤ 50 m): the recorded track and the odometer are not inflated by GPS noise.
+    private(set) var recorded: [GeoPoint] = []
     private var recordedTimes: [Date] = []
     private var recordedSpeeds: [Double] = []
     /// Summary of the ride, set by `stop()` (nil for a ride shorter than 200 m).
@@ -156,26 +157,39 @@ final class NavigationSession: ObservableObject {
         voice.say("Reprise de l'itinéraire.", key: "\(detourId)-end", cooldown: 5)
     }
 
+    /// Camera, hazard or turn from TripCore: urgent ones cut traffic or weather messages.
+    private func say(_ a: TurnGuide.Announcement, key: String? = nil, cooldown: TimeInterval = 3_600) {
+        voice.say(a.text, key: key ?? a.key, cooldown: cooldown, priority: a.urgent ? .urgent : .normal)
+    }
+
+    /// Cameras and hazards of the iPhone's pack ahead in the direction of travel, when the rider is on a road
+    /// the day's alerts do not cover (off route without a road back, straight-line detour).
+    private func announcePackAhead(_ fix: LocationService.Fix) {
+        let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
+        for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
+            say(a, cooldown: 600)
+        }
+    }
+
     private func handle(_ fix: LocationService.Fix) {
+        // A fix worse than 150 m (indoor, first seconds) would place the rider on the wrong road.
+        guard fix.accuracy >= 0, fix.accuracy <= 150 else { return }
         if let last = recordedTimes.last { breaks.update(speed: fix.speed, dt: fix.time.timeIntervalSince(last)) }
-        recorded.append(fix.point)
-        recordedTimes.append(fix.time)
-        recordedSpeeds.append(fix.speed)
+        if fix.accuracy <= 50 {
+            recorded.append(fix.point)
+            recordedTimes.append(fix.time)
+            recordedSpeeds.append(fix.speed)
+        }
         speedKmh = max(0, fix.speed) * 3.6
 
         if var d = detour {
             let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
             detour = d
             detourUpdate = u
-            for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
+            for a in u.announcements { say(a, key: "\(detourId)-\(a.key)") }
             // Road detour: its cameras and hazards are announced along it (above). Straight line (offline):
             // the pack's alerts ahead in the direction of travel.
-            if !d.route.isRoad {
-                let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
-                for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
-                    voice.say(a.text, key: a.key, cooldown: 600)
-                }
-            }
+            if !d.route.isRoad { announcePackAhead(fix) }
             return
         }
 
@@ -205,11 +219,12 @@ final class NavigationSession: ObservableObject {
                 let u = r.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
                 rejoin = r
                 rejoinUpdate = u
-                for a in u.announcements where a.key != "detour-arrived" {
-                    voice.say(a.text, key: "\(rejoinId)-\(a.key)", cooldown: 3_600)
-                }
+                for a in u.announcements where a.key != "detour-arrived" { say(a, key: "\(rejoinId)-\(a.key)") }
                 // Left the rejoin route too: plan again (at most once a minute).
                 if r.route.isRoad, let m = r.route.track.locate(fix.point), m.lateralOffset > 100 { rejoinPlannedAt = nil; rejoin = nil }
+            } else {
+                // No road back yet (offline, computing): cameras and hazards still announced on the road taken.
+                announcePackAhead(fix)
             }
         } else {
             lastProgress = snap.progress
@@ -223,9 +238,7 @@ final class NavigationSession: ObservableObject {
         if !offRoute, !day.instructions.isEmpty {
             let next = TurnGuide.next(day.instructions, progress: snap.progress)
             nextTurn = next.map { (instruction: $0.instruction, distance: $0.distance) }
-            if let a = TurnGuide.announcement(day.instructions, progress: snap.progress, speed: max(0, fix.speed)) {
-                voice.say(a.text, key: a.key, cooldown: 3_600)
-            }
+            if let a = TurnGuide.announcement(day.instructions, progress: snap.progress, speed: max(0, fix.speed)) { say(a) }
         }
 
         if !offRoute, !alerts.isEmpty {
@@ -235,9 +248,7 @@ final class NavigationSession: ObservableObject {
             } else {
                 nextAlert = nil
             }
-            for a in AlertGuide.announcements(alerts, progress: snap.progress, cameras: camerasEnabled) {
-                voice.say(a.text, key: a.key, cooldown: 3_600)
-            }
+            for a in AlertGuide.announcements(alerts, progress: snap.progress, cameras: camerasEnabled) { say(a) }
         }
 
         if !offRoute {
@@ -247,7 +258,7 @@ final class NavigationSession: ObservableObject {
                 let since = overLimitSince ?? fix.time
                 overLimitSince = since
                 if fix.time.timeIntervalSince(since) >= 3 {
-                    voice.say("Attention, limitation à \(limit).", key: "speed-\(limit)", cooldown: 60)
+                    voice.say("Attention, limitation à \(limit).", key: "speed-\(limit)", cooldown: 60, priority: .urgent)
                 }
             } else {
                 overLimitSince = nil
@@ -257,7 +268,7 @@ final class NavigationSession: ObservableObject {
             if let p = pauseSuggestion {
                 let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(p.distance))
                 voice.say("Tu roules depuis plus d'une heure et demie. Pause possible \(when) : \(p.spot.name).",
-                          key: "pause", cooldown: 30 * 60)
+                          key: "pause", cooldown: 30 * 60, priority: .info)
             }
             refreshTrafficIfNeeded(progress: snap.progress)
             refreshWeatherIfNeeded(progress: snap.progress)
@@ -265,11 +276,12 @@ final class NavigationSession: ObservableObject {
             if let h = weatherAhead {
                 let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(h.along - snap.progress))
                 voice.say("Météo : \(h.summary) prévu \(when), vers \(WeatherClient.hour(h.eta)).",
-                          key: "weather-\(Int(h.along / 1000))", cooldown: 3_600)
+                          key: "weather-\(Int(h.along / 1000))", cooldown: 3_600, priority: .info)
             }
             incidentsAhead = located.filter { $0.along > snap.progress }
+            // Serious incident close by: urgent (cuts other messages); first warnings and roadworks: info.
             for a in TrafficIncidents.announcements(incidentsAhead, progress: snap.progress) {
-                voice.say(a.text, key: a.key, cooldown: 3_600)
+                voice.say(a.text, key: a.key, cooldown: 3_600, priority: a.urgent ? .urgent : .info)
             }
         }
 

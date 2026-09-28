@@ -27,9 +27,9 @@ public enum AlertGuide {
             if a.kind.isCamera && d <= FreeRideGuide.nearCamera {
                 // Second warning right before the camera.
                 let limit = a.maxspeed.map { ", limité à \($0)" } ?? ""
-                out.append(TurnGuide.Announcement(key: "alert-\(i)-near", text: "Radar maintenant\(limit)"))
+                out.append(TurnGuide.Announcement(key: "alert-\(i)-near", text: "Radar maintenant\(limit)", urgent: true))
             } else if d <= lead(for: a.kind) {
-                out.append(TurnGuide.Announcement(key: "alert-\(i)", text: text(for: a, distance: d)))
+                out.append(TurnGuide.Announcement(key: "alert-\(i)", text: text(for: a, distance: d), urgent: true))
             }
         }
         return out

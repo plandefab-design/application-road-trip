@@ -16,6 +16,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
+from . import live_events
 from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
 from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
@@ -27,10 +28,13 @@ TRIP_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Official French speed cameras refreshed every 24 h in the background (never blocks the API).
+    # Official camera lists refreshed in the background (never blocks the API): France, Spain daily, MapAtlas monthly.
     task = asyncio.create_task(refresh_loop(DATA_DIR))
+    # Live accidents, jams, closures and obstacles (Bison Futé, DGT) every 5 min.
+    live = asyncio.create_task(live_events.refresh_loop())
     yield
     task.cancel()
+    live.cancel()
 
 
 app = FastAPI(title="MotoTrip companion", version="0.1.0", lifespan=lifespan)
@@ -326,3 +330,18 @@ async def route(req: RouteRequest) -> dict[str, Any]:
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text[:500])
     return r.json()
+
+
+@app.get("/live-events", dependencies=[Depends(require_token)])
+def get_live_events(bbox: str) -> dict[str, Any]:
+    """Official live events (France national roads, Spain) in a box "minLon,minLat,maxLon,maxLat", TomTom shape."""
+    try:
+        min_lon, min_lat, max_lon, max_lat = (float(x) for x in bbox.split(","))
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail="bbox attendu : minLon,minLat,maxLon,maxLat") from e
+    return live_events.in_box(min_lon, min_lat, max_lon, max_lat)
+
+
+@app.get("/live-events/status", dependencies=[Depends(require_token)])
+def get_live_events_status() -> dict[str, Any]:
+    return live_events.status()

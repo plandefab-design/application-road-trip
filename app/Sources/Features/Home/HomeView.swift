@@ -92,7 +92,7 @@ struct HomeView: View {
                     Task { await sync.sync(store: store, rides: rides, settings: settings) }
                 }
             }) {
-                FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
+                FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
                              startWithAddress: goToAddress) { ride in
                     guard let ride else { return }
                     pendingRide = RideFinish.record(ride, settings: settings, rides: rides, maintenance: maintenance)

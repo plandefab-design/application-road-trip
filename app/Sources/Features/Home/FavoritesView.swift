@@ -85,10 +85,10 @@ struct FavoritesView: View {
                 switch launch {
                 case .trip(let trip, let day):
                     NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                                   camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey,
+                                   camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
                                    onFinished: record) { settings.pace = $0 }
                 case .destination(let place):
-                    FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
+                    FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
                                  destination: place, onFinished: record)
                 }
             }

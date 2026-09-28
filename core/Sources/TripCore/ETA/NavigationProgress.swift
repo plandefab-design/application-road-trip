@@ -31,6 +31,17 @@ public enum SegmentBuilder {
         return out
     }
 
+    /// Segments whose total time matches the routing engine's planned time for the day (GraphHopper), keeping
+    /// the relative speeds of curvy / secondary / link roads. Without a plan: the default speeds.
+    public static func segments(for line: Polyline, plannedDuration: TimeInterval?) -> [RouteSegment] {
+        let base = segments(for: line)
+        guard let planned = plannedDuration, planned >= 60 else { return base }
+        let defaultTime = base.reduce(0) { $0 + $1.distance / $1.routingSpeed }
+        guard defaultTime > 0 else { return base }
+        let factor = min(max(defaultTime / planned, 0.4), 2.5)      // guards against a corrupt plan
+        return base.map { var s = $0; s.routingSpeed *= factor; return s }
+    }
+
     /// Segments remaining after `distanceAlong`.
     public static func remaining(_ segments: [RouteSegment], after distanceAlong: Double) -> [RouteSegment] {
         var acc = 0.0
@@ -82,7 +93,7 @@ public struct NavigationComputer: Sendable {
                 stops: [(name: String, along: Double, duration: TimeInterval)] = [],
                 plannedDuration: TimeInterval? = nil, dayStart: Date? = nil) {
         self.route = route
-        self.segments = segments ?? SegmentBuilder.segments(for: route)
+        self.segments = segments ?? SegmentBuilder.segments(for: route, plannedDuration: plannedDuration)
         self.fuelStops = fuelStops.sorted { $0.along < $1.along }
         self.stops = stops.sorted { $0.along < $1.along }
         self.plannedDuration = plannedDuration

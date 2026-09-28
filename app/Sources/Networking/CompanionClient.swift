@@ -150,6 +150,19 @@ struct CompanionClient {
         throw URLError(.timedOut)
     }
 
+    // MARK: - Live events (riding: 5 s max, never waited for)
+
+    func liveEvents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
+        var r = request("live-events", timeout: 5)
+        var comps = URLComponents(url: r.url!, resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "bbox", value: String(format: "%.5f,%.5f,%.5f,%.5f", minLon, minLat, maxLon, maxLat))]
+        r.url = comps.url
+        let (data, response) = try await URLSession.shared.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+        return try TrafficIncidents.parse(data)
+    }
+
     // MARK: - Transport
 
     private func request(_ path: String, timeout: TimeInterval) -> URLRequest {

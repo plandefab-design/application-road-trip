@@ -137,7 +137,7 @@ struct SettingsView: View {
                 }
 
                 Section("À propos") {
-                    Text("Cartes © OpenStreetMap contributors · OpenFreeMap · MapLibre. Météo : Open-Meteo (CC BY 4.0). Trafic : TomTom. Radars : Sécurité routière (Etalab), DGT España (CC BY), OpenStreetMap (ODbL), MapAtlas (CC BY 4.0, mapatlas.eu).")
+                    Text("Cartes © OpenStreetMap contributors · OpenFreeMap · MapLibre. Météo : Open-Meteo (CC BY 4.0). Trafic : TomTom. Radars : Sécurité routière (Etalab), DGT España (CC BY), OpenStreetMap (ODbL), MapAtlas (CC BY 4.0, mapatlas.eu). Événements en direct : Bison Futé (Licence Ouverte), DGT (CC BY).")
                         .font(.footnote)
                 }
             }

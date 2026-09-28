@@ -7,6 +7,14 @@ public enum TurnGuide {
         /// Unique per instruction and phase: the voice service says each key once.
         public let key: String
         public let text: String
+        /// Camera, hazard, turn « maintenant »: said before (and cutting) traffic or weather messages.
+        public let urgent: Bool
+
+        public init(key: String, text: String, urgent: Bool = false) {
+            self.key = key
+            self.text = text
+            self.urgent = urgent
+        }
     }
 
     /// Depart, straight-on and via points are silent; arrival is handled by the end-of-day announcement.
@@ -34,7 +42,7 @@ public enum TurnGuide {
         guard let n = next(instructions, progress: progress) else { return nil }
         let t = thresholds(speed: speed)
         if n.distance <= t.near {
-            return Announcement(key: "turn-\(n.index)-now", text: n.instruction.text)
+            return Announcement(key: "turn-\(n.index)-now", text: n.instruction.text, urgent: true)
         }
         if n.distance <= t.far {
             return Announcement(key: "turn-\(n.index)-soon",

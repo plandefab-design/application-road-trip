@@ -114,7 +114,7 @@ struct TripDetailContent: View {
             }
         }) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                           camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey,
+                           camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
                            onFinished: { ride in
                                guard let ride else { return }
                                // The km go to « Ma moto »: odometer + maintenance alerts.
@@ -287,20 +287,24 @@ struct TripDetailContent: View {
         let day = latest.days.first { $0.index == selectedDay && $0.track != nil } ?? latest.days.first { $0.track != nil }
 
         set("traffic", .running)
-        if let track = day?.track, !settings.tomtomKey.isEmpty {
+        if let track = day?.track, let live = LiveTraffic.client(settings) {
             do {
-                let incidents = try await TomTomTrafficClient(key: settings.tomtomKey).alongRoute(track)
-                let lines = incidents.prefix(4).map { i in
+                let incidents = try await live.alongRoute(track)
+                // Dangers first (accident, obstacle, closure, jam…); roadworks only counted.
+                let serious = incidents.filter { !$0.incident.category.isMinor }
+                let works = incidents.count - serious.count
+                var lines = serious.prefix(4).map { i in
                     "\(i.incident.category.label) au km \(Int(i.along / 1000))" + (i.incident.delay.map { " (+\(Int(($0 / 60).rounded())) min)" } ?? "")
                 }
-                set("traffic", incidents.isEmpty ? .ok : .warning,
-                    incidents.isEmpty ? "Aucun incident sur les \(Int(track.length / 1000)) km (jour \(day!.index))."
-                        : lines.joined(separator: "\n") + (incidents.count > 4 ? "\n… et \(incidents.count - 4) autre(s)" : ""))
+                if serious.count > 4 { lines.append("… et \(serious.count - 4) autre(s)") }
+                if works > 0 { lines.append("\(works) zone(s) de travaux ou voie fermée") }
+                set("traffic", serious.isEmpty ? .ok : .warning,
+                    lines.isEmpty ? "Rien à signaler sur les \(Int(track.length / 1000)) km (jour \(day!.index))." : lines.joined(separator: "\n"))
             } catch {
                 set("traffic", .failed, TomTomTrafficClient.describe(error))
             }
         } else {
-            set("traffic", .warning, day == nil ? "Aucune étape tracée." : "Ajoute ta clé TomTom (Réglages › Trafic TomTom).")
+            set("traffic", .warning, day == nil ? "Aucune étape tracée." : "Ajoute ta clé TomTom ou connecte le PC (Réglages).")
         }
 
         set("weather", .running)

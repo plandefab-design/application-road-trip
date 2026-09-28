@@ -24,7 +24,7 @@ final class TurnGuideTests: XCTestCase {
         let soon = TurnGuide.announcement(instructions, progress: 1_250, speed: 10)          // 250 m, far = 300
         XCTAssertEqual(soon, .init(key: "turn-2-soon", text: "Dans 250 mètres, tournez à gauche sur D2"))
         let now = TurnGuide.announcement(instructions, progress: 1_450, speed: 10)           // 50 m, near = 60
-        XCTAssertEqual(now, .init(key: "turn-2-now", text: "Tournez à gauche sur D2"))
+        XCTAssertEqual(now, .init(key: "turn-2-now", text: "Tournez à gauche sur D2", urgent: true))
     }
 
     func testLeadDistanceGrowsWithSpeed() {

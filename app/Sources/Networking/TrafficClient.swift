@@ -2,7 +2,7 @@ import Foundation
 import TripCore
 
 /// Live traffic source used while riding. Optional: failures only update the status line (CLAUDE.md rule 1).
-protocol TrafficClient {
+protocol TrafficClient: Sendable {
     func incidents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident]
 }
 
@@ -60,5 +60,51 @@ struct TomTomTrafficClient: TrafficClient {
         case is DecodingError: return "Réponse TomTom illisible"
         default: return "Trafic indisponible (\(error.localizedDescription))"
         }
+    }
+}
+
+/// Official live events (Bison Futé for French national roads, DGT for Spain) relayed by the PC, in the TomTom
+/// shape. Reachable only through Tailscale: optional like every live source.
+struct CompanionTrafficClient: TrafficClient {
+    let client: CompanionClient
+
+    func incidents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
+        try await client.liveEvents(minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat)
+    }
+}
+
+/// Every live source asked at once. A failing source is skipped (the others still count); an event reported by
+/// several sources is announced once (TomTom first: it carries the delay).
+struct CombinedTrafficClient: TrafficClient {
+    let sources: [TrafficClient]
+
+    func incidents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
+        let results = await withTaskGroup(of: (Int, Result<[TrafficIncident], Error>).self) { group in
+            for (i, source) in sources.enumerated() {
+                group.addTask {
+                    do { return (i, .success(try await source.incidents(minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat))) }
+                    catch { return (i, .failure(error)) }
+                }
+            }
+            var out: [(Int, Result<[TrafficIncident], Error>)] = []
+            for await r in group { out.append(r) }
+            return out.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+        let lists = results.compactMap { try? $0.get() }
+        if lists.isEmpty, case .failure(let error)? = results.first { throw error }
+        return TrafficIncidents.merged(lists)
+    }
+}
+
+enum LiveTraffic {
+    /// TomTom (when a key is set) + the PC's official feeds (when the companion is configured); nil without either.
+    @MainActor
+    static func client(_ settings: AppSettings) -> TrafficClient? {
+        var sources: [TrafficClient] = []
+        if !settings.tomtomKey.isEmpty { sources.append(TomTomTrafficClient(key: settings.tomtomKey)) }
+        if let pc = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) {
+            sources.append(CompanionTrafficClient(client: pc))
+        }
+        return sources.isEmpty ? nil : CombinedTrafficClient(sources: sources)
     }
 }

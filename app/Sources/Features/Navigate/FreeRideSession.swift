@@ -27,12 +27,33 @@ final class FreeRideSession: ObservableObject {
     private let voice: VoiceService
     private var cancellable: AnyCancellable?
 
-    init(guide: FreeRideGuide?, camerasEnabled: Bool, location: LocationService, voice: VoiceService) {
+    /// Live incidents around (TomTom + official feeds via the PC), optional: refreshed every 5 min when online.
+    private let traffic: TrafficClient?
+    private var incidents: [TrafficIncident] = []
+    private var lastTrafficFetch: Date?
+    private var trafficTask: Task<Void, Never>?
+
+    init(guide: FreeRideGuide?, camerasEnabled: Bool, traffic: TrafficClient?, location: LocationService, voice: VoiceService) {
         self.guide = guide
         self.hasPack = guide != nil
         self.camerasEnabled = camerasEnabled
+        self.traffic = traffic
         self.location = location
         self.voice = voice
+    }
+
+    /// Incidents in a ~40 km square around the rider (one request per source), every 5 min. Never waited for.
+    private func refreshTrafficIfNeeded(around p: GeoPoint) {
+        guard let traffic, trafficTask == nil else { return }
+        if let last = lastTrafficFetch, Date().timeIntervalSince(last) < 300 { return }
+        lastTrafficFetch = Date()
+        let dLat = 0.18, dLon = 0.18 / max(0.2, cos(p.lat * .pi / 180))
+        trafficTask = Task { [weak self] in
+            let found = try? await traffic.incidents(minLon: p.lon - dLon, minLat: p.lat - dLat, maxLon: p.lon + dLon, maxLat: p.lat + dLat)
+            guard let self else { return }
+            if let found { self.incidents = found }             // offline: the last list stays
+            self.trafficTask = nil
+        }
     }
 
     func start() {
@@ -46,6 +67,7 @@ final class FreeRideSession: ObservableObject {
 
     func stop() {
         cancellable = nil
+        trafficTask?.cancel()
         location.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         finishedRide = RideStore.log(tripId: RideStore.freeRideTripId, tripName: "Balade libre", day: 0,
@@ -84,7 +106,9 @@ final class FreeRideSession: ObservableObject {
             let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
             detour = d
             detourUpdate = u
-            for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
+            for a in u.announcements {
+                voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600, priority: a.urgent ? .urgent : .normal)
+            }
         }
         if points.count % 15 == 0 || points.count == 1 {
             trackPreview = points
@@ -95,11 +119,15 @@ final class FreeRideSession: ObservableObject {
 
         // GPS course is only meaningful when moving.
         let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
+        refreshTrafficIfNeeded(around: fix.point)
+        for a in TrafficIncidents.announcementsAhead(incidents, position: fix.point, heading: heading) {
+            voice.say(a.text, key: a.key, cooldown: 1_800, priority: a.urgent ? .urgent : .info)
+        }
         guard let guide else { nextAlert = nil; return }
         // On a road detour its own alerts are announced along it; otherwise the ones ahead in the direction of travel.
         if detour?.route.isRoad != true {
             for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
-                voice.say(a.text, key: a.key, cooldown: 600)      // same alert again only after 10 min (way back)
+                voice.say(a.text, key: a.key, cooldown: 600, priority: .urgent)   // again only after 10 min (way back)
             }
         }
         nextAlert = guide.ahead(of: fix.point, heading: heading)

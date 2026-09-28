@@ -64,4 +64,48 @@ final class TrafficIncidentsTests: XCTestCase {
         XCTAssertEqual(TrafficIncidents.boxes(route: road, from: 100_000).count, 1)
         XCTAssertEqual(TrafficIncidents.boxes(route: road, from: 0, length: 60_000).count, 2)
     }
+
+    func testFarWarningOnlyWithin20kmAndNeverForRoadworks() {
+        let far = IncidentAhead(incident: TrafficIncident(id: "a", category: .accident, geometry: []), along: 30_000)
+        let works = IncidentAhead(incident: TrafficIncident(id: "w", category: .roadWorks, geometry: []), along: 5_000)
+        XCTAssertTrue(TrafficIncidents.announcements([far, works], progress: 0).isEmpty)
+        let near = TrafficIncidents.announcements([works], progress: 4_200)
+        XCTAssertEqual(near.map(\.key), ["traffic-w-near"])
+        XCTAssertFalse(near[0].urgent)                       // roadworks never cut a camera warning
+    }
+
+    func testNearDangerIsUrgentAndBurstIsLimited() {
+        let items = (0..<5).map { i in
+            IncidentAhead(incident: TrafficIncident(id: "o\(i)", category: .obstacle, geometry: []), along: Double(2_000 + i * 1_000))
+        }
+        let said = TrafficIncidents.announcements(items, progress: 1_500)
+        XCTAssertEqual(said.map(\.key), ["traffic-o0-near", "traffic-o1-far"])
+        XCTAssertTrue(said[0].urgent)
+        XCTAssertEqual(said[0].text, "Obstacle sur la route dans 500 mètres")
+    }
+
+    func testMergedDropsTheSameEventFromAnotherSource() {
+        let tomtom = TrafficIncident(id: "tt", category: .accident, geometry: [GeoPoint(lat: 44.0, lon: 6.0)])
+        let official = TrafficIncident(id: "fr-1", category: .accident, geometry: [GeoPoint(lat: 44.002, lon: 6.0)])  // ~220 m
+        let other = TrafficIncident(id: "fr-2", category: .jam, geometry: [GeoPoint(lat: 44.002, lon: 6.0)])
+        XCTAssertEqual(TrafficIncidents.merged([[tomtom], [official, other, other]]).map(\.id), ["tt", "fr-2"])
+    }
+
+    func testCameraAndTurnNowAreUrgent() {
+        let camera = RoadAlert(along: 400, kind: .speedCamera, label: "radar")
+        XCTAssertTrue(AlertGuide.announcements([camera], progress: 0, cameras: true).allSatisfy(\.urgent))
+        let turn = TurnInstruction(along: 50, maneuver: .turnLeft, text: "Tournez à gauche")
+        XCTAssertEqual(TurnGuide.announcement([turn], progress: 0, speed: 5)?.urgent, true)
+        XCTAssertEqual(TurnGuide.announcement([turn], progress: -250, speed: 5)?.urgent, false)
+    }
+
+    func testFreeRideAnnouncesOnlyIncidentsAheadWithin1km() {
+        let here = Fixtures.point(onNorthLineAtKm: 0)
+        let ahead = TrafficIncident(id: "a", category: .accident, geometry: [Fixtures.point(onNorthLineAtKm: 0.6)])
+        let behind = TrafficIncident(id: "b", category: .jam, geometry: [Fixtures.point(onNorthLineAtKm: -0.5)])
+        let tooFar = TrafficIncident(id: "c", category: .obstacle, geometry: [Fixtures.point(onNorthLineAtKm: 3)])
+        let said = TrafficIncidents.announcementsAhead([behind, ahead, tooFar], position: here, heading: 0)
+        XCTAssertEqual(said, [.init(key: "traffic-a-near", text: "Accident dans 600 mètres", urgent: true)])
+        XCTAssertTrue(TrafficIncidents.announcementsAhead([ahead], position: here, heading: nil).isEmpty)   // stopped
+    }
 }

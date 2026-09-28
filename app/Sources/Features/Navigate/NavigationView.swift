@@ -15,9 +15,8 @@ struct NavigationView: View {
     private let onFinished: (RideLog?) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         camerasEnabled: Bool, tomtomKey: String, onFinished: @escaping (RideLog?) -> Void = { _ in },
+         camerasEnabled: Bool, traffic: TrafficClient?, onFinished: @escaping (RideLog?) -> Void = { _ in },
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
-        let traffic: TrafficClient? = tomtomKey.isEmpty ? nil : TomTomTrafficClient(key: tomtomKey) as TrafficClient
         self.location = location
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
