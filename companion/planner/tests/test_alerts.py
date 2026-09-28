@@ -78,3 +78,23 @@ def test_pauses_by_kind_spacing_and_distance():
     out = pauses_along(TRACK, spots)
     assert [(p["kind"], p["name"]) for p in out] == [("cafe", "Café du Col"), ("viewpoint", "Point de vue"), ("water", "Point d'eau")]
     assert out == sorted(out, key=lambda p: p["along"])
+
+
+def test_track_index_is_accurate_on_a_long_diagonal_stage():
+    """Distances along a 300 km diagonal stage match haversine within 20 m (the old projection drifted 2 km)."""
+    import math
+
+    from app.alerts import TrackIndex
+
+    track = [{"lat": 43.5 + i * 0.00035, "lon": 4.8 + i * 0.00045} for i in range(6000)]
+
+    def hav(a, b):
+        p1, p2 = math.radians(a["lat"]), math.radians(b["lat"])
+        dp, dl = p2 - p1, math.radians(b["lon"] - a["lon"])
+        h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+        return 2 * 6_371_008.8 * math.asin(math.sqrt(h))
+
+    true_along = sum(hav(a, b) for a, b in zip(track[:5500], track[1:5501]))
+    along, offset = TrackIndex(track).project(track[5500]["lat"] + 0.0001, track[5500]["lon"])
+    assert abs(along - true_along) < 20 and offset < 15
+    assert TrackIndex(track).project(40.0, 1.0) is None          # far from the route: rejected at once

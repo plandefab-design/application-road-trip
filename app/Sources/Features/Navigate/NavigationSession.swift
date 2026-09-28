@@ -58,6 +58,8 @@ final class NavigationSession: ObservableObject {
     /// The day's cameras and hazards, completed at start with the iPhone's latest pack (a trip prepared weeks
     /// ago still gets the new cameras, e.g. the daily official French list).
     let alerts: [RoadAlert]
+    /// Pause spots re-positioned on the track (same fix as the alerts).
+    private let pauses: [PauseSpot]
 
     private let computer: NavigationComputer
     private var pace: PaceEstimator
@@ -78,7 +80,8 @@ final class NavigationSession: ObservableObject {
         self.trip = trip
         self.day = day
         self.route = r
-        self.alerts = AlertGuide.merge(day.alerts, with: AlertPackStore.shared.guide?.along(r) ?? [])
+        self.alerts = AlertGuide.merge(AlertGuide.relocated(day.alerts, on: r), with: AlertPackStore.shared.guide?.along(r) ?? [])
+        self.pauses = PauseAdvisor.relocated(day.pauses, on: r)
         self.location = location
         self.voice = voice
         self.pace = pace
@@ -263,7 +266,7 @@ final class NavigationSession: ObservableObject {
             } else {
                 overLimitSince = nil
             }
-            pauseSuggestion = PauseAdvisor.suggestion(day.pauses, progress: snap.progress,
+            pauseSuggestion = PauseAdvisor.suggestion(pauses, progress: snap.progress,
                                                       ridingSinceBreak: breaks.ridingSinceBreak)
             if let p = pauseSuggestion {
                 let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(p.distance))

@@ -62,4 +62,17 @@ final class AlertGuideTests: XCTestCase {
         XCTAssertEqual(trip.days[0].alerts.map(\.kind), [.hazard, .speedCamera])
         XCTAssertEqual(try TripCodec.decode(TripCodec.encode(trip)).days[0].alerts, trip.days[0].alerts)
     }
+
+    func testRelocatedFixesDriftedDistances() {
+        let track = Fixtures.northLine(km: 10)
+        let camera = RoadAlert(along: 7_000, kind: .speedCamera, label: "radar",
+                               point: Fixtures.point(onNorthLineAtKm: 5, eastOffsetM: 10))   // really at 5 km
+        let noPoint = RoadAlert(along: 3_000, kind: .hazard, label: "danger")
+        let elsewhere = RoadAlert(along: 8_000, kind: .hazard, label: "ailleurs",
+                                  point: Fixtures.point(onNorthLineAtKm: 8, eastOffsetM: 500))
+        let out = AlertGuide.relocated([camera, noPoint, elsewhere], on: track)
+        XCTAssertEqual(out.map(\.label), ["danger", "radar", "ailleurs"])
+        XCTAssertEqual(out[1].along, 5_000, accuracy: 5)
+        XCTAssertEqual(out[2].along, 8_000)
+    }
 }

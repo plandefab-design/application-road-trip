@@ -64,6 +64,20 @@ extension AlertGuide {
         return out.sorted { $0.along < $1.along }
     }
 
+    /// Alerts re-positioned on the track from their coordinates, sorted by `along`. Trips computed by older PC
+    /// versions carry distances that drift on long stages (up to 2 km on 300 km); alerts without a point, or no
+    /// longer on the track (> `maxOffset`), keep their stored distance.
+    public static func relocated(_ alerts: [RoadAlert], on track: Polyline, maxOffset: Double = 60) -> [RoadAlert] {
+        guard track.points.count > 1 else { return alerts }
+        return alerts.map { a in
+            guard let p = a.point, let m = track.locate(p, hint: a.along, window: 10_000), m.lateralOffset <= maxOffset else { return a }
+            var moved = a
+            moved.along = m.distanceAlong
+            return moved
+        }
+        .sorted { $0.along < $1.along }
+    }
+
     static func sentenceCase(_ s: String) -> String {
         guard let first = s.first else { return s }
         return first.uppercased() + s.dropFirst()

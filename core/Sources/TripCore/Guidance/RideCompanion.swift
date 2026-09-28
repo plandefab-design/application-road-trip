@@ -49,6 +49,18 @@ public enum PauseAdvisor {
     public static let ridingBeforePause: TimeInterval = 90 * 60
     public static let lookAhead = 15_000.0
 
+    /// Spots re-positioned on the track from their coordinates (same drift fix as AlertGuide.relocated).
+    public static func relocated(_ spots: [PauseSpot], on track: Polyline, maxOffset: Double = 500) -> [PauseSpot] {
+        guard track.points.count > 1 else { return spots }
+        return spots.map { s in
+            guard let p = s.point, let m = track.locate(p, hint: s.along, window: 10_000), m.lateralOffset <= maxOffset else { return s }
+            var moved = s
+            moved.along = m.distanceAlong
+            return moved
+        }
+        .sorted { $0.along < $1.along }
+    }
+
     /// Best spot in the next 15 km once a pause is due: a café first, then a viewpoint, then water; nearest of a kind.
     public static func suggestion(_ pauses: [PauseSpot], progress: Double, ridingSinceBreak: TimeInterval)
         -> (spot: PauseSpot, distance: Double)? {
