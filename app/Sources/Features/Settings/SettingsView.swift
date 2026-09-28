@@ -4,6 +4,8 @@ import TripCore
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: TripStore
+    @EnvironmentObject private var rides: RideStore
+    @EnvironmentObject private var sync: SyncService
     @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
@@ -78,6 +80,12 @@ struct SettingsView: View {
 
                 Section("État du système") {
                     LabeledContent("Trips enregistrés", value: "\(store.trips.count)")
+                    LabeledContent("Sorties enregistrées", value: "\(rides.rides.count)")
+                    Button(sync.running ? "Synchronisation…" : "Synchroniser avec le PC maintenant") {
+                        Task { await sync.sync(store: store, rides: rides, settings: settings) }
+                    }
+                    .disabled(sync.running)
+                    if let s = sync.status { Text(s).font(.footnote).foregroundStyle(.secondary) }
                     LabeledContent("Coefficient d'allure (cols)", value: String(format: "%.2f", settings.pace.coefficient(.curvy)))
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
                     if let expiry = SigningInfo.expirationDate {

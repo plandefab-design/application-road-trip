@@ -66,6 +66,49 @@ struct CompanionClient {
         try await get("trips/\(tripId)/chat/\(jobId)", timeout: 15)
     }
 
+    // MARK: Sync (A11)
+
+    struct TripSummary: Decodable {
+        let id: String
+        let name: String
+        let updatedAt: String?
+    }
+
+    func listTrips() async throws -> [TripSummary] {
+        try await get("trips", timeout: 10)
+    }
+
+    func getTrip(_ id: String) async throws -> Trip {
+        var r = request("trips/\(id)", timeout: 30)
+        r.httpMethod = "GET"
+        let (data, response) = try await URLSession.shared.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+        return try TripCodec.decode(data)
+    }
+
+    struct Ack: Decodable {}
+
+    func putTrip(_ trip: Trip) async throws {
+        var r = request("trips/\(trip.id)", timeout: 30)
+        r.httpMethod = "PUT"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = try TripCodec.encode(trip)
+        let (data, response) = try await URLSession.shared.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+    }
+
+    func putRide(id: String, body: Data) async throws {
+        var r = request("rides/\(id)", timeout: 30)
+        r.httpMethod = "PUT"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+    }
+
     struct FinalizeRequest: Encodable { let trip: Trip }
 
     /// Locates the waypoints and computes each day's road track on the PC (GraphHopper), no Claude involved.

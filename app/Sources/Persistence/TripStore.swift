@@ -23,7 +23,10 @@ final class TripStore: ObservableObject {
             .sorted { $0.params.dateStart > $1.params.dateStart }
     }
 
-    func save(_ trip: Trip) {
+    /// - Parameter touch: stamp `updatedAt` now (a local change). false for a trip pulled from the PC as is.
+    func save(_ trip: Trip, touch: Bool = true) {
+        var trip = trip
+        if touch { trip.updatedAt = TripSync.timestamp() }
         do {
             let data = try TripCodec.encode(trip)
             try data.write(to: fileURL(trip.id), options: .atomic)

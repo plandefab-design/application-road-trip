@@ -5,6 +5,9 @@ struct MotoTripApp: App {
     @StateObject private var store = TripStore()
     @StateObject private var settings = AppSettings()
     @StateObject private var offlineMaps = OfflineMapStore()
+    @StateObject private var rides = RideStore()
+    @StateObject private var sync = SyncService()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -12,12 +15,18 @@ struct MotoTripApp: App {
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(offlineMaps)
+                .environmentObject(rides)
+                .environmentObject(sync)
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
                 .preferredColorScheme(settings.forceDark ? .dark : nil)
                 .task {
                     // After each SideStore refresh the expiry moves: keep the reminder in step (if allowed).
                     if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
                 }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Silent sync with the PC when the app opens or comes back (never while riding: no network need).
+            if phase == .active { Task { await sync.sync(store: store, rides: rides, settings: settings) } }
         }
     }
 }

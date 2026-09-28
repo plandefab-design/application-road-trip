@@ -9,9 +9,13 @@ struct NavigationView: View {
     @StateObject private var session: NavigationSession
     @State private var confirmQuit = false
 
+    private let onFinished: (RideLog?) -> Void
+
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         camerasEnabled: Bool, tomtomKey: String, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+         camerasEnabled: Bool, tomtomKey: String, onFinished: @escaping (RideLog?) -> Void = { _ in },
+         onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         let traffic: TrafficClient? = tomtomKey.isEmpty ? nil : TomTomTrafficClient(key: tomtomKey) as TrafficClient
+        self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
                                                                pace: pace, camerasEnabled: camerasEnabled, traffic: traffic,
                                                                onPaceUpdate: onPaceUpdate))
@@ -41,6 +45,20 @@ struct NavigationView: View {
                     incidentBadge(incident, distance: incident.along - progress)
                 }
                 if let next = session.nextAlert { alertBadge(next.alert, distance: next.distance) }
+                if let pause = session.pauseSuggestion {
+                    HStack(spacing: 10) {
+                        Image(systemName: pause.spot.kind == .cafe ? "cup.and.saucer.fill" : pause.spot.kind == .viewpoint ? "binoculars.fill" : "drop.fill")
+                            .font(.system(size: 26, weight: .bold))
+                        VStack(alignment: .leading) {
+                            Text("Pause conseillée : \(pause.spot.name)").font(.headline).lineLimit(1)
+                            Text("\(pause.spot.kind.label) · \(Format.distance(pause.distance))").font(.subheadline)
+                        }
+                        Spacer()
+                    }
+                    .padding(10)
+                    .foregroundStyle(.white)
+                    .background(Color.green.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
+                }
                 if let delay = session.snapshot?.delay { delayBadge(delay) }
                 bottomCards
                 controls
@@ -50,7 +68,10 @@ struct NavigationView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { session.start() }
-        .onDisappear { session.stop() }
+        .onDisappear {
+            session.stop()
+            onFinished(session.finishedRide)
+        }
     }
 
     private var mapContent: MapContent {
@@ -86,8 +107,17 @@ struct NavigationView: View {
                 }
             }
             Spacer()
+            if let limit = session.speedLimit {
+                Text("\(limit)")
+                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .frame(width: 50, height: 50)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().stroke(.red, lineWidth: 5))
+                    .foregroundStyle(.black)
+            }
             VStack {
                 Text("\(Int(session.speedKmh))").font(.system(size: 40, weight: .heavy, design: .rounded))
+                    .foregroundStyle(session.speedLimit.map { SpeedLimits.isOver(speedKmh: session.speedKmh, limit: $0) } == true ? .red : .white)
                 Text("km/h").font(.caption)
             }
         }

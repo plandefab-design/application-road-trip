@@ -14,6 +14,15 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var rejoinBearing: Double?
     @Published private(set) var speedKmh: Double = 0
     @Published private(set) var recorded: [GeoPoint] = []
+    private var recordedTimes: [Date] = []
+    private var recordedSpeeds: [Double] = []
+    /// Summary of the ride, set by `stop()` (nil for a ride shorter than 200 m).
+    private(set) var finishedRide: RideLog?
+    /// Known legal limit where the rider is (nil = unknown: nothing shown).
+    @Published private(set) var speedLimit: Int?
+    /// Pause suggested after 1 h 30 of riding (café, viewpoint or water in the next 15 km).
+    @Published private(set) var pauseSuggestion: (spot: PauseSpot, distance: Double)?
+    private var breaks = BreakTracker()
     /// Next maneuver and its distance, for the top banner (nil: no instructions, or none left).
     @Published private(set) var nextTurn: (instruction: TurnInstruction, distance: Double)?
     /// Next speed camera or hazard ahead, for the banner.
@@ -94,10 +103,14 @@ final class NavigationSession: ObservableObject {
         location.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         onPaceUpdate(pace)
+        finishedRide = RideStore.log(trip: trip, day: day, points: recorded, times: recordedTimes, speeds: recordedSpeeds)
     }
 
     private func handle(_ fix: LocationService.Fix) {
+        if let last = recordedTimes.last { breaks.update(speed: fix.speed, dt: fix.time.timeIntervalSince(last)) }
         recorded.append(fix.point)
+        recordedTimes.append(fix.time)
+        recordedSpeeds.append(fix.speed)
         speedKmh = max(0, fix.speed) * 3.6
 
         guard let snap = computer.snapshot(position: fix.point, lastProgress: lastProgress, now: fix.time, pace: pace) else { return }
@@ -147,6 +160,14 @@ final class NavigationSession: ObservableObject {
         }
 
         if !offRoute {
+            speedLimit = SpeedLimits.limit(day.speedLimits, at: snap.progress)
+            pauseSuggestion = PauseAdvisor.suggestion(day.pauses, progress: snap.progress,
+                                                      ridingSinceBreak: breaks.ridingSinceBreak)
+            if let p = pauseSuggestion {
+                let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(p.distance))
+                voice.say("Tu roules depuis plus d'une heure et demie. Pause possible \(when) : \(p.spot.name).",
+                          key: "pause", cooldown: 30 * 60)
+            }
             refreshTrafficIfNeeded(progress: snap.progress)
             refreshWeatherIfNeeded(progress: snap.progress)
             weatherAhead = weatherHazards.first { $0.along > snap.progress }

@@ -19,6 +19,10 @@ struct TripDetailContent: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var offlineMaps: OfflineMapStore
+    @EnvironmentObject private var rides: RideStore
+    @EnvironmentObject private var sync: SyncService
+    @State private var pendingRide: RideLog?
+    @State private var shownRide: RideLog?
     @StateObject private var location = LocationService()
     @State private var voice = VoiceService()
 
@@ -186,6 +190,27 @@ struct TripDetailContent: View {
             if trip.days.contains(where: { $0.track != nil }) {
                 offlineMapSection
 
+                let ridden = rides.rides(for: trip.id)
+                if !ridden.isEmpty {
+                    Section("Mes sorties") {
+                        ForEach(ridden) { ride in
+                            Button { shownRide = ride } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Jour \(ride.day) · \(Format.distance(ride.summary.distance))").font(.subheadline.bold())
+                                        Text("\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "") · \(ride.summary.bends) virages · \(Int((ride.summary.averageMovingSpeed * 3.6).rounded())) km/h de moyenne")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { idx in idx.map { ridden[$0] }.forEach(rides.delete) }
+                    }
+                }
+
                 Section {
                     Button(checkingWeather ? "Vérification de la météo…" : "Vérifier la météo sur la route") {
                         Task {
@@ -242,12 +267,26 @@ struct TripDetailContent: View {
             Text(traceMessage ?? "")
         }
         .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
-        .fullScreenCover(item: $navigatingDay) { day in
+        .fullScreenCover(item: $navigatingDay, onDismiss: {
+            // Summary of what was ridden, then a silent backup to the PC when reachable.
+            if let ride = pendingRide {
+                shownRide = ride
+                pendingRide = nil
+                Task { await sync.sync(store: store, rides: rides, settings: settings) }
+            }
+        }) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                           camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey) { newPace in
+                           camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey,
+                           onFinished: { ride in
+                               if let ride {
+                                   rides.save(ride)
+                                   pendingRide = ride
+                               }
+                           }) { newPace in
                 settings.pace = newPace
             }
         }
+        .sheet(item: $shownRide) { RideSummaryView(ride: $0) }
     }
 
     // MARK: Checklist (A9)
@@ -461,6 +500,12 @@ struct DayRow: View {
             }
             if !day.fuelStops.isEmpty {
                 Text("⛽ " + day.fuelStops.map { "\($0.name) (km \(Int($0.kmFromStart)))" }.joined(separator: ", ")).font(.caption)
+            }
+            if !day.pauses.isEmpty {
+                let count = { (k: PauseKind) in day.pauses.filter { $0.kind == k }.count }
+                Text("Pauses possibles : ☕ \(count(.cafe)) · 👁 \(count(.viewpoint)) · 💧 \(count(.water))"
+                     + (day.speedLimits.isEmpty ? "" : " · limites connues sur \(Int(day.speedLimits.reduce(0) { $0 + $1.to - $1.from } / 1000)) km"))
+                    .font(.caption).foregroundStyle(.secondary)
             }
             let chosen = trip.selectedStops(for: day)
             if !chosen.isEmpty {
