@@ -1,13 +1,13 @@
 # Avancement
 
-Dernière mise à jour : 2026-09-28 — CI verte (TripCore Linux + Windows, iOS build, companion), IPA 1.0.2 publiée.
+Dernière mise à jour : 2026-09-28 — app 1.0.4 installée via SideStore ; companion en service sur le PC (Docker + Tailscale Serve), test de connexion depuis l'iPhone OK.
 
 | Milestone | État | Détail |
 |---|---|---|
 | M0 — CI → IPA → SideStore | 🟢 CI verte, **installation iPhone à valider** | `ios-build.yml` → release v1.0.2 (IPA 3,7 Mo), source SideStore à jour (macos-15, Xcode 16.4, IPA non signée, Release, source SideStore). Carte en ligne OpenFreeMap ; carte hors ligne (S2) à faire. |
 | M1 — TripCore | 🟢 Tests verts en CI (Linux + Windows) | Modèle trip.json v1 (décodage tolérant), validateur, géo (distance, cap, projection, rééchantillonnage), ETA à l'allure (§5.1), pleins (§5.2), sinuosité (§5.6), hors tracé (§5.7), cohérence du formulaire, GPX lecture/écriture, calcul du bandeau de navigation. |
-| M2 — Companion | 🟡 Squelette testé | API FastAPI (health, trips, chat, route), planner Agent SDK, GraphHopper 11.0 + modèles `moto_curvy` / `moto_fast`. 12 tests Python OK. Profil sinueux à calibrer (S4). |
-| M3 — App : écrans | 🟡 Ébauche | Trips (import GPX/JSON), détail (carte, étapes, adresses avec statut vérifié, export GPX), Réglages (garage, SOS, companion, TomTom), Créer (formulaire 13 paramètres + cohérence), chat planner. |
+| M2 — Companion | 🟢 En service sur le PC (Alpes importées, joignable depuis l'iPhone) | API FastAPI (health, trips, chat, route), planner Agent SDK, GraphHopper 11.0 + modèles `moto_curvy` / `moto_fast`. 12 tests Python OK. Profil sinueux à calibrer (S4). |
+| M3 — App : écrans | 🟡 Installée sur iPhone | Édition des motos et des trips, reprise du chat depuis un trip (1.0.4). Trips (import GPX/JSON), détail (carte, étapes, adresses avec statut vérifié, export GPX), Réglages (garage, SOS, companion, TomTom), Créer (formulaire 13 paramètres + cohérence), chat planner. |
 | M4 — Navigation | 🟠 Mode « suivre le tracé » | Local : bandeaux plein / arrêt / fin avec heure d'arrivée à l'allure, avance/retard, hors tracé + cap de retour, voix, écran allumé, SOS SMS, trace réelle. **Guidage virage par virage Ferrostar : à intégrer (S3).** |
 | M5 — Hors ligne, radars, stations | ⚪ À faire | |
 | M6 — Météo sur la route, TomTom | ⚪ À faire | |
