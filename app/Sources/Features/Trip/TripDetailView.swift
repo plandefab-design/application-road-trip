@@ -35,6 +35,16 @@ struct TripDetailContent: View {
                     .listRowInsets(EdgeInsets())
             }
 
+            Section {
+                Button { chatting = true } label: {
+                    Label(trip.days.isEmpty ? "Préparer l'itinéraire avec Claude" : "Modifier l'itinéraire avec Claude",
+                          systemImage: "bubble.left.and.bubble.right")
+                }
+                Button { editing = true } label: {
+                    Label("Modifier les paramètres (dates, motos, zones…)", systemImage: "slider.horizontal.3")
+                }
+            }
+
             let issues = TripValidator.validate(trip)
             if !issues.isEmpty {
                 Section("Points à corriger") {

@@ -13,15 +13,13 @@ struct PlannerChatView: View {
     @State private var companionStatus: String?
     @State private var progress: String?
     @State private var startedAt: Date?
+    @State private var loaded = false
+    @FocusState private var inputFocused: Bool
 
     /// Job id of a planner turn still running on the PC, so reopening the chat picks it up again.
     private var pendingJobKey: String { "plannerJob.\(trip.id)" }
 
-    struct Message: Identifiable {
-        let id = UUID()
-        let fromUser: Bool
-        let text: String
-    }
+    typealias Message = ChatHistory.Message
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,9 +62,10 @@ struct PlannerChatView: View {
 
             HStack {
                 TextField("Ajuster : ajoute un col, change le déjeuner…", text: $input, axis: .vertical)
+                    .focused($inputFocused)
                     .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
-                Button { Task { await send(input) } } label: { Image(systemName: "paperplane.fill") }
+                Button { inputFocused = false; Task { await send(input) } } label: { Image(systemName: "paperplane.fill") }
                     .disabled(input.isEmpty || sending)
             }
             .padding()
@@ -76,8 +75,12 @@ struct PlannerChatView: View {
         .toolbar {
             Button("Enregistrer") { store.save(trip) }
         }
+        .keyboardDoneButton()
+        .onChange(of: messages) { _, all in ChatHistory.save(all, for: trip.id) }
         .task {
-            guard messages.isEmpty, !sending else { return }
+            guard !loaded else { return }
+            loaded = true
+            messages = ChatHistory.load(trip.id)   // previous conversation with Claude for this trip
             if let jobId = UserDefaults.standard.string(forKey: pendingJobKey),
                let client = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) {
                 // A previous request is still running (or finished) on the PC: follow it instead of restarting.
@@ -85,6 +88,8 @@ struct PlannerChatView: View {
                 defer { sending = false; progress = nil; startedAt = nil }
                 startedAt = Date()
                 await follow(jobId: jobId, client: client)
+            } else if !messages.isEmpty {
+                return
             } else if trip.days.isEmpty {
                 await send("Propose l'itinéraire complet jour par jour selon le formulaire et les règles du projet.", showAsUser: false)
             } else {

@@ -35,6 +35,7 @@ final class TripStore: ObservableObject {
 
     func delete(_ trip: Trip) {
         try? FileManager.default.removeItem(at: fileURL(trip.id))
+        ChatHistory.delete(trip.id)
         trips.removeAll { $0.id == trip.id }
     }
 
