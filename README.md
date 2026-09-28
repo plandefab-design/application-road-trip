@@ -101,6 +101,9 @@ Couverture : environ 4 000 km autour de Salon-de-Provence (Europe, Russie, Maghr
    - **Télécharger la carte hors ligne** (la carte s'affiche ensuite sans réseau) ;
    - **Vérifier la météo sur la route** ;
    - **Préparation › Programmer les rappels** (cols, réservations, SideStore, batterie…).
+5. **Entretien** : Réglages › Entretien › choisis **Ma moto (compteur)**, ouvre son carnet et recopie le compteur une fois.
+   Chaque sortie ajoute ensuite ses kilomètres ; l'accueil, une notification et « Préparer le départ » te préviennent
+   des opérations à faire (vidange, chaîne, pneus, freins, révision…). Règle les intervalles selon le carnet de ta moto.
 4. Touche l'étape voulue → **Rouler — Jour N**. Annonces vocales : virages, radars à 500 m (interrupteur dans Réglages),
    dangers à 300 m, pleins, météo et trafic si réseau. Rien de tout ça n'a besoin du PC en roulant.
 
