@@ -36,7 +36,10 @@ struct TripsListView: View {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [Self.gpxType, .json], allowsMultipleSelection: true) { result in
-                if case .success(let urls) = result { urls.forEach(store.importFile) }
+                switch result {
+                case .success(let urls): urls.forEach(store.importFile)
+                case .failure(let error): store.lastError = "Import impossible : \(TripStore.describe(error))"
+                }
             }
             .alert("Erreur", isPresented: Binding(get: { store.lastError != nil }, set: { if !$0 { store.lastError = nil } })) {
                 Button("OK", role: .cancel) {}

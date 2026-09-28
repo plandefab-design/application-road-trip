@@ -42,10 +42,8 @@ final class TripStore: ObservableObject {
 
     /// Imports a trip.json (from the Claude project / companion) or a GPX (one day per track).
     func importFile(at url: URL) {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
-            let data = try Data(contentsOf: url)
+            let data = try Self.readImported(url)
             switch url.pathExtension.lowercased() {
             case "json":
                 save(try TripCodec.decode(data))
@@ -55,7 +53,42 @@ final class TripStore: ObservableObject {
                 lastError = "Format non pris en charge : .\(url.pathExtension)"
             }
         } catch {
-            lastError = "Import impossible : \(error.localizedDescription)"
+            lastError = "Import impossible (\(url.lastPathComponent)) : \(Self.describe(error))"
+        }
+    }
+
+    /// Reads a file picked in Files or received via "Ouvrir avec".
+    /// Coordinated read: files stored in iCloud Drive or another provider are downloaded before reading.
+    static func readImported(_ url: URL) throws -> Data {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        var coordinationError: NSError?
+        var result: Result<Data, Error> = .failure(CocoaError(.fileReadUnknown))
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+            result = Result { try Data(contentsOf: readURL) }
+        }
+        if let coordinationError { throw coordinationError }
+        return try result.get()
+    }
+
+    /// French message with the technical code, so an import failure can be diagnosed from a screenshot.
+    static func describe(_ error: Error) -> String {
+        switch error {
+        case GPXError.empty:
+            return "le GPX ne contient ni trace ni point."
+        case GPXError.invalidCoordinate:
+            return "le GPX contient une coordonnée invalide."
+        case TripCodecError.unsupportedSchemaVersion(let v):
+            return "trip.json en version \(v), trop récente pour cette version de l'app."
+        case let decoding as DecodingError:
+            return "ce n'est pas un trip.json valide (\(decoding))."
+        default:
+            let ns = error as NSError
+            var text = "\(ns.localizedDescription) [\(ns.domain) \(ns.code)]"
+            if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+                text += " ← [\(underlying.domain) \(underlying.code)]"
+            }
+            return text
         }
     }
 
