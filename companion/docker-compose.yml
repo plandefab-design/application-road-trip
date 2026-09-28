@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       JAVA_OPTS: "-Xmx${GH_HEAP:-6g} -Xms1g"
-      GH_PBF: "/data/osm/region.osm.pbf"
+      GH_PBF: "/data/osm/region-4000.osm.pbf"
     volumes:
       - ./data:/data
     ports:
