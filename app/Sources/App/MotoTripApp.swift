@@ -4,12 +4,14 @@ import SwiftUI
 struct MotoTripApp: App {
     @StateObject private var store = TripStore()
     @StateObject private var settings = AppSettings()
+    @StateObject private var offlineMaps = OfflineMapStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
                 .environmentObject(settings)
+                .environmentObject(offlineMaps)
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
                 .preferredColorScheme(settings.forceDark ? .dark : nil)
         }

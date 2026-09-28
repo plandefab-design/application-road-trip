@@ -18,6 +18,7 @@ struct TripDetailView: View {
 struct TripDetailContent: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var offlineMaps: OfflineMapStore
     @StateObject private var location = LocationService()
     @State private var voice = VoiceService()
 
@@ -132,6 +133,8 @@ struct TripDetailContent: View {
             }
 
             if trip.days.contains(where: { $0.track != nil }) {
+                offlineMapSection
+
                 Section {
                     ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
                         Label("Exporter le GPX", systemImage: "square.and.arrow.up")
@@ -139,6 +142,7 @@ struct TripDetailContent: View {
                 }
             }
         }
+        .task(id: trip.id) { await offlineMaps.refresh(tripId: trip.id) }
         .navigationTitle(trip.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -175,6 +179,65 @@ struct TripDetailContent: View {
                 settings.pace = newPace
             }
         }
+    }
+
+    // MARK: Offline map (A7 / A8)
+
+    private var offlineMapSection: some View {
+        let s = offlineMaps.status[trip.id]
+        return Section {
+            if let s, s.downloading {
+                ProgressView(value: s.fraction) {
+                    Text("Téléchargement de la carte… \(Int(s.fraction * 100)) %")
+                }
+            } else if let s, s.complete {
+                Label("Carte hors ligne prête · \(ByteCountFormatter.string(fromByteCount: Int64(s.bytes), countStyle: .file))",
+                      systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+            } else if let s {
+                Label("Carte hors ligne incomplète (\(Int(s.fraction * 100)) %)", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            } else {
+                Label("Carte non téléchargée : sans réseau, le fond de carte sera vide", systemImage: "icloud.slash")
+                    .foregroundStyle(.secondary)
+            }
+            if s?.downloading != true {
+                Button(s?.complete == true ? "Mettre à jour la carte hors ligne" : "Télécharger la carte hors ligne") {
+                    Task { await downloadOfflineMap() }
+                }
+                if s != nil {
+                    Button("Supprimer la carte hors ligne", role: .destructive) {
+                        Task {
+                            await offlineMaps.delete(tripId: trip.id)
+                            setPackIntegrity(.missing)
+                        }
+                    }
+                }
+            }
+            if let error = s?.error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Carte hors ligne")
+        } footer: {
+            Text("À faire en Wi-Fi avant le départ : la carte s'affiche ensuite sans réseau (montagne, mode avion). Le guidage, lui, n'a jamais besoin du réseau.")
+        }
+    }
+
+    private func downloadOfflineMap() async {
+        do {
+            try await offlineMaps.download(trip: trip)
+            setPackIntegrity(.ok)
+        } catch {
+            setPackIntegrity(.missing)
+        }
+    }
+
+    private func setPackIntegrity(_ integrity: PackIntegrity) {
+        guard var t = store.trips.first(where: { $0.id == trip.id }) else { return }
+        t.offlinePack.integrity = integrity
+        t.offlinePack.tiles = integrity == .ok ? "maplibre-offline" : nil
+        store.save(t)
     }
 
     private func startNavigation(_ day: TripDay) {
