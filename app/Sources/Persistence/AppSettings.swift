@@ -16,6 +16,8 @@ final class AppSettings: ObservableObject {
     @Published var radarAnnouncements: Bool { didSet { defaults.set(radarAnnouncements, forKey: "radarAnnouncements") } }
     @Published var forceDark: Bool { didSet { defaults.set(forceDark, forKey: "forceDark") } }
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }
+    /// Garage bike whose odometer the rides advance (« Ma moto »).
+    @Published var primaryBikeId: String { didSet { defaults.set(primaryBikeId, forKey: "primaryBikeId") } }
 
     init() {
         let d = UserDefaults.standard   // not self.defaults: self is not fully initialized yet
@@ -28,7 +30,11 @@ final class AppSettings: ObservableObject {
         radarAnnouncements = (d.object(forKey: "radarAnnouncements") as? Bool) ?? true   // on by default (rider's choice)
         forceDark = d.bool(forKey: "forceDark")
         pace = Self.load(PaceEstimator.self, "pace") ?? PaceEstimator()
+        primaryBikeId = d.string(forKey: "primaryBikeId") ?? ""
     }
+
+    /// « Ma moto », or the first garage bike.
+    var primaryBike: Bike? { garage.first { $0.id == primaryBikeId } ?? garage.first }
 
     var companionToken: String {
         get { Keychain.read("companionToken") ?? "" }

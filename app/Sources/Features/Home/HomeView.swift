@@ -6,6 +6,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var offlineMaps: OfflineMapStore
+    @EnvironmentObject private var maintenance: MaintenanceStore
     @Binding var tab: RootView.Tab
     @State private var path: [String] = []
 
@@ -24,6 +25,12 @@ struct HomeView: View {
                         emptyCard
                     }
                     quickActions
+                    if let urgent = maintenance.mostUrgent(garage: settings.garage) {
+                        banner("Entretien \(urgent.bike.model) : \(urgent.item.label)",
+                               detail: urgent.status.text.prefix(1).uppercased() + urgent.status.text.dropFirst() + ". Touche pour ouvrir le carnet.",
+                               icon: "wrench.adjustable.fill",
+                               color: urgent.status.level >= .due ? .red : .yellow) { tab = .settings }
+                    }
                     if settings.garage.isEmpty || settings.garage.contains(where: { $0.category == nil }) {
                         banner("Complète ton garage", detail: "Type de moto et autonomie réelle : les itinéraires et les pleins en dépendent.",
                                icon: "wrench.and.screwdriver.fill", color: .blue) { tab = .settings }

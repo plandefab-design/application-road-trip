@@ -69,3 +69,17 @@ enum SigningInfo {
         return dict?["ExpirationDate"] as? Date
     }()
 }
+
+extension Reminders {
+    /// Immediate local notification when a ride makes maintenance items due (only if notifications are allowed).
+    static func notifyMaintenance(bike: String, items: [(item: MaintenanceItem, status: MaintenanceBook.Status)]) async {
+        guard !items.isEmpty, await isAuthorized() else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Entretien — \(bike)"
+        content.body = items.prefix(3).map { "\($0.item.label) : \($0.status.text)" }.joined(separator: "\n")
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "maintenance-\(UUID().uuidString)", content: content, trigger: trigger))
+    }
+}

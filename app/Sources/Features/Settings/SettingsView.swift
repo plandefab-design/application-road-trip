@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var sync: SyncService
+    @EnvironmentObject private var maintenance: MaintenanceStore
     @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
@@ -40,12 +41,35 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .onDelete { settings.garage.remove(atOffsets: $0) }
+                    .onDelete {
+                        settings.garage.remove(atOffsets: $0)
+                        maintenance.removeBooks(notIn: Set(settings.garage.map(\.id)))
+                    }
                     Button("Ajouter une moto") { bikeSheet = .add }
                 } header: {
                     Text("Garage")
                 } footer: {
                     Text("Touche une moto pour la modifier, glisse vers la gauche pour la supprimer.")
+                }
+
+                if !settings.garage.isEmpty {
+                    Section {
+                        Picker("Ma moto (compteur)", selection: Binding(get: { settings.primaryBike?.id ?? "" },
+                                                                        set: { settings.primaryBikeId = $0 })) {
+                            ForEach(settings.garage) { Text($0.model).tag($0.id) }
+                        }
+                        ForEach(settings.garage) { bike in
+                            NavigationLink {
+                                MaintenanceView(bike: bike)
+                            } label: {
+                                maintenanceRow(bike)
+                            }
+                        }
+                    } header: {
+                        Text("Entretien")
+                    } footer: {
+                        Text("Chaque sortie enregistrée ajoute ses kilomètres au compteur de « Ma moto » et te prévient des entretiens à faire.")
+                    }
                 }
 
                 Section("Pilote") {
@@ -120,6 +144,20 @@ struct SettingsView: View {
             }
             .onDisappear {
                 if token != settings.companionToken { settings.companionToken = token }   // saved once, not per keystroke
+            }
+        }
+    }
+
+    private func maintenanceRow(_ bike: Bike) -> some View {
+        let book = maintenance.books[bike.id]
+        let urgent = book?.attention().first
+        return HStack(spacing: 10) {
+            Circle().fill(urgent.map { MaintenanceView.color($0.status.level) } ?? .green).frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bike.model).font(.subheadline.bold())
+                Text(book.map { "\(Int($0.odometerKm)) km" + (urgent.map { " · \($0.item.label) \($0.status.text)" } ?? " · à jour") }
+                     ?? "Carnet à ouvrir une première fois")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
         }
     }

@@ -21,6 +21,7 @@ struct TripDetailContent: View {
     @EnvironmentObject private var offlineMaps: OfflineMapStore
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var sync: SyncService
+    @EnvironmentObject private var maintenance: MaintenanceStore
     @State private var pendingRide: RideLog?
     @State private var shownRide: RideLog?
     @StateObject private var location = LocationService()
@@ -278,10 +279,16 @@ struct TripDetailContent: View {
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
                            camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey,
                            onFinished: { ride in
-                               if let ride {
-                                   rides.save(ride)
-                                   pendingRide = ride
+                               guard var ride else { return }
+                               // The km go to « Ma moto »: odometer + maintenance alerts.
+                               if let bike = settings.primaryBike {
+                                   ride.bikeId = bike.id
+                                   _ = maintenance.book(for: bike)
+                                   let newlyDue = maintenance.addRide(bikeId: bike.id, km: ride.summary.distance / 1000)
+                                   Task { await Reminders.notifyMaintenance(bike: bike.model, items: newlyDue) }
                                }
+                               rides.save(ride)
+                               pendingRide = ride
                            }) { newPace in
                 settings.pace = newPace
             }
@@ -427,6 +434,7 @@ struct TripDetailContent: View {
             PrepStep(id: "route", label: "Tracé, guidage, radars, dangers, pleins"),
             PrepStep(id: "map", label: "Carte hors ligne"),
             PrepStep(id: "weather", label: "Météo sur la route"),
+            PrepStep(id: "maintenance", label: "Entretien de ma moto"),
             PrepStep(id: "reminders", label: "Rappels et signature SideStore"),
         ]
         func set(_ id: String, _ state: PrepStep.State, _ detail: String? = nil) {
@@ -457,6 +465,18 @@ struct TripDetailContent: View {
         weatherReport = await WeatherClient().tripReport(latest, pace: settings.pace)
         let alerts = weatherReport.filter { !$0.contains("rien à signaler") }
         set("weather", alerts.isEmpty ? .ok : .warning, alerts.isEmpty ? "Rien à signaler." : alerts.prefix(3).joined(separator: "\n"))
+
+        set("maintenance", .running)
+        if let bike = settings.primaryBike {
+            let book = maintenance.book(for: bike)
+            let tripKm = latest.days.compactMap(\.distanceKm).reduce(0, +)
+            let todo = book.dueDuringTrip(tripKm: tripKm)
+            set("maintenance", todo.isEmpty ? .ok : .warning,
+                todo.isEmpty ? "\(bike.model) : rien à prévoir sur ces \(Int(tripKm)) km."
+                    : "\(bike.model), à faire avant de partir : " + todo.prefix(4).map(\.label).joined(separator: ", ") + ".")
+        } else {
+            set("maintenance", .warning, "Ajoute ta moto dans Réglages › Garage.")
+        }
 
         set("reminders", .running)
         if await Reminders.isAuthorized() {

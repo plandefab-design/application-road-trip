@@ -42,12 +42,12 @@ final class RideStore: ObservableObject {
     func rides(for tripId: String) -> [RideLog] { rides.filter { $0.tripId == tripId } }
 
     /// Builds the log of a finished ride; nil for a ride shorter than 200 m (test start, mistake).
-    static func log(trip: Trip, day: TripDay, points: [GeoPoint], times: [Date], speeds: [Double]) -> RideLog? {
+    static func log(trip: Trip, day: TripDay, points: [GeoPoint], times: [Date], speeds: [Double], bikeId: String? = nil) -> RideLog? {
         let summary = RideSummary.summarize(points: points, times: times, speeds: speeds)
         guard summary.distance >= 200 else { return nil }
         let stamp = Int((summary.startedAt ?? Date()).timeIntervalSince1970)
         let thinned = points.enumerated().filter { $0.offset % 3 == 0 || $0.offset == points.count - 1 }.map(\.element)
         return RideLog(id: "\(trip.id.prefix(8))-j\(day.index)-\(stamp)", tripId: trip.id, tripName: trip.name,
-                       day: day.index, summary: summary, track: thinned)
+                       day: day.index, summary: summary, track: thinned, bikeId: bikeId)
     }
 }

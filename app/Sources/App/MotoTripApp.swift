@@ -7,6 +7,7 @@ struct MotoTripApp: App {
     @StateObject private var offlineMaps = OfflineMapStore()
     @StateObject private var rides = RideStore()
     @StateObject private var sync = SyncService()
+    @StateObject private var maintenance = MaintenanceStore()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -17,6 +18,7 @@ struct MotoTripApp: App {
                 .environmentObject(offlineMaps)
                 .environmentObject(rides)
                 .environmentObject(sync)
+                .environmentObject(maintenance)
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
                 .preferredColorScheme(settings.forceDark ? .dark : nil)
                 .task {
