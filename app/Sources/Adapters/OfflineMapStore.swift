@@ -83,13 +83,16 @@ final class OfflineMapStore: ObservableObject {
         var regions: [(region: MLNOfflineRegion, part: String)] = []
         let bounds = MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: area.minLat, longitude: area.minLon),
                                          ne: CLLocationCoordinate2D(latitude: area.maxLat, longitude: area.maxLon))
-        regions.append((MLNTilePyramidOfflineRegion(styleURL: TripMapView.styleURL, bounds: bounds,
-                                                    fromZoomLevel: 0, toZoomLevel: 11), "overview"))
-        for (i, track) in tracks.enumerated() {
-            var coords = track.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
-            let line = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
-            regions.append((MLNShapeOfflineRegion(styleURL: TripMapView.styleURL, shape: line,
-                                                  fromZoomLevel: 12, toZoomLevel: 14), "day\(i + 1)"))
+        // Light and dark styles: they share the same tiles, so the second one mostly adds its style resources.
+        for (s, styleURL) in TripMapView.allStyleURLs.enumerated() {
+            regions.append((MLNTilePyramidOfflineRegion(styleURL: styleURL, bounds: bounds,
+                                                        fromZoomLevel: 0, toZoomLevel: 11), "s\(s)-overview"))
+            for (i, track) in tracks.enumerated() {
+                var coords = track.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+                let line = MLNPolyline(coordinates: &coords, count: UInt(coords.count))
+                regions.append((MLNShapeOfflineRegion(styleURL: styleURL, shape: line,
+                                                      fromZoomLevel: 12, toZoomLevel: 14), "s\(s)-day\(i + 1)"))
+            }
         }
 
         var created: [MLNOfflinePack] = []
