@@ -5,8 +5,8 @@ import json
 import re
 from typing import Any
 
-SCHEMA_VERSION = 2          # v2 (additive): days[].instructions. v1 input is upgraded.
-ACCEPTED_VERSIONS = {1, 2}
+SCHEMA_VERSION = 3          # v2: days[].instructions ; v3: days[].alerts (additive). Older input is upgraded.
+ACCEPTED_VERSIONS = {1, 2, 3}
 POI_TYPES = {"meal", "lodging", "fuel", "pass", "viewpoint"}
 STATUSES = {"draft", "proposed", "validated", "ready", "active", "done"}
 

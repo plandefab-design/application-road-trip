@@ -142,5 +142,5 @@ def test_schema_v1_is_upgraded():
     from app.trip_schema import validate_trip
     t = {"schemaVersion": 1, "id": "t", "name": "n", "status": "draft", "params": {}}
     assert validate_trip(t) == []
-    assert t["schemaVersion"] == 2
+    assert t["schemaVersion"] == 3
     assert validate_trip({"schemaVersion": 7, "id": "t", "name": "n", "status": "draft", "params": {}})

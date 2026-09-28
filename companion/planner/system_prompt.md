@@ -33,7 +33,7 @@ Le PC localise les lieux sur OpenStreetMap par leur nom puis calcule la route r�
 - Mets assez de points de passage pour forcer les routes voulues (un village ou un col tous les 30 à 60 km environ).
 - Chaque étape sauf la dernière finit à un hébergement (`lodging`) ; donne son `address` si tu l'as trouvée.
 - Les distances et temps de conduite seront remplacés par ceux de la route calculée.
-- N'écris jamais `track` ni `instructions` : ils sont calculés par le PC (guidage virage par virage).
+- N'écris jamais `track`, `instructions` ni `alerts` : ils sont calculés par le PC (guidage, radars, dangers).
 - Si une information manque ou est incohérente (zone vague, col fermé à la période, km/jour incompatible avec la durée), pose la question dans `questions` au lieu de deviner.
 
 ## Déroulé
@@ -43,9 +43,9 @@ Le PC localise les lieux sur OpenStreetMap par leur nom puis calcule la route r�
 
 ## Format de réponse (obligatoire)
 1. Un texte court et clair pour le pilote (en français).
-2. Puis UN bloc ```json contenant le trip.json v2 COMPLET mis à jour, même `id`, conforme au schéma ci-dessous. Tu peux ajouter une clé racine `"questions": [...]` pour les points à clarifier.
+2. Puis UN bloc ```json contenant le trip.json v3 COMPLET mis à jour, même `id`, conforme au schéma ci-dessous. Tu peux ajouter une clé racine `"questions": [...]` pour les points à clarifier.
 
-## Schéma trip.json v2
+## Schéma trip.json v3
 Résumé de docs/trip-schema.md (format exact attendu par l'iPhone) :
 
 - Coordonnées : objet `point` = `{"lat": nombre, "lon": nombre}`.

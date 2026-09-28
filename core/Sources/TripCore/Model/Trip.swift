@@ -248,6 +248,36 @@ public enum Maneuver: String, Codable, CaseIterable, Sendable {
     }
 }
 
+/// Kind of road alert (schema v3). Unknown kinds read as `hazard`.
+public enum RoadAlertKind: String, Codable, CaseIterable, Sendable {
+    case speedCamera, redLightCamera, sectionCamera, hazard
+
+    public init(from decoder: Decoder) throws {
+        self = RoadAlertKind(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .hazard
+    }
+
+    public var isCamera: Bool { self != .hazard }
+}
+
+/// Speed camera or mapped hazard on a day's track, from OpenStreetMap (schema v3).
+public struct RoadAlert: Codable, Hashable, Sendable {
+    /// Distance from the start of the day's track, metres.
+    public var along: Double
+    public var kind: RoadAlertKind
+    /// French label, e.g. « radar », « chutes de pierres ».
+    public var label: String
+    public var maxspeed: Int?
+    public var point: GeoPoint?
+
+    public init(along: Double, kind: RoadAlertKind, label: String, maxspeed: Int? = nil, point: GeoPoint? = nil) {
+        self.along = along
+        self.kind = kind
+        self.label = label
+        self.maxspeed = maxspeed
+        self.point = point
+    }
+}
+
 /// One turn-by-turn instruction of a day, positioned along the day's track (schema v2).
 public struct TurnInstruction: Codable, Hashable, Sendable {
     /// Distance from the start of the day's track to the maneuver, metres.
@@ -286,6 +316,8 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     public var lodging: [POIChoice]
     /// Turn-by-turn guidance along `track` (schema v2; empty for GPX imports and v1 trips).
     public var instructions: [TurnInstruction]
+    /// Speed cameras and hazards along `track` (schema v3).
+    public var alerts: [RoadAlert]
 
     public var id: Int { index }
 
@@ -293,7 +325,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
                 curvinessScore: Double? = nil, ascentM: Double? = nil, highlights: [Highlight] = [],
                 routeRef: String? = nil, track: Polyline? = nil, planBRefs: [PlanBRef] = [],
                 fuelStops: [FuelStopRef] = [], meals: [POIChoice] = [], lodging: [POIChoice] = [],
-                instructions: [TurnInstruction] = []) {
+                instructions: [TurnInstruction] = [], alerts: [RoadAlert] = []) {
         self.index = index
         self.date = date
         self.distanceKm = distanceKm
@@ -308,11 +340,12 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         self.meals = meals
         self.lodging = lodging
         self.instructions = instructions
+        self.alerts = alerts
     }
 
     enum CodingKeys: String, CodingKey {
         case index, date, distanceKm, drivingTimeMin, curvinessScore, ascentM, highlights, routeRef, track
-        case planBRefs, fuelStops, meals, lodging, instructions
+        case planBRefs, fuelStops, meals, lodging, instructions, alerts
     }
 
     /// Lenient: missing lists default to empty (planner output robustness).
@@ -332,6 +365,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         meals = try c.decodeIfPresent([POIChoice].self, forKey: .meals) ?? []
         lodging = try c.decodeIfPresent([POIChoice].self, forKey: .lodging) ?? []
         instructions = try c.decodeIfPresent([TurnInstruction].self, forKey: .instructions) ?? []
+        alerts = try c.decodeIfPresent([RoadAlert].self, forKey: .alerts) ?? []
     }
 }
 
@@ -370,8 +404,8 @@ public struct OfflinePack: Codable, Hashable, Sendable {
 }
 
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
-    /// v2 (additive): `days[].instructions`. v1 files are migrated on decode.
-    public static let currentSchemaVersion = 2
+    /// v2: `days[].instructions` ; v3: `days[].alerts` (both additive). Older files are migrated on decode.
+    public static let currentSchemaVersion = 3
 
     public var schemaVersion: Int
     public var id: String
@@ -432,7 +466,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1 → v2: only adds optional fields
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1/v2 → v3: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

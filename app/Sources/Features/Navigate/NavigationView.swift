@@ -10,9 +10,10 @@ struct NavigationView: View {
     @State private var confirmQuit = false
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+         camerasEnabled: Bool, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
-                                                               pace: pace, onPaceUpdate: onPaceUpdate))
+                                                               pace: pace, camerasEnabled: camerasEnabled,
+                                                               onPaceUpdate: onPaceUpdate))
     }
 
     var body: some View {
@@ -23,6 +24,7 @@ struct NavigationView: View {
             VStack(spacing: 8) {
                 topBanner
                 Spacer()
+                if let next = session.nextAlert { alertBadge(next.alert, distance: next.distance) }
                 if let delay = session.snapshot?.delay { delayBadge(delay) }
                 bottomCards
                 controls
@@ -117,6 +119,37 @@ struct NavigationView: View {
         .frame(maxWidth: .infinity, minHeight: 96)
         .foregroundStyle(.white)
         .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Speed camera (with its limit) or hazard within 500 m.
+    private func alertBadge(_ alert: RoadAlert, distance: Double) -> some View {
+        HStack(spacing: 10) {
+            if alert.kind.isCamera, let limit = alert.maxspeed {
+                Text("\(limit)")
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .frame(width: 48, height: 48)
+                    .background(Circle().fill(.white))
+                    .overlay(Circle().stroke(.red, lineWidth: 5))
+                    .foregroundStyle(.black)
+            } else {
+                Image(systemName: alert.kind.isCamera ? "camera.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 30, weight: .bold))
+            }
+            VStack(alignment: .leading) {
+                Text(Self.sentenceCase(alert.label))
+                    .font(.title3.bold())
+                Text(Format.distance(distance)).font(.title3.monospacedDigit())
+            }
+            Spacer()
+        }
+        .padding(12)
+        .foregroundStyle(.white)
+        .background((alert.kind.isCamera ? Color.red : Color.orange).opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    static func sentenceCase(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return String(first).uppercased() + String(s.dropFirst())
     }
 
     private func delayBadge(_ delay: TimeInterval) -> some View {

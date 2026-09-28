@@ -86,6 +86,11 @@ struct TripDetailContent: View {
                 Button { editing = true } label: {
                     Label("Modifier les paramètres (dates, motos, zones…)", systemImage: "slider.horizontal.3")
                 }
+                if !missingTracks && !tracing && trip.days.contains(where: { !$0.highlights.isEmpty }) {
+                    Button { Task { await computeTracks() } } label: {
+                        Label("Recalculer tracé, guidage, radars et dangers", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
             }
 
             let issues = TripValidator.validate(trip)
@@ -165,7 +170,8 @@ struct TripDetailContent: View {
         }
         .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
         .fullScreenCover(item: $navigatingDay) { day in
-            NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace) { newPace in
+            NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
+                           camerasEnabled: settings.radarAnnouncements) { newPace in
                 settings.pace = newPace
             }
         }

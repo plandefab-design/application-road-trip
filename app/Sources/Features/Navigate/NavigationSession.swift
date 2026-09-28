@@ -16,6 +16,10 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var recorded: [GeoPoint] = []
     /// Next maneuver and its distance, for the top banner (nil: no instructions, or none left).
     @Published private(set) var nextTurn: (instruction: TurnInstruction, distance: Double)?
+    /// Next speed camera or hazard ahead, for the banner.
+    @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
+    /// Rider setting « Annonces radar » (hazards are always announced).
+    let camerasEnabled: Bool
 
     let trip: Trip
     let day: TripDay
@@ -32,7 +36,8 @@ final class NavigationSession: ObservableObject {
     private let onPaceUpdate: (PaceEstimator) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService,
-         pace: PaceEstimator, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+         pace: PaceEstimator, camerasEnabled: Bool, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+        self.camerasEnabled = camerasEnabled
         let r = day.track ?? Polyline([])
         self.trip = trip
         self.day = day
@@ -105,6 +110,18 @@ final class NavigationSession: ObservableObject {
             let next = TurnGuide.next(day.instructions, progress: snap.progress)
             nextTurn = next.map { (instruction: $0.instruction, distance: $0.distance) }
             if let a = TurnGuide.announcement(day.instructions, progress: snap.progress, speed: max(0, fix.speed)) {
+                voice.say(a.text, key: a.key, cooldown: 3_600)
+            }
+        }
+
+        if !offRoute, !day.alerts.isEmpty {
+            let next = AlertGuide.next(day.alerts, progress: snap.progress, cameras: camerasEnabled)
+            if let n = next, n.distance <= AlertGuide.cameraLead {
+                nextAlert = (alert: n.alert, distance: n.distance)
+            } else {
+                nextAlert = nil
+            }
+            for a in AlertGuide.announcements(day.alerts, progress: snap.progress, cameras: camerasEnabled) {
                 voice.say(a.text, key: a.key, cooldown: 3_600)
             }
         }

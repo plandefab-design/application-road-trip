@@ -66,7 +66,7 @@ struct SettingsView: View {
 
                 Section("Navigation") {
                     Toggle("Guidage vocal", isOn: $settings.voiceEnabled)
-                    Toggle("Annonces radar", isOn: $settings.radarAnnouncements)
+                    Toggle("Annonces radar (à 500 m)", isOn: $settings.radarAnnouncements)
                     Toggle("Thème sombre forcé", isOn: $settings.forceDark)
                     SecureField("Clé TomTom (trafic)", text: $tomtom)
                         .onChange(of: tomtom) { _, value in settings.tomtomKey = value }

@@ -15,15 +15,17 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 - `days[].fuelStops[].kmFromStart` : distance depuis le départ de l'étape ; écart entre deux pleins ≤ `params.maxFuelIntervalKm` et ≤ autonomie utile de la moto la plus limitante.
 - `days[].track` : géométrie de l'étape (liste de points) quand elle est connue ; sinon omis (le PC la calcule avec GraphHopper).
 - `days[].instructions` (**v2**) : guidage virage par virage calculé par le PC avec la route, `[{"along": mètres depuis le début du tracé, "maneuver": depart|straight|slightLeft|slightRight|turnLeft|turnRight|sharpLeft|sharpRight|keepLeft|keepRight|uTurn|roundabout|via|arrive, "text": "Tournez à gauche sur D943", "street"?, "exit"?}]`. Jamais écrit par Claude.
+- `days[].alerts` (**v3**) : radars et dangers à moins de 40 m du tracé, issus d'OpenStreetMap (`highway=speed_camera`, `hazard=*`), `[{"along": mètres, "kind": speedCamera|redLightCamera|sectionCamera|hazard, "label": "chutes de pierres", "maxspeed"?: 80, "point"?}]`. Annonces : radars à 500 m (interrupteur « Annonces radar », activé par défaut), dangers à 300 m. Jamais écrit par Claude.
 
 ### Versions
+- **v3** : ajout de `days[].alerts` (optionnel).
 - **v2** : ajout de `days[].instructions` (optionnel). Un fichier v1 est lu tel quel et passe en v2 (aucun champ supprimé ni renommé).
 - v1 : version initiale.
 
 ## Exemple complet (valeurs fictives)
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "id": "3F2A0C1E-0000-0000-0000-000000000001",
   "name": "Exemple",
   "status": "proposed",

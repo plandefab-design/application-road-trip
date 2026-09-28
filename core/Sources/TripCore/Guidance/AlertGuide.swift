@@ -1,0 +1,47 @@
+import Foundation
+
+/// Speed-camera and hazard announcements, pure and offline: alerts are embedded in the trip by the PC.
+public enum AlertGuide {
+    /// Cameras are announced 500 m ahead, hazards 300 m ahead (the rider asked for 500 m radar warnings).
+    public static let cameraLead = 500.0
+    public static let hazardLead = 300.0
+
+    public static func lead(for kind: RoadAlertKind) -> Double { kind.isCamera ? cameraLead : hazardLead }
+
+    /// Next alert strictly ahead of `progress` (cameras skipped when `cameras` is false).
+    public static func next(_ alerts: [RoadAlert], progress: Double, cameras: Bool)
+        -> (index: Int, alert: RoadAlert, distance: Double)? {
+        for (i, a) in alerts.enumerated() where a.along > progress && (cameras || !a.kind.isCamera) {
+            return (i, a, a.along - progress)
+        }
+        return nil
+    }
+
+    /// All announcements due at `progress` (alerts within their lead distance), nearest first. Keys are unique
+    /// per alert: the voice service says each one once, so an alert already spoken never masks the next one.
+    public static func announcements(_ alerts: [RoadAlert], progress: Double, cameras: Bool) -> [TurnGuide.Announcement] {
+        var out: [TurnGuide.Announcement] = []
+        for (i, a) in alerts.enumerated() where a.along > progress && (cameras || !a.kind.isCamera) {
+            let d = a.along - progress
+            if d > cameraLead { break }            // sorted by `along`: nothing due further on
+            if d <= lead(for: a.kind) {
+                out.append(TurnGuide.Announcement(key: "alert-\(i)", text: text(for: a, distance: d)))
+            }
+        }
+        return out
+    }
+
+    /// « Radar dans 500 mètres, limité à 80 » · « Attention, chutes de pierres dans 300 mètres ».
+    public static func text(for alert: RoadAlert, distance: Double) -> String {
+        let when = TurnGuide.lowercasingFirst(TurnGuide.spokenDistance(distance))
+        switch alert.kind {
+        case .speedCamera, .sectionCamera:
+            let limit = alert.maxspeed.map { ", limité à \($0)" } ?? ""
+            return "\(alert.kind == .sectionCamera ? "Radar tronçon" : "Radar") \(when)\(limit)"
+        case .redLightCamera:
+            return "Radar feu rouge \(when)"
+        case .hazard:
+            return "Attention, \(alert.label) \(when)"
+        }
+    }
+}

@@ -25,7 +25,7 @@ final class AppSettings: ObservableObject {
         defaultKmPerDay = (d.object(forKey: "defaultKmPerDay") as? Double) ?? 300
         companionURL = d.string(forKey: "companionURL") ?? ""
         voiceEnabled = (d.object(forKey: "voiceEnabled") as? Bool) ?? true
-        radarAnnouncements = d.bool(forKey: "radarAnnouncements")   // off by default
+        radarAnnouncements = (d.object(forKey: "radarAnnouncements") as? Bool) ?? true   // on by default (rider's choice)
         forceDark = d.bool(forKey: "forceDark")
         pace = Self.load(PaceEstimator.self, "pace") ?? PaceEstimator()
     }

@@ -13,6 +13,7 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from .alerts import alerts_along, load_features
 from .finalize import Geocoder, finalize_trip, graphhopper_payload, graphhopper_router
 from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
@@ -118,9 +119,16 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
     """Finalisation after each planner turn: waypoints located, one road track per day."""
     if not trip.get("days"):
         return ""
-    warnings = await finalize_trip(trip, geocoder().locate, graphhopper_router(GRAPHHOPPER_URL), on_progress)
+    osm = DATA_DIR / "osm"
+    cameras, hazards = load_features(osm / "speed_cameras.geojsonseq"), load_features(osm / "hazards.geojsonseq")
+    warnings = await finalize_trip(trip, geocoder().locate, graphhopper_router(GRAPHHOPPER_URL), on_progress,
+                                   alerts_for=lambda track: alerts_along(track, cameras, hazards))
     traced = sum(1 for d in trip["days"] if d.get("track"))
-    summary = f"Tracé calculé pour {traced}/{len(trip['days'])} jour(s)."
+    radars = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] != "hazard")
+    dangers = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] == "hazard")
+    summary = f"Tracé calculé pour {traced}/{len(trip['days'])} jour(s) : {radars} radar(s) et {dangers} zone(s) de danger sur le parcours."
+    if not cameras:
+        warnings.append("Base radars absente sur le PC : lance jobs/update_osm.ps1.")
     return "\n\n".join([summary] + warnings)
 
 

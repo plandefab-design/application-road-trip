@@ -71,7 +71,7 @@ final class TurnGuideTests: XCTestCase {
          "days": [{"index": 1}]}
         """
         var trip = try TripCodec.decode(Data(v1.utf8))
-        XCTAssertEqual(trip.schemaVersion, 2)
+        XCTAssertEqual(trip.schemaVersion, Trip.currentSchemaVersion)
         XCTAssertEqual(trip.days[0].instructions, [])
         XCTAssertFalse(TripValidator.validate(trip).contains { $0.code == "schema.version" })
 
