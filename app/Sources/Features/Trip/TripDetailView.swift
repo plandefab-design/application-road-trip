@@ -30,6 +30,7 @@ struct TripDetailContent: View {
     @State private var tracing = false
     @State private var traceProgress: String?
     @State private var traceMessage: String?
+    @State private var remindersMessage: String?
     @State private var checkingWeather = false
     @State private var weatherReport: [String] = []
 
@@ -125,13 +126,21 @@ struct TripDetailContent: View {
                 }
             }
 
-            if !trip.checklist.isEmpty {
-                Section("Préparation") {
-                    ForEach(trip.checklist) { item in
+            Section {
+                ForEach(TripChecklist.merged(trip)) { item in
+                    Button { toggle(item) } label: {
                         Label(item.label, systemImage: item.done ? "checkmark.circle.fill" : "circle")
-                            .badge(item.due)
+                            .foregroundStyle(item.done ? .secondary : .primary)
                     }
+                    .badge(item.due)
                 }
+                Button(remindersMessage ?? "Programmer les rappels (9 h le jour indiqué)") {
+                    Task { await scheduleReminders() }
+                }
+            } header: {
+                Text("Préparation")
+            } footer: {
+                Text("Notifications locales sur l'iPhone, sans serveur. Coche une ligne quand c'est fait : son rappel est annulé.")
             }
 
             if trip.days.contains(where: { $0.track != nil }) {
@@ -199,6 +208,30 @@ struct TripDetailContent: View {
                 settings.pace = newPace
             }
         }
+    }
+
+    // MARK: Checklist (A9)
+
+    private func toggle(_ item: ChecklistItem) {
+        guard var t = store.trips.first(where: { $0.id == trip.id }) else { return }
+        var items = TripChecklist.merged(t)
+        if let i = items.firstIndex(where: { $0.id == item.id }) { items[i].done.toggle() }
+        t.checklist = items
+        store.save(t)
+        if remindersMessage != nil { Task { await scheduleReminders(for: t) } }   // keep reminders in sync
+    }
+
+    private func scheduleReminders(for current: Trip? = nil) async {
+        let t = current ?? trip
+        var allowed = await Reminders.isAuthorized()
+        if !allowed { allowed = await Reminders.requestAuthorization() }
+        guard allowed else {
+            remindersMessage = "Notifications refusées (Réglages iPhone › MotoTrip)"
+            return
+        }
+        let count = await Reminders.schedule(trip: t, items: TripChecklist.merged(t))
+        if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
+        remindersMessage = count == 0 ? "Aucun rappel à venir" : "\(count) rappel(s) programmé(s) ✓"
     }
 
     // MARK: Offline map (A7 / A8)

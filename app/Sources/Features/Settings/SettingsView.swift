@@ -78,7 +78,13 @@ struct SettingsView: View {
                     LabeledContent("Trips enregistrés", value: "\(store.trips.count)")
                     LabeledContent("Coefficient d'allure (cols)", value: String(format: "%.2f", settings.pace.coefficient(.curvy)))
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")
-                    Text("Signature SideStore : vérifie la date d'expiration dans SideStore avant chaque trip.")
+                    if let expiry = SigningInfo.expirationDate {
+                        LabeledContent("Signature (SideStore)", value: expiry.formatted(date: .abbreviated, time: .shortened))
+                            .foregroundStyle(expiry.timeIntervalSinceNow < 2 * 86_400 ? .orange : .primary)
+                    } else {
+                        LabeledContent("Signature (SideStore)", value: "inconnue")
+                    }
+                    Text("Rafraîchis MotoTrip dans SideStore avant cette date (LocalDevVPN connecté, Tailscale coupé), et toujours la veille d'un trip.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
 

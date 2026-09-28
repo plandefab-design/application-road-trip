@@ -14,6 +14,10 @@ struct MotoTripApp: App {
                 .environmentObject(offlineMaps)
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
                 .preferredColorScheme(settings.forceDark ? .dark : nil)
+                .task {
+                    // After each SideStore refresh the expiry moves: keep the reminder in step (if allowed).
+                    if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
+                }
         }
     }
 }
