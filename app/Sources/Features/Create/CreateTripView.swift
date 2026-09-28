@@ -139,9 +139,7 @@ struct CreateTripView: View {
             .navigationTitle(editing == nil ? "Nouveau trip" : "Modifier le trip")
             .keyboardDoneButton()
             .toolbar {
-                if editing != nil {
-                    ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
             }
             .navigationDestination(item: $draft) { trip in
                 PlannerChatView(trip: trip)

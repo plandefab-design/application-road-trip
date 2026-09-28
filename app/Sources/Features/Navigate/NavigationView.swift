@@ -39,9 +39,6 @@ struct NavigationView: View {
                     }
                 }
                 Spacer()
-                if let h = session.weatherAhead, let progress = session.snapshot?.progress, h.along - progress <= 60_000 {
-                    weatherBadge(h, distance: h.along - progress)
-                }
                 let online = [session.weatherStatus, session.trafficStatus].compactMap { $0 }
                 if !online.isEmpty {
                     Text(online.joined(separator: " · ")).font(.caption.bold())
@@ -50,25 +47,7 @@ struct NavigationView: View {
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                if let incident = session.incidentsAhead.first, let progress = session.snapshot?.progress,
-                   incident.along - progress <= 10_000 {
-                    incidentBadge(incident, distance: incident.along - progress)
-                }
-                if let next = session.nextAlert { alertBadge(next.alert, distance: next.distance) }
-                if let pause = session.pauseSuggestion {
-                    HStack(spacing: 10) {
-                        Image(systemName: pause.spot.kind == .cafe ? "cup.and.saucer.fill" : pause.spot.kind == .viewpoint ? "binoculars.fill" : "drop.fill")
-                            .font(.system(size: 26, weight: .bold))
-                        VStack(alignment: .leading) {
-                            Text("Pause conseillée : \(pause.spot.name)").font(.headline).lineLimit(1)
-                            Text("\(pause.spot.kind.label) · \(Format.distance(pause.distance))").font(.subheadline)
-                        }
-                        Spacer()
-                    }
-                    .padding(10)
-                    .foregroundStyle(.white)
-                    .background(Color.green.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
-                }
+                priorityBadge
                 if session.detour != nil {
                     Button { session.endDetour() } label: {
                         Label("Reprendre l'itinéraire", systemImage: "arrow.uturn.backward.circle.fill")
@@ -77,7 +56,6 @@ struct NavigationView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.blue)
                 } else {
-                    if let delay = session.snapshot?.delay { delayBadge(delay) }
                     bottomCards
                 }
                 controls
@@ -246,14 +224,34 @@ struct NavigationView: View {
         return String(first).uppercased() + String(s.dropFirst())
     }
 
-    private func delayBadge(_ delay: TimeInterval) -> some View {
-        let minutes = Int((delay / 60).rounded())
-        let late = minutes > 0
-        return Text(late ? "Retard \(minutes) min" : "Avance \(-minutes) min")
-            .font(.headline)
-            .padding(.horizontal, 14).padding(.vertical, 6)
-            .background(late ? Color.orange : Color.green, in: Capsule())
-            .foregroundStyle(.black)
+    /// One badge at a time, the most pressing: camera or hazard close by, then a live incident (serious within
+    /// 10 km, roadworks within 1 km), then the weather within 60 km, then the pause suggestion.
+    @ViewBuilder private var priorityBadge: some View {
+        let progress = session.snapshot?.progress ?? 0
+        let incident = session.incidentsAhead.first { i in
+            let d = i.along - progress
+            return d > 0 && d <= (i.incident.category.isMinor ? 1_000 : 10_000)
+        }
+        if let next = session.nextAlert {
+            alertBadge(next.alert, distance: next.distance)
+        } else if let incident {
+            incidentBadge(incident, distance: incident.along - progress)
+        } else if let h = session.weatherAhead, h.along - progress <= 60_000 {
+            weatherBadge(h, distance: h.along - progress)
+        } else if let pause = session.pauseSuggestion {
+            HStack(spacing: 10) {
+                Image(systemName: pause.spot.kind == .cafe ? "cup.and.saucer.fill" : pause.spot.kind == .viewpoint ? "binoculars.fill" : "drop.fill")
+                    .font(.system(size: 26, weight: .bold))
+                VStack(alignment: .leading) {
+                    Text("Pause : \(pause.spot.name)").font(.headline).lineLimit(1)
+                    Text("\(pause.spot.kind.label) · \(Format.distance(pause.distance))").font(.subheadline)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .foregroundStyle(.white)
+            .background(Color.green.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
+        }
     }
 
     // MARK: Controls

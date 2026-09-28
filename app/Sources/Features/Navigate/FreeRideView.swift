@@ -59,7 +59,15 @@ struct FreeRideView: View {
                     }
                 }
                 Spacer()
-                if let next = session.nextAlert { AlertBadge(alert: next.alert, distance: next.distance) }
+                if let next = session.nextAlert {
+                    AlertBadge(alert: next.alert, distance: next.distance)
+                } else if let incident = session.incidentAhead {
+                    Label(incident, systemImage: "exclamationmark.octagon.fill")
+                        .font(.title3.bold())
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .foregroundStyle(.white)
+                        .background(Color.purple.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+                }
                 if session.detour != nil {
                     Button { session.endDetour() } label: {
                         Label("Arrêter le guidage", systemImage: "xmark.circle.fill")

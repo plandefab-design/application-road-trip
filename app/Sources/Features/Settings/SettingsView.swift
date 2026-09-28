@@ -95,7 +95,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Companion (PC via Tailscale)")
                 } footer: {
-                    Text("Utilisé uniquement pour créer les trips. La navigation fonctionne sans le PC.")
+                    Text("Le PC crée les trips, met à jour les radars et relaie les accidents et bouchons en direct (Bison Futé, DGT). En roulant, rien n'en dépend : sans lui, le guidage continue.")
                 }
 
                 Section("Navigation") {

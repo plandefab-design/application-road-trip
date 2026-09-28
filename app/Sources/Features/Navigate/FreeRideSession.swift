@@ -29,6 +29,8 @@ final class FreeRideSession: ObservableObject {
 
     /// Live incidents around (TomTom + official feeds via the PC), optional: refreshed every 5 min when online.
     private let traffic: TrafficClient?
+    /// Nearest live incident ahead within 1 km, as spoken (« Accident dans 600 mètres »), for the badge.
+    @Published private(set) var incidentAhead: String?
     private var incidents: [TrafficIncident] = []
     private var lastTrafficFetch: Date?
     private var trafficTask: Task<Void, Never>?
@@ -120,9 +122,11 @@ final class FreeRideSession: ObservableObject {
         // GPS course is only meaningful when moving.
         let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
         refreshTrafficIfNeeded(around: fix.point)
-        for a in TrafficIncidents.announcementsAhead(incidents, position: fix.point, heading: heading) {
+        let incidentWarnings = TrafficIncidents.announcementsAhead(incidents, position: fix.point, heading: heading)
+        for a in incidentWarnings {
             voice.say(a.text, key: a.key, cooldown: 1_800, priority: a.urgent ? .urgent : .info)
         }
+        incidentAhead = incidentWarnings.first?.text
         guard let guide else { nextAlert = nil; return }
         // On a road detour its own alerts are announced along it; otherwise the ones ahead in the direction of travel.
         if detour?.route.isRoad != true {

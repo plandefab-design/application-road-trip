@@ -4,7 +4,9 @@ import UniformTypeIdentifiers
 
 struct TripsListView: View {
     @EnvironmentObject private var store: TripStore
+    @EnvironmentObject private var settings: AppSettings
     @State private var importing = false
+    @State private var creating = false
     @ObservedObject private var favorites = FavoritePlaces.shared
 
     private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
@@ -16,9 +18,10 @@ struct TripsListView: View {
                     ContentUnavailableView {
                         Label("Aucun trip", systemImage: "map")
                     } description: {
-                        Text("Crée un trip dans l'onglet « Créer », ou importe un trip.json / GPX produit par ton projet Claude.")
+                        Text("Prépare ton road trip avec Claude (routes, étapes, pleins, repas, hébergements), ou importe un GPX.")
                     } actions: {
-                        Button("Importer un fichier") { importing = true }.buttonStyle(.borderedProminent)
+                        Button("Nouveau trip") { creating = true }.buttonStyle(.borderedProminent)
+                        Button("Importer un fichier") { importing = true }
                     }
                 } else {
                     List {
@@ -41,8 +44,16 @@ struct TripsListView: View {
                 TripDetailView(tripId: id)
             }
             .toolbar {
-                Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
+                        .accessibilityLabel("Importer un GPX ou un trip")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { creating = true } label: { Label("Nouveau", systemImage: "plus.circle.fill").labelStyle(.titleAndIcon) }
+                        .buttonStyle(.borderedProminent).tint(.orange)
+                }
             }
+            .sheet(isPresented: $creating) { CreateTripView().environmentObject(store).environmentObject(settings) }
             .sheet(isPresented: $importing) {
                 DocumentPicker(types: [Self.gpxType, .json],
                                onPick: { urls in urls.forEach(store.importFile) },
