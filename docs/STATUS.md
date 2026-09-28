@@ -1,32 +1,27 @@
 # Avancement
 
-Dernière mise à jour : 2026-09-28 — app 1.0.4 installée via SideStore ; companion en service sur le PC (Docker + Tailscale Serve), test de connexion depuis l'iPhone OK.
+Dernière mise à jour : 2026-09-28 — app 1.0.43 (SideStore) ; companion en service sur le PC (Docker + Tailscale Serve).
 
 | Milestone | État | Détail |
 |---|---|---|
-| M0 — CI → IPA → SideStore | 🟢 CI verte, **installation iPhone à valider** | `ios-build.yml` → release v1.0.2 (IPA 3,7 Mo), source SideStore à jour (macos-15, Xcode 16.4, IPA non signée, Release, source SideStore). Carte en ligne OpenFreeMap ; carte hors ligne (S2) à faire. |
-| M1 — TripCore | 🟢 Tests verts en CI (Linux + Windows) | Modèle trip.json v1 (décodage tolérant), validateur, géo (distance, cap, projection, rééchantillonnage), ETA à l'allure (§5.1), pleins (§5.2), sinuosité (§5.6), hors tracé (§5.7), cohérence du formulaire, GPX lecture/écriture, calcul du bandeau de navigation. |
-| M2 — Companion | 🟢 En service sur le PC (Alpes importées, joignable depuis l'iPhone) | API FastAPI (health, trips, chat, route), planner Agent SDK, GraphHopper 11.0 + modèles `moto_curvy` / `moto_fast`. 12 tests Python OK. Profil sinueux à calibrer (S4). |
-| M3 — App : écrans | 🟡 Installée sur iPhone | Édition des motos et des trips, reprise du chat depuis un trip (1.0.4). Trips (import GPX/JSON), détail (carte, étapes, adresses avec statut vérifié, export GPX), Réglages (garage, SOS, companion, TomTom), Créer (formulaire 13 paramètres + cohérence), chat planner. |
-| M4 — Navigation | 🟠 Mode « suivre le tracé » | Local : bandeaux plein / arrêt / fin avec heure d'arrivée à l'allure, avance/retard, hors tracé + cap de retour, voix, écran allumé, SOS SMS, trace réelle. **Guidage virage par virage Ferrostar : à intégrer (S3).** |
-| M5 — Hors ligne, radars, stations | 🟠 Partiel | Radars (OSM `highway=speed_camera`, ~3 700 sur la zone) et dangers (OSM `hazard=*`) intégrés au trip par le PC, annoncés hors ligne (radars 500 m, dangers 300 m). Carte hors ligne (A7/A8) : packs MapLibre du même style (aperçu z0–11 + couloir des étapes z12–14), contrôle d'intégrité, bouton sur la fiche du trip. Stations : OSM `amenity=fuel` à moins de 3 km intégrées par le PC, pleins placés par TripCore `FuelPlanner` sur l'iPhone, alerte si tronçon sans station. |
-| M6 — Météo sur la route, TomTom | 🟠 Partiel | Incidents TomTom (v5) en navigation : toutes les 5 min si clé + réseau (délai 5 s), filtrés sur les 50 km du tracé à venir, annoncés (à la découverte puis à 1 km), bandeau d'état. Météo sur la route (Open-Meteo, §5.3) : point tous les 15 km à l'heure de passage, alertes pluie/rafales/froid/visibilité, toutes les 20 min en navigation (« météo du HH:MM » hors ligne), vérification avant départ sur la fiche du trip. |
-| M7 — Création complète | 🟠 Partiel | Chat branché (tâches suivies, progression). Finalisation : lieux localisés via OSM Nominatim (cache, 1 req/s) + route GraphHopper par jour, automatique après chaque réponse de Claude ou bouton « Calculer le tracé ». Couverture carte : ~4 000 km autour de Salon (Europe, Russie, Maghreb, Égypte, Proche-Orient), GraphHopper en MMAP, import à côté du graphe en service puis bascule, toutes les 4 semaines. PDF à faire. |
-| M8 — Automatisations restantes | 🟠 Partiel | Checklist générée (cols, hébergements, météo, carte hors ligne, SideStore, batterie) fusionnée avec celle du planner, cochable, rappels locaux à 9 h (A9). Date d'expiration réelle de la signature (profil embarqué) dans État du système + rappel la veille. Sync (A11) et purge des packs à faire. |
-| M9 — Recette | ⚪ À faire | |
+| M0 — CI → IPA → SideStore | 🟢 | `ios-build.yml` (macos-15, Xcode 16.4, IPA non signée) → release `v1.0.N` + `distribution/source.json` mis à jour par le bot. Installé et utilisé sur l'iPhone. |
+| M1 — TripCore | 🟢 137 tests (Linux + Windows) | trip.json v6 (migration v1→v6), validateur, géo, ETA recalé sur le temps GraphHopper + allure apprise, temps par étape (conduite, pleins, pauses, repas, arrivée), pleins sur vraies stations, hors tracé + retour « au plus logique », guidage virage par virage, radars/dangers (500 m / 150 m / 300 m), trafic (20 km puis 1 km, max 2 annonces), météo sur la route, pauses, limitations, résumé de sortie, carnet d'entretien, cahier des charges (contenu, empreinte de validation). |
+| M2 — Companion | 🟢 53 tests Python | FastAPI + planner Claude Agent SDK (recherche web uniquement), GraphHopper 11.0 (4 profils moto, LM), graphe dans le volume Docker `mototrip-graphs`. `/live-events` (Bison Futé + DGT, toutes les 5 min). Radars : Sécurité routière (24 h), DGT (24 h), OSM, MapAtlas (30 j) → ~60 600 radars fusionnés. |
+| M3 — App : écrans | 🟢 | 4 onglets : Rouler (gros bouton, « Où tu vas ? », favoris), Favoris, Trips (+ Nouveau), Réglages (garage, entretien, SOS, PC, TomTom, état). Fiche trip : Rouler, Préparer (départ maintenant), Cahier des charges, Claude ; étapes avec temps et heure d'arrivée. |
+| M4 — Navigation | 🟢 | Locale, sans réseau requis : virages, radars/dangers (recalés sur le tracé), limitation affichée + alerte vocale, voix prioritaire (radar/virage coupent trafic/météo, musique rendue après chaque annonce), un seul bandeau à la fois, hors tracé + itinéraire de retour, détours « autour de moi », balade libre (radars, dangers, trafic devant), SOS (appel, SMS position), petit point. Ferrostar non utilisé (guidage maison testé). |
+| M5 — Hors ligne, radars, stations | 🟢 | Carte hors ligne MapLibre par trip, pack radars/dangers sur l'iPhone, stations OSM à ≤ 3 km. |
+| M6 — Météo, trafic | 🟢 | Open-Meteo à l'heure de passage (20 min), TomTom (clé) + Bison Futé/DGT via le PC, fusionnés sans doublon. |
+| M7 — Création | 🟢 | Formulaire 13 paramètres + cohérence, chat Claude (tâche + suivi), tracé GraphHopper, GPX, **cahier des charges validé + PDF** (cartes Apple Maps, étapes, lieux, checklist). |
+| M8 — Automatisations | 🟡 | Checklist + rappels, sync iPhone ↔ PC, radars quotidiens, cartes toutes les 4 semaines. **Import 4 000 km en cours** (volume Docker) ; extraction des POI 4 000 km à relancer ensuite. Purge des packs : à faire. |
+| M9 — Recette | 🟡 | Tests sur route par FAB en cours. Test complet en mode avion à faire. |
 
-## Vérifications faites
-- Tests Python du companion : 12/12 ✅ (exécutés localement).
-- Options du Claude Agent SDK 0.2.160 vérifiées contre le paquet installé.
-- Noms des valeurs GraphHopper 11.0 (`curvature`, `road_class`, `surface`, `toll`…) et endpoints `/health`, `/navigate` vérifiés dans le code source de la release 11.0.
-- Versions épinglées réelles : MapLibre iOS 6.31.0, GraphHopper 11.0, (Ferrostar 0.57.0 prévu).
+## Sources de données (vérifiées le 2026-09-28)
+- Radars : [Sécurité routière](https://radars.securite-routiere.gouv.fr) (Etalab), [DGT](https://nap.dgt.es/dataset/radares-fijos-dgt) (CC BY), OpenStreetMap (ODbL), [MapAtlas](https://mapatlas.eu/tools/speed-camera-map) (CC BY 4.0, instantané 2024).
+- Événements en direct : [Bison Futé](https://www.bison-fute.gouv.fr/acces-aux-donnees.html) (routes nationales FR, Licence Ouverte), DGT DATEX II (Espagne, CC BY), TomTom (clé du pilote).
+- Écartés : Waze, Coyote, SCDB (fermés ou payants, pas d'API individuelle), Lufop (bloque l'accès automatisé).
 
-## Non vérifié (pas de Swift ni de Mac dans l'environnement de création)
-- Comportement réel de l'app sur iPhone (installation SideStore, import GPX, mode « Rouler », arrière-plan) : pas encore testé.
-
-## Prochaines tâches pour Claude Code (dans l'ordre)
-1. ~~Pousser, lire les logs, corriger jusqu'au vert~~ ✅ (seule erreur : `Polyline` non `Hashable`).
-2. Installer l'IPA via SideStore, tester l'import d'un GPX et le mode « Rouler » en conditions réelles (S7 : écran verrouillé 2 h).
-3. S2 : carte hors ligne (PMTiles ou MBTiles servi par le companion).
-4. S3 : Ferrostar (`FerrostarCore` 0.57.0) derrière un protocole `NavigationEngine`, itinéraire `/navigate` GraphHopper.
-5. S4 : calibrer `moto_curvy.json` et `Curvature.saturationDegPerKm` sur les routes de référence.
+## Points ouverts
+1. Fin de l'import GraphHopper 4 000 km, bascule, extraction POI (radars OSM, dangers, stations, pauses) sur la même zone.
+2. `cols.json` vide : la vérification « col fermé à la période » ne se déclenche pas tant qu'aucun col n'est sourcé.
+3. Purge des cartes hors ligne des trips terminés.
+4. Recette en mode avion (SPEC §12).

@@ -59,7 +59,7 @@ Le PC localise les lieux sur OpenStreetMap par leur nom puis calcule la route r�
 ## Déroulé
 - Premier tour : proposition complète jour par jour (statut `proposed`) : distance et temps estimés, tronçons remarquables (`highlights`), pleins, 2 à 3 repas et 2 à 3 hébergements par étape (dans `pois`, référencés par `meals` / `lodging` avec `selected: false`), adaptés à la région et au budget.
 - Tours suivants : applique les ajustements demandés par le pilote sans casser le reste.
-- Quand le pilote valide ses choix : `selected: true` sur les adresses retenues, statut `validated`, et une `checklist` J-15 / J-1 (ouverture des cols, météo, réservations).
+- Quand le pilote a fait ses choix : `selected: true` sur les adresses retenues, et une `checklist` J-15 / J-1 (ouverture des cols, météo, réservations). Laisse le statut `proposed` : c'est le pilote qui valide le cahier des charges dans l'app (trajet, étapes, lieux), puis en sort le PDF. Dis-lui de le faire quand tout lui convient.
 
 ## Format de réponse (obligatoire)
 1. Un texte court et clair pour le pilote (en français).

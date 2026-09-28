@@ -73,4 +73,13 @@ final class RideCompanionTests: XCTestCase {
         XCTAssertEqual(plan.pull, ["b", "e", "f"]) // newer on the PC, dated vs undated, or only on the PC
         XCTAssertTrue(TripSync.timestamp(Date(timeIntervalSince1970: 0)) == "1970-01-01T00:00:00Z")
     }
+
+    func testPauseSpotsRelocatedOnTheTrack() {
+        let track = Fixtures.northLine(km: 20)
+        let cafe = PauseSpot(along: 12_000, kind: .cafe, name: "Café", point: Fixtures.point(onNorthLineAtKm: 10, eastOffsetM: 80))
+        let unknown = PauseSpot(along: 4_000, kind: .water, name: "Eau")
+        let out = PauseAdvisor.relocated([cafe, unknown], on: track)
+        XCTAssertEqual(out.map(\.name), ["Eau", "Café"])
+        XCTAssertEqual(out[1].along, 10_000, accuracy: 5)
+    }
 }

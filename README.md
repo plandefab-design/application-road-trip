@@ -89,24 +89,28 @@ Couverture : environ 4 000 km autour de Salon-de-Provence (Europe, Russie, Maghr
 ---
 
 ## Utilisation
-1. **Réglages › Garage** : ajoute ta ou tes motos avec leur **type** (sportive, roadster, routière, trail, enduro, custom) et leur autonomie réelle.
-   Optionnel : **Réglages › Navigation › Trafic TomTom** : colle la clé gratuite (developer.tomtom.com), **Tester la clé**, **Enregistrer**.
-   Dans **Créer**, choisis l'**envie** (balade, kiff, rapide, tourisme) et ton **niveau** : Claude et le calcul de route s'adaptent (bitume sinueux, pistes trail, chemins enduro ouverts aux motos, ou rapide).
-2. **Créer** : remplis le formulaire → **Vérifier la cohérence** → **Continuer avec Claude** (chat + carte).
-   Le PC calcule ensuite automatiquement la route de chaque jour (routes sinueuses), le guidage virage par virage,
-   les radars, les dangers et les stations ; l'iPhone place les pleins.
-   Ou **Trips › Importer** : un `trip.json` ou un GPX produit par ton projet Claude « MOTO _ road trip ».
-3. **Le jour du départ** : fiche du trip › **Préparer le départ** (tout est remis à jour d'un coup) ou, étape par étape (Tailscale actif pour le PC, Wi-Fi pour la carte) :
-   - **Calculer le tracé et le guidage** si le bouton apparaît (trips créés avant ces fonctions) ;
-   - **Télécharger la carte hors ligne** (la carte s'affiche ensuite sans réseau) ;
-   - **Vérifier la météo sur la route** ;
-   - **Préparation › Programmer les rappels** (cols, réservations, SideStore, batterie…).
-4. Touche l'étape voulue → **Rouler — Jour N**. Annonces vocales : virages, radars à 500 m (interrupteur dans Réglages),
-   dangers à 300 m, pleins, pauses, météo et trafic si réseau. Rien de tout ça n'a besoin du PC en roulant.
-   En quittant : résumé de la sortie (trace réelle, km, virages…), gardé dans **Mes sorties** et sauvegardé sur le PC.
-5. **Entretien** : Réglages › Entretien › choisis **Ma moto (compteur)**, ouvre son carnet et recopie le compteur une fois.
-   Chaque sortie ajoute ensuite ses kilomètres ; l'accueil, une notification et « Préparer le départ » te préviennent
-   des opérations à faire (vidange, chaîne, pneus, freins, révision…). Règle les intervalles selon le carnet de ta moto.
+L'app a 4 onglets : **Rouler**, **Favoris**, **Trips**, **Réglages**.
+
+1. **Une fois** — Réglages › **Garage** : ta moto, son **type** et son **autonomie réelle**. Réglages › **Pilote** : contact SOS.
+   Optionnel : Réglages › Navigation › **Trafic TomTom** (clé gratuite developer.tomtom.com).
+2. **Rouler tout de suite** — onglet Rouler › gros bouton **Rouler** : radars, dangers, accidents et bouchons annoncés,
+   km comptés pour l'entretien, trace enregistrée. **Où tu vas ?** : tape une adresse, suggestions en direct, itinéraire
+   simple avec les mêmes annonces. Les ⭐ favoris se lancent d'un appui.
+3. **Préparer un road trip** — Trips › **Nouveau** : formulaire (envie, niveau, budget, routes…) → **Continuer avec Claude**.
+   Le PC calcule la route de chaque étape (profil moto), le guidage, les radars, les dangers, les stations et les pauses ;
+   l'iPhone place les pleins. Chaque étape affiche distance, **temps de conduite**, arrêts et **heure d'arrivée**.
+   Ou Trips › importer un `trip.json` / GPX.
+4. **Cahier des charges** — fiche du trip › **Cahier des charges** : relis le cahier, les étapes et les lieux,
+   coche **trajet / étapes / lieux**, **Valider**, puis **Créer le PDF** (cartes, horaires, adresses) à garder ou envoyer.
+   Si le trip change ensuite (Claude, tracé, paramètres), l'app te demande de revalider.
+5. **Le jour J** — fiche du trip › **Préparer** : tracé, trafic, météo, carte hors ligne, entretien, rappels, en un appui
+   (Wi-Fi + Tailscale). Puis **Rouler — Étape N**.
+6. **En roulant** — la voix annonce virages, radars (500 m puis « maintenant »), dangers (300 m), accidents et bouchons
+   (20 km puis 1 km), limitation dépassée, pleins, pauses, météo. Un radar ou un virage passe toujours avant un message
+   trafic, et ta musique reprend son volume après chaque annonce. Rien ne dépend du PC en roulant.
+   **SOS** : appui long = appel ; bouton message = SMS avec ta position ; 👍 = « petit point » (tout va bien + ta ville).
+7. **Entretien** — Réglages › Entretien : choisis **Ma moto**, recopie le compteur une fois ; chaque sortie ajoute ses km
+   et l'accueil te prévient (vidange, chaîne, pneus, freins, révision…).
 
 ## Développer
 ```powershell
@@ -117,4 +121,4 @@ claude                                      # Claude Code : « Lis CLAUDE.md et 
 L'app iOS se compile uniquement dans GitHub Actions (`git push`).
 
 ## Attributions
-Cartes © contributeurs OpenStreetMap (ODbL) · fond OpenFreeMap · rendu MapLibre · routage GraphHopper (Apache 2.0) · météo Open-Meteo (CC BY 4.0) · trafic TomTom.
+Cartes © contributeurs OpenStreetMap (ODbL) · fond OpenFreeMap · rendu MapLibre · routage GraphHopper (Apache 2.0) · météo Open-Meteo (CC BY 4.0) · trafic TomTom · radars Sécurité routière (Etalab), DGT (CC BY), MapAtlas (CC BY 4.0) · événements Bison Futé (Licence Ouverte), DGT (CC BY).
