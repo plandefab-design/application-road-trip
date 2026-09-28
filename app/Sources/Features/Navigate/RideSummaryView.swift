@@ -4,7 +4,12 @@ import TripCore
 /// What was actually ridden: real track on the map and the key numbers.
 struct RideSummaryView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var rides: RideStore
+    @EnvironmentObject private var store: TripStore
+    @State private var reuseMessage: String?
     let ride: RideLog
+
+    private var isFavorite: Bool { rides.rides.first { $0.id == ride.id }?.isFavorite ?? ride.isFavorite }
 
     var body: some View {
         NavigationStack {
@@ -25,6 +30,24 @@ struct RideSummaryView: View {
                         Text("\(start.formatted(date: .abbreviated, time: .shortened)) → \(end.formatted(date: .omitted, time: .shortened)) · total \(Format.duration(minutes: ride.summary.totalTime / 60))")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
+                    HStack(spacing: 10) {
+                        Button { rides.toggleFavorite(ride) } label: {
+                            Label(isFavorite ? "Favori" : "Mettre en favori", systemImage: isFavorite ? "star.fill" : "star")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.yellow)
+                        Button {
+                            store.save(ride.asTrip())
+                            reuseMessage = "Trip créé : Mes trips › « ⭐ … ». Touche « Préparer » puis « Rouler »."
+                        } label: {
+                            Label("Refaire ce trajet", systemImage: "arrow.triangle.2.circlepath")
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+                    }
+                    if let reuseMessage { Text(reuseMessage).font(.caption).foregroundStyle(.green) }
                     ShareLink(item: gpxFile(), preview: SharePreview("Trace réelle.gpx")) {
                         Label("Exporter la trace réelle (GPX)", systemImage: "square.and.arrow.up")
                             .frame(maxWidth: .infinity, minHeight: 44)

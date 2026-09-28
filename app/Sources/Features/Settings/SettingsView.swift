@@ -37,6 +37,11 @@ struct SettingsView: View {
                                         .foregroundStyle(bike.category == nil ? .orange : .secondary)
                                     Text("Autonomie \(Int(bike.rangeKm)) km · marge \(Int(bike.reserveMarginPct)) % · utile \(Int(bike.usableRangeMeters / 1000)) km")
                                         .font(.caption).foregroundStyle(.secondary)
+                                    if let km = maintenance.books[bike.id]?.odometerKm {
+                                        Label("\(Int(km)) km au compteur" + (settings.primaryBike?.id == bike.id ? " · Ma moto (sorties comptées)" : ""),
+                                              systemImage: "gauge.with.needle")
+                                            .font(.caption.bold()).foregroundStyle(.orange)
+                                    }
                                 }
                                 Spacer()
                                 Image(systemName: "pencil").foregroundStyle(.secondary)

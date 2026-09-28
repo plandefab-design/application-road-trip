@@ -16,10 +16,24 @@ struct RidesListView: View {
                     LabeledContent("Total", value: "\(Format.distance(rides.rides.reduce(0) { $0 + $1.summary.distance })) · \(rides.rides.count) sortie(s)")
                     LabeledContent("Virages", value: "\(rides.rides.reduce(0) { $0 + $1.summary.bends })")
                 }
+                let favorites = rides.rides.filter(\.isFavorite)
+                if !favorites.isEmpty {
+                    Section {
+                        ForEach(favorites) { ride in
+                            Button { shown = ride } label: { row(ride) }.buttonStyle(.plain)
+                                .swipeActions(edge: .leading) { starAction(ride) }
+                        }
+                    } header: {
+                        Label("Favoris", systemImage: "star.fill")
+                    } footer: {
+                        Text("Ouvre un favori › « Refaire ce trajet » pour le rouler comme un trip.")
+                    }
+                }
                 ForEach(months, id: \.self) { month in
                     Section(month) {
                         ForEach(rides.rides.filter { monthLabel($0) == month }) { ride in
                             Button { shown = ride } label: { row(ride) }.buttonStyle(.plain)
+                                .swipeActions(edge: .leading) { starAction(ride) }
                         }
                         .onDelete { idx in
                             let inMonth = rides.rides.filter { monthLabel($0) == month }
@@ -31,6 +45,13 @@ struct RidesListView: View {
         }
         .navigationTitle("Mes sorties")
         .sheet(item: $shown) { RideSummaryView(ride: $0) }
+    }
+
+    private func starAction(_ ride: RideLog) -> some View {
+        Button { rides.toggleFavorite(ride) } label: {
+            Label(ride.isFavorite ? "Retirer" : "Favori", systemImage: ride.isFavorite ? "star.slash" : "star.fill")
+        }
+        .tint(.yellow)
     }
 
     private var months: [String] {
@@ -54,6 +75,7 @@ struct RidesListView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer()
+            if ride.isFavorite { Image(systemName: "star.fill").foregroundStyle(.yellow) }
             Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
         }
     }

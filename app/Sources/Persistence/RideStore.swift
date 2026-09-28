@@ -12,6 +12,25 @@ struct RideLog: Codable, Identifiable, Equatable {
     /// Garage bike credited with the km (« Ma moto »).
     var bikeId: String?
     var uploaded: Bool = false
+    /// Marked ⭐ by the rider (optional so older ride files still decode).
+    var favorite: Bool?
+
+    var isFavorite: Bool { favorite == true }
+
+    /// A trip built from the real recorded track, to ride it again (« Refaire ce trajet »).
+    func asTrip() -> Trip {
+        let first = track.first, last = track.last
+        let loop = first.flatMap { f in last.map { Geo.distance(f, $0) < 1_000 } } ?? true
+        let today = ISODate.format(Date())
+        let label = tripId == RideStore.freeRideTripId ? "Balade" : tripName
+        let date = summary.startedAt?.formatted(.dateTime.day().month(.abbreviated)) ?? ""
+        let params = TripParams(start: Place(name: "Départ", point: first),
+                                end: loop ? nil : Place(name: "Arrivée", point: last),
+                                dateStart: today, dateEnd: today)
+        let day = TripDay(index: 1, date: today, distanceKm: (summary.distance / 1000).rounded(),
+                          drivingTimeMin: (summary.movingTime / 60).rounded(), track: Polyline(track))
+        return Trip(name: "⭐ \(label) du \(date)", status: .ready, params: params, days: [day])
+    }
 }
 
 /// Rides saved in Documents/rides (one file each), newest first.
@@ -42,6 +61,12 @@ final class RideStore: ObservableObject {
     }
 
     func rides(for tripId: String) -> [RideLog] { rides.filter { $0.tripId == tripId } }
+
+    func toggleFavorite(_ ride: RideLog) {
+        guard var r = rides.first(where: { $0.id == ride.id }) else { return }
+        r.favorite = !r.isFavorite
+        save(r)
+    }
 
     /// Builds the log of a finished ride; nil for a ride shorter than 200 m (test start, mistake).
     static func log(trip: Trip, day: TripDay, points: [GeoPoint], times: [Date], speeds: [Double], bikeId: String? = nil) -> RideLog? {
