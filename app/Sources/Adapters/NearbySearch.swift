@@ -140,20 +140,28 @@ enum NearbySearch {
 
     /// Road route from here (Apple Maps directions), else a straight line (offline).
     static func route(to place: Place, from here: GeoPoint) async -> DetourRoute {
-        let road = await withTimeout { () -> DetourRoute in
+        await route(to: place.point, name: place.name, from: here)
+    }
+
+    static func route(to target: GeoPoint, name: String, from here: GeoPoint) async -> DetourRoute {
+        await roadRoute(to: target, name: name, from: here) ?? DetourRoute.straight(name: name, from: here, to: target)
+    }
+
+    /// nil when no road route could be obtained (offline, timeout).
+    static func roadRoute(to target: GeoPoint, name: String, from here: GeoPoint) async -> DetourRoute? {
+        await withTimeout { () -> DetourRoute in
             let request = MKDirections.Request()
             request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: here.lat, longitude: here.lon)))
-            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: place.point.lat, longitude: place.point.lon)))
+            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: target.lat, longitude: target.lon)))
             request.transportType = .automobile
             let response = try await MKDirections(request: request).calculate()
             guard let r = response.routes.first else { throw URLError(.cannotFindHost) }
             var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: r.polyline.pointCount)
             r.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: r.polyline.pointCount))
-            return DetourRoute.road(name: place.name, destination: place.point,
+            return DetourRoute.road(name: name, destination: target,
                                     points: coords.map { GeoPoint(lat: $0.latitude, lon: $0.longitude) },
                                     steps: r.steps.map { (text: $0.instructions, distance: $0.distance) })
         }
-        return road ?? DetourRoute.straight(name: place.name, from: here, to: place.point)
     }
 
     /// Runs `work`, giving up after `timeout` seconds or on error (nil).

@@ -105,7 +105,7 @@ struct NavigationView: View {
         c.lines = c.lines.filter { $0.id == "day\(session.day.index)" }
         c.followUser = true
         c.recenter = recenter
-        c.detour = session.detour?.route.track.points ?? []
+        c.detour = (session.detour ?? session.rejoin)?.route.track.points ?? []
         return c
     }
 
@@ -115,6 +115,8 @@ struct NavigationView: View {
         HStack(spacing: 14) {
             if let detour = session.detour {
                 DetourBanner(name: detour.route.name, update: session.detourUpdate)
+            } else if session.offRoute, session.rejoin != nil {
+                DetourBanner(name: "Retour au tracé", update: session.rejoinUpdate)
             } else if session.offRoute {
                 Image(systemName: "location.north.fill")
                     .font(.system(size: 44, weight: .bold))
