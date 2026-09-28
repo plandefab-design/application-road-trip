@@ -171,7 +171,7 @@ struct TripDetailContent: View {
         .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
         .fullScreenCover(item: $navigatingDay) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                           camerasEnabled: settings.radarAnnouncements) { newPace in
+                           camerasEnabled: settings.radarAnnouncements, tomtomKey: settings.tomtomKey) { newPace in
                 settings.pace = newPace
             }
         }

@@ -10,7 +10,7 @@ Dernière mise à jour : 2026-09-28 — app 1.0.4 installée via SideStore ; com
 | M3 — App : écrans | 🟡 Installée sur iPhone | Édition des motos et des trips, reprise du chat depuis un trip (1.0.4). Trips (import GPX/JSON), détail (carte, étapes, adresses avec statut vérifié, export GPX), Réglages (garage, SOS, companion, TomTom), Créer (formulaire 13 paramètres + cohérence), chat planner. |
 | M4 — Navigation | 🟠 Mode « suivre le tracé » | Local : bandeaux plein / arrêt / fin avec heure d'arrivée à l'allure, avance/retard, hors tracé + cap de retour, voix, écran allumé, SOS SMS, trace réelle. **Guidage virage par virage Ferrostar : à intégrer (S3).** |
 | M5 — Hors ligne, radars, stations | 🟠 Partiel | Radars (OSM `highway=speed_camera`, ~3 700 sur la zone) et dangers (OSM `hazard=*`) intégrés au trip par le PC, annoncés hors ligne (radars 500 m, dangers 300 m). Carte hors ligne et stations à faire. |
-| M6 — Météo sur la route, TomTom | ⚪ À faire | |
+| M6 — Météo sur la route, TomTom | 🟠 Partiel | Incidents TomTom (v5) en navigation : toutes les 5 min si clé + réseau (délai 5 s), filtrés sur les 50 km du tracé à venir, annoncés (à la découverte puis à 1 km), bandeau d'état. Météo à faire. |
 | M7 — Création complète | 🟠 Partiel | Chat branché (tâches suivies, progression). Finalisation : lieux localisés via OSM Nominatim (cache, 1 req/s) + route GraphHopper par jour, automatique après chaque réponse de Claude ou bouton « Calculer le tracé ». Couverture carte : Alpes + PACA + Languedoc-Roussillon fusionnés (osmium). PDF à faire. |
 | M8 — Automatisations restantes | ⚪ À faire | Checklist + notifications locales, sync, purge des packs. |
 | M9 — Recette | ⚪ À faire | |

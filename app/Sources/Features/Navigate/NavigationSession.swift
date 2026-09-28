@@ -20,6 +20,13 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
     /// Rider setting « Annonces radar » (hazards are always announced).
     let camerasEnabled: Bool
+    /// Live incidents on the route ahead (TomTom, optional) and the status line shown to the rider.
+    @Published private(set) var incidentsAhead: [IncidentAhead] = []
+    @Published private(set) var trafficStatus: String?
+    private let traffic: TrafficClient?
+    private var located: [IncidentAhead] = []
+    private var lastTrafficFetch: Date?
+    private var trafficTask: Task<Void, Never>?
 
     let trip: Trip
     let day: TripDay
@@ -36,8 +43,10 @@ final class NavigationSession: ObservableObject {
     private let onPaceUpdate: (PaceEstimator) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService,
-         pace: PaceEstimator, camerasEnabled: Bool, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+         pace: PaceEstimator, camerasEnabled: Bool, traffic: TrafficClient?,
+         onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         self.camerasEnabled = camerasEnabled
+        self.traffic = traffic
         let r = day.track ?? Polyline([])
         self.trip = trip
         self.day = day
@@ -58,6 +67,7 @@ final class NavigationSession: ObservableObject {
         computer = NavigationComputer(route: r, fuelStops: fuel, stops: stops,
                                       plannedDuration: day.drivingTimeMin.map { $0 * 60 },
                                       dayStart: nil)
+        if traffic != nil { trafficStatus = "Trafic : en attente du réseau" }
     }
 
     func start() {
@@ -71,6 +81,7 @@ final class NavigationSession: ObservableObject {
 
     func stop() {
         cancellable = nil
+        trafficTask?.cancel()
         location.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         onPaceUpdate(pace)
@@ -126,6 +137,14 @@ final class NavigationSession: ObservableObject {
             }
         }
 
+        if !offRoute {
+            refreshTrafficIfNeeded(progress: snap.progress)
+            incidentsAhead = located.filter { $0.along > snap.progress }
+            for a in TrafficIncidents.announcements(incidentsAhead, progress: snap.progress) {
+                voice.say(a.text, key: a.key, cooldown: 3_600)
+            }
+        }
+
         if let fuel = snap.nextFuel, fuel.distance < 5_000 {
             voice.say("Plein dans \(Int(fuel.distance / 1000)) kilomètre\(fuel.distance >= 2_000 ? "s" : ""), \(fuel.label).", key: "fuel-\(fuel.label)", cooldown: 900)
         }
@@ -133,6 +152,26 @@ final class NavigationSession: ObservableObject {
             voice.say("Fin de l'étape \(day.index).", key: "end", cooldown: 3_600)
         }
         snapshot = snap
+    }
+
+    /// Every 5 min when a TomTom key is set: incidents on the next 50 km. Located once per fetch (not per GPS
+    /// fix) to spare the battery. A failure only changes the status line; guidance never waits for it.
+    private func refreshTrafficIfNeeded(progress: Double) {
+        guard let traffic, trafficTask == nil else { return }
+        if let last = lastTrafficFetch, Date().timeIntervalSince(last) < 300 { return }
+        guard let box = TrafficIncidents.boundingBox(route: route, progress: progress) else { return }
+        lastTrafficFetch = Date()
+        trafficTask = Task { [weak self] in
+            do {
+                let found = try await traffic.incidents(minLon: box.minLon, minLat: box.minLat, maxLon: box.maxLon, maxLat: box.maxLat)
+                guard let self else { return }
+                self.located = TrafficIncidents.ahead(found, route: self.route, progress: progress)
+                self.trafficStatus = "Trafic à jour \(Format.time(Date()))"
+            } catch {
+                self?.trafficStatus = "Trafic indisponible (pas de réseau)"
+            }
+            self?.trafficTask = nil
+        }
     }
 
     /// Recorded track as GPX (after-trip stats, SPEC §4.5).

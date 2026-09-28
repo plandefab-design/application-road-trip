@@ -10,9 +10,10 @@ struct NavigationView: View {
     @State private var confirmQuit = false
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         camerasEnabled: Bool, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+         camerasEnabled: Bool, tomtomKey: String, onPaceUpdate: @escaping (PaceEstimator) -> Void) {
+        let traffic: TrafficClient? = tomtomKey.isEmpty ? nil : TomTomTrafficClient(key: tomtomKey) as TrafficClient
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
-                                                               pace: pace, camerasEnabled: camerasEnabled,
+                                                               pace: pace, camerasEnabled: camerasEnabled, traffic: traffic,
                                                                onPaceUpdate: onPaceUpdate))
     }
 
@@ -24,6 +25,17 @@ struct NavigationView: View {
             VStack(spacing: 8) {
                 topBanner
                 Spacer()
+                if let status = session.trafficStatus {
+                    Text(status).font(.caption.bold())
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Color.black.opacity(0.7), in: Capsule())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let incident = session.incidentsAhead.first, let progress = session.snapshot?.progress,
+                   incident.along - progress <= 10_000 {
+                    incidentBadge(incident, distance: incident.along - progress)
+                }
                 if let next = session.nextAlert { alertBadge(next.alert, distance: next.distance) }
                 if let delay = session.snapshot?.delay { delayBadge(delay) }
                 bottomCards
@@ -119,6 +131,22 @@ struct NavigationView: View {
         .frame(maxWidth: .infinity, minHeight: 96)
         .foregroundStyle(.white)
         .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Live traffic incident within 10 km (TomTom).
+    private func incidentBadge(_ item: IncidentAhead, distance: Double) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.octagon.fill").font(.system(size: 30, weight: .bold))
+            VStack(alignment: .leading) {
+                Text(item.incident.category.label).font(.title3.bold())
+                Text(item.incident.delay.map { "\(Format.distance(distance)) · +\(Int(($0 / 60).rounded())) min" } ?? Format.distance(distance))
+                    .font(.title3.monospacedDigit())
+            }
+            Spacer()
+        }
+        .padding(12)
+        .foregroundStyle(.white)
+        .background(Color.purple.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// Speed camera (with its limit) or hazard within 500 m.

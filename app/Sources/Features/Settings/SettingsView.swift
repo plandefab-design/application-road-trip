@@ -70,6 +70,8 @@ struct SettingsView: View {
                     Toggle("Thème sombre forcé", isOn: $settings.forceDark)
                     SecureField("Clé TomTom (trafic)", text: $tomtom)
                         .onChange(of: tomtom) { _, value in settings.tomtomKey = value }
+                    Link("Clé gratuite : developer.tomtom.com › compte › API Key", destination: URL(string: "https://developer.tomtom.com")!)
+                        .font(.footnote)
                 }
 
                 Section("État du système") {
