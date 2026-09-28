@@ -71,12 +71,15 @@ final class FreeRideSession: ObservableObject {
     }
 
     private func handle(_ fix: LocationService.Fix) {
-        guard fix.accuracy >= 0, fix.accuracy <= 50 else { return }        // poor fixes would inflate the km
-        if let last = points.last { distance += Geo.distance(last, fix.point) }
-        points.append(fix.point)
-        times.append(fix.time)
-        speeds.append(fix.speed)
+        guard fix.accuracy >= 0, fix.accuracy <= 150 else { return }
         speedKmh = max(0, fix.speed) * 3.6
+        // Only precise fixes are recorded (km, track): imprecise ones would inflate the distance.
+        if fix.accuracy <= 50 {
+            if let last = points.last { distance += Geo.distance(last, fix.point) }
+            points.append(fix.point)
+            times.append(fix.time)
+            speeds.append(fix.speed)
+        }
         if var d = detour {
             let u = d.update(position: fix.point, speed: max(0, fix.speed))
             detour = d

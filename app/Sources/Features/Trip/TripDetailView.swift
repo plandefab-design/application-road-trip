@@ -94,7 +94,10 @@ struct TripDetailContent: View {
         } message: {
             Text(traceMessage ?? "")
         }
-        .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
+        .onAppear {
+            location.requestPermissions()   // permissions asked before riding, never during
+            location.warmUp()               // GPS already locked when « Rouler » is tapped
+        }
         .fullScreenCover(item: $navigatingDay, onDismiss: {
             // Summary of what was ridden, then a silent backup to the PC when reachable.
             if let ride = pendingRide {

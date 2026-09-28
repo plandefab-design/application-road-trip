@@ -36,7 +36,24 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         }
     }
 
+    private var navigating = false
+
+    /// Keeps the GPS warm while the app is open (low accuracy, little battery), so riding starts with a position.
+    func warmUp() {
+        guard !navigating,
+              manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        manager.distanceFilter = 50
+        manager.startUpdatingLocation()
+    }
+
     func startNavigation() {
+        navigating = true
+        // Start from the last known position right away (recent enough), the precise fixes follow.
+        if lastFix == nil, let loc = manager.location, Date().timeIntervalSince(loc.timestamp) < 120 {
+            lastFix = Fix(point: GeoPoint(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude),
+                          speed: -1, course: -1, accuracy: loc.horizontalAccuracy, time: loc.timestamp)
+        }
         manager.activityType = .automotiveNavigation
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.distanceFilter = kCLDistanceFilterNone
@@ -61,6 +78,7 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func stop() {
+        navigating = false
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
     }

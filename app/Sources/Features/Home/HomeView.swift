@@ -69,7 +69,10 @@ struct HomeView: View {
             .navigationDestination(for: String.self) { TripDetailView(tripId: $0) }
             .navigationDestination(isPresented: $showRides) { RidesListView() }
             .task(id: nextTrip?.id) { if let id = nextTrip?.id { await offlineMaps.refresh(tripId: id) } }
-            .onAppear { location.requestPermissions() }   // asked here, never while riding
+            .onAppear {
+                location.requestPermissions()   // asked here, never while riding
+                location.warmUp()               // GPS already locked when « Rouler » is tapped
+            }
             .fullScreenCover(isPresented: $freeRiding, onDismiss: {
                 if let ride = pendingRide {
                     shownRide = ride

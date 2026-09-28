@@ -61,10 +61,21 @@ struct NearbySheet: View {
     @State private var loading = false
     @State private var routing: String?
     @State private var here: GeoPoint?
+    @State private var center = NearbySearch.Center.here
+    @State private var typedCenters: [NearbySearch.Center] = []
+    @State private var typing = false
+    @State private var cityText = ""
+    @State private var locating = false
+    @State private var cityError: String?
+
+    private var centers: [NearbySearch.Center] {
+        [.here] + typedCenters + NearbySearch.tripCenters(trip).filter { c in !typedCenters.contains { $0.name == c.name } }
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 12) {
+                centerBar
                 HStack(spacing: 8) {
                     ForEach(NearbySearch.Category.allCases) { c in
                         Button { category = c } label: {
@@ -101,9 +112,10 @@ struct NearbySheet: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("Autour de moi")
+            .navigationTitle(center.point == nil ? "Autour de moi" : "Autour de \(center.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Fermer") { dismiss() } }
+            .keyboardDoneButton()
             .overlay {
                 if let routing {
                     ProgressView("Itinéraire vers \(routing)…")
@@ -111,8 +123,64 @@ struct NearbySheet: View {
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
                 }
             }
-            .task(id: category) { await load() }
+            .task(id: "\(category.rawValue)|\(center.name)") { await load() }
         }
+    }
+
+    /// « Autour de » : my position, a place of the trip (one tap) or any town typed by the rider (when stopped).
+    private var centerBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(centers) { c in
+                        Button { center = c; typing = false } label: {
+                            Label(c.name, systemImage: c.point == nil ? "location.fill" : "mappin")
+                                .font(.subheadline.bold()).lineLimit(1)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .foregroundStyle(center == c ? .white : .primary)
+                                .background(center == c ? Color.blue : Color.secondary.opacity(0.15), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button { typing.toggle() } label: {
+                        Label("Autre ville…", systemImage: "magnifyingglass")
+                            .font(.subheadline.bold())
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(Color.secondary.opacity(0.15), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal)
+            }
+            if typing {
+                HStack {
+                    TextField("Ville ou adresse (à l'arrêt)", text: $cityText)
+                        .textFieldStyle(.roundedBorder)
+                        .submitLabel(.search)
+                        .onSubmit { Task { await locateCity() } }
+                    Button(locating ? "…" : "Chercher") { Task { await locateCity() } }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(cityText.trimmingCharacters(in: .whitespaces).isEmpty || locating)
+                }
+                .padding(.horizontal)
+                if let cityError { Text(cityError).font(.caption).foregroundStyle(.orange).padding(.horizontal) }
+            }
+        }
+    }
+
+    private func locateCity() async {
+        locating = true
+        defer { locating = false }
+        cityError = nil
+        guard let found = await NearbySearch.locate(cityText) else {
+            cityError = "Ville introuvable (ou pas de réseau)."
+            return
+        }
+        typedCenters.removeAll { $0.name == found.name }
+        typedCenters.insert(found, at: 0)
+        center = found
+        typing = false
+        cityText = ""
     }
 
     private func row(_ place: NearbySearch.Place) -> some View {
@@ -123,7 +191,10 @@ struct NearbySheet: View {
                 if let a = place.address { Text(a).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer()
-            Text(Format.distance(place.distance)).font(.subheadline.bold().monospacedDigit())
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(Format.distance(place.distance)).font(.subheadline.bold().monospacedDigit())
+                if center.point != nil { Text("du centre").font(.caption2).foregroundStyle(.secondary) }
+            }
             Image(systemName: "arrow.triangle.turn.up.right.circle.fill").font(.title2).foregroundStyle(.blue)
         }
         .padding(.vertical, 6)
@@ -134,8 +205,8 @@ struct NearbySheet: View {
         loading = true
         defer { loading = false }
         if here == nil { here = await location.currentPosition() }
-        guard let here else { places = []; return }
-        let result = await NearbySearch.search(category, around: here, trip: trip)
+        guard let around = center.point ?? here else { places = []; return }
+        let result = await NearbySearch.search(category, around: around, trip: trip)
         places = result.places
         online = result.online
     }

@@ -52,6 +52,42 @@ enum NearbySearch {
 
     static let timeout: TimeInterval = 5
 
+    /// Where to search: the rider's position, a place of the trip, or any town typed by the rider.
+    struct Center: Equatable, Identifiable {
+        let name: String
+        let point: GeoPoint?          // nil = « Ma position »
+        var id: String { name }
+        static let here = Center(name: "Ma position", point: nil)
+    }
+
+    /// Places of the trip usable as search centres without typing (start, end, highlights, hotels).
+    static func tripCenters(_ trip: Trip?) -> [Center] {
+        guard let trip else { return [] }
+        var out: [Center] = []
+        func add(_ name: String, _ p: GeoPoint?) {
+            guard let p, !name.isEmpty, !out.contains(where: { $0.name == name }) else { return }
+            out.append(Center(name: name, point: p))
+        }
+        add(trip.params.start.name, trip.params.start.point)
+        if let end = trip.params.end { add(end.name, end.point) }
+        for day in trip.days { for h in day.highlights { add(h.name, h.point) } }
+        for poi in trip.pois where poi.type == .lodging { add(poi.name, poi.point) }
+        return Array(out.prefix(20))
+    }
+
+    /// Any town or address typed by the rider (Apple geocoding, 5 s).
+    static func locate(_ text: String) async -> Center? {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return nil }
+        return await withTimeout { () -> Center in
+            let marks = try await CLGeocoder().geocodeAddressString(query)
+            guard let m = marks.first, let loc = m.location else { throw URLError(.cannotFindHost) }
+            let name = [m.locality ?? m.name, m.administrativeArea].compactMap { $0 }.joined(separator: ", ")
+            return Center(name: name.isEmpty ? query : name,
+                          point: GeoPoint(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude))
+        }
+    }
+
     /// Online results (Apple Maps), else the trip's own places of that kind; nearest first, at most 15.
     static func search(_ category: Category, around here: GeoPoint, trip: Trip?) async -> (places: [Place], online: Bool) {
         if let online = await withTimeout({ try await appleSearch(category, around: here) }), !online.isEmpty {
