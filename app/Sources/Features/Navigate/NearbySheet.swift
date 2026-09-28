@@ -72,8 +72,11 @@ struct NearbySheet: View {
     @State private var addressOpen = false
     @State private var addressText = ""
     @State private var addressError: String?
+    @StateObject private var completer = AddressCompleter()
+    @ObservedObject private var places = FavoritePlaces.shared
 
-    /// « Aller à une adresse »: any address, town or place typed (when stopped) → simple guided route.
+    /// « Aller à une adresse », like a classic GPS: favourites and recents in one tap, suggestions while typing
+    /// (typing is meant for when stopped).
     private var addressBar: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button { addressOpen.toggle() } label: {
@@ -85,32 +88,109 @@ struct NearbySheet: View {
             .tint(.blue)
             if addressOpen {
                 HStack {
-                    TextField("Adresse, ville ou lieu (à l'arrêt)", text: $addressText)
-                        .textFieldStyle(.roundedBorder)
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("Adresse, ville ou lieu", text: $addressText)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
                         .submitLabel(.go)
-                        .onSubmit { Task { await goToAddress() } }
-                    Button("Y aller") { Task { await goToAddress() } }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(addressText.trimmingCharacters(in: .whitespaces).isEmpty || routing != nil)
+                        .onSubmit { Task { await goToTyped() } }
+                    if !addressText.isEmpty {
+                        Button { addressText = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    }
                 }
+                .padding(10)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .onChange(of: addressText) { _, text in completer.update(text, near: here) }
                 if let addressError { Text(addressError).font(.caption).foregroundStyle(.orange) }
+                ScrollView {
+                    VStack(spacing: 0) {
+                        if addressText.trimmingCharacters(in: .whitespaces).count < 2 {
+                            ForEach(places.favorites) { p in savedRow(p, icon: "star.fill", tint: .yellow) }
+                            ForEach(places.recents.filter { !places.isFavorite($0) }) { p in savedRow(p, icon: "clock.arrow.circlepath", tint: .secondary) }
+                            if places.favorites.isEmpty && places.recents.isEmpty {
+                                Text("Tape une adresse : des suggestions s'affichent. Touche ☆ pour l'ajouter aux favoris.")
+                                    .font(.caption).foregroundStyle(.secondary).padding(.vertical, 8)
+                            }
+                        } else {
+                            ForEach(completer.suggestions) { s in suggestionRow(s) }
+                            if completer.suggestions.isEmpty {
+                                Text("Aucune suggestion (ou pas de réseau). « Entrée » cherche quand même.")
+                                    .font(.caption).foregroundStyle(.secondary).padding(.vertical, 8)
+                            }
+                        }
+                    }
+                }
+                .frame(maxHeight: 280)
             }
         }
         .padding(.horizontal)
     }
 
-    private func goToAddress() async {
+    private func savedRow(_ p: FavoritePlaces.Place, icon: String, tint: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).foregroundStyle(tint).frame(width: 24)
+            Button { Task { await go(to: p) } } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(p.name).font(.subheadline.bold()).lineLimit(1)
+                    if let s = p.subtitle { Text(s).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button { places.toggleFavorite(p) } label: {
+                Image(systemName: places.isFavorite(p) ? "star.fill" : "star").foregroundStyle(.yellow)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func suggestionRow(_ s: AddressCompleter.Suggestion) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin.circle.fill").foregroundStyle(.red).frame(width: 24)
+            Button { Task { if let p = await resolve(s) { await go(to: p) } } } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.title).font(.subheadline.bold()).lineLimit(1)
+                    if !s.subtitle.isEmpty { Text(s.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            Button { Task { if let p = await resolve(s) { places.toggleFavorite(p) } } } label: {
+                Image(systemName: "star").foregroundStyle(.yellow)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func resolve(_ s: AddressCompleter.Suggestion) async -> FavoritePlaces.Place? {
+        let p = await completer.resolve(s)
+        if p == nil { addressError = "Adresse introuvable (ou pas de réseau)." }
+        return p
+    }
+
+    /// « Entrée » without picking a suggestion: plain geocoding of the typed text.
+    private func goToTyped() async {
         addressError = nil
         guard let target = await NearbySearch.locate(addressText), let point = target.point else {
             addressError = "Adresse introuvable (ou pas de réseau)."
             return
         }
+        await go(to: FavoritePlaces.Place(name: target.name, subtitle: nil, point: point))
+    }
+
+    private func go(to p: FavoritePlaces.Place) async {
+        addressError = nil
         guard let from = await location.currentPosition() ?? here else {
             addressError = "Position GPS indisponible."
             return
         }
-        routing = target.name
-        let route = NearbySearch.withAlerts(await NearbySearch.route(to: point, name: target.name, from: from))
+        places.addRecent(p)
+        routing = p.name
+        let route = NearbySearch.withAlerts(await NearbySearch.route(to: p.point, name: p.name, from: from))
         routing = nil
         onPick(route)
         dismiss()
