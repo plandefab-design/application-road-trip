@@ -13,6 +13,7 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
+from .finalize import Geocoder, finalize_trip, graphhopper_payload, graphhopper_router
 from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
 
@@ -109,19 +110,42 @@ JOBS: dict[str, ChatJob] = {}
 MAX_PROGRESS_LINES = 20
 
 
-async def run_chat_job(job: ChatJob, message: str, trip: dict[str, Any]) -> None:
-    def on_progress(line: str) -> None:
-        job.progress = (job.progress + [line])[-MAX_PROGRESS_LINES:]
+def geocoder() -> Geocoder:
+    return Geocoder(DATA_DIR / "geocode_cache.json")
 
-    try:
-        reply = await planner.chat(message, trip, on_progress=on_progress)
-        if reply.trip is not None:
-            trip_path(job.tripId).write_text(json.dumps(reply.trip, ensure_ascii=False, indent=2), encoding="utf-8")
-        job.reply = ChatReply(text=reply.text, trip=reply.trip, questions=reply.questions)
-        job.status = "done"
-    except Exception as exc:  # reported to the iPhone instead of being lost in a background task
-        job.error = str(exc) or type(exc).__name__
-        job.status = "error"
+
+async def add_routes(trip: dict[str, Any], on_progress) -> str:
+    """Finalisation after each planner turn: waypoints located, one road track per day."""
+    if not trip.get("days"):
+        return ""
+    warnings = await finalize_trip(trip, geocoder().locate, graphhopper_router(GRAPHHOPPER_URL), on_progress)
+    traced = sum(1 for d in trip["days"] if d.get("track"))
+    summary = f"Tracé calculé pour {traced}/{len(trip['days'])} jour(s)."
+    return "\n\n".join([summary] + warnings)
+
+
+def start_job(trip_id: str, background: BackgroundTasks, work) -> ChatJob:
+    """Runs `work(job, on_progress)` in the background; one job per trip at a time."""
+    running = next((j for j in JOBS.values() if j.tripId == trip_id and j.status == "running"), None)
+    if running is not None:
+        return running
+    job = ChatJob(jobId=secrets.token_urlsafe(12), tripId=trip_id)
+    JOBS[job.jobId] = job
+
+    async def run() -> None:
+        def on_progress(line: str) -> None:
+            job.progress = (job.progress + [line])[-MAX_PROGRESS_LINES:]
+        try:
+            job.reply = await work(on_progress)
+            if job.reply.trip is not None:
+                trip_path(trip_id).write_text(json.dumps(job.reply.trip, ensure_ascii=False, indent=2), encoding="utf-8")
+            job.status = "done"
+        except Exception as exc:  # reported to the iPhone instead of being lost in a background task
+            job.error = str(exc) or type(exc).__name__
+            job.status = "error"
+
+    background.add_task(run)
+    return job
 
 
 @app.post("/trips/{trip_id}/chat", dependencies=[Depends(require_token)], status_code=202, response_model=ChatJob)
@@ -129,16 +153,41 @@ async def start_chat(trip_id: str, body: ChatRequest, background: BackgroundTask
     trip_path(trip_id)  # validates the id
     if not is_configured():
         raise HTTPException(503, "CLAUDE_CODE_OAUTH_TOKEN absent : lance `claude setup-token` sur le PC et renseigne .env")
-    running = next((j for j in JOBS.values() if j.tripId == trip_id and j.status == "running"), None)
-    if running is not None:
-        return running                    # one planner turn per trip at a time
     body.trip["id"] = trip_id
-    job = ChatJob(jobId=secrets.token_urlsafe(12), tripId=trip_id)
-    JOBS[job.jobId] = job
-    background.add_task(run_chat_job, job, body.message, body.trip)
-    return job
+
+    async def work(on_progress) -> ChatReply:
+        reply = await planner.chat(body.message, body.trip, on_progress=on_progress)
+        text = reply.text
+        if reply.trip is not None:
+            routes = await add_routes(reply.trip, on_progress)
+            text = f"{text}\n\n{routes}".strip()
+        return ChatReply(text=text, trip=reply.trip, questions=reply.questions)
+
+    return start_job(trip_id, background, work)
 
 
+class FinalizeRequest(BaseModel):
+    trip: dict[str, Any]
+
+
+@app.post("/trips/{trip_id}/finalize", dependencies=[Depends(require_token)], status_code=202, response_model=ChatJob)
+async def start_finalize(trip_id: str, body: FinalizeRequest, background: BackgroundTasks) -> ChatJob:
+    """Computes the road tracks of an existing trip (no Claude involved)."""
+    trip_path(trip_id)
+    trip = body.trip
+    trip["id"] = trip_id
+    errors = validate_trip(trip)
+    if errors:
+        raise HTTPException(422, errors)
+
+    async def work(on_progress) -> ChatReply:
+        summary = await add_routes(trip, on_progress)
+        return ChatReply(text=summary or "Aucune étape à tracer.", trip=sanitize_trip(trip))
+
+    return start_job(trip_id, background, work)
+
+
+@app.get("/trips/{trip_id}/jobs/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)
 @app.get("/trips/{trip_id}/chat/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)
 async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
     job = JOBS.get(job_id)
@@ -160,16 +209,7 @@ async def route(req: RouteRequest) -> dict[str, Any]:
     for lat, lon in req.points:
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise HTTPException(422, "coordonnées invalides")
-    payload: dict[str, Any] = {
-        "profile": req.profile,
-        "points": [[lon, lat] for lat, lon in req.points],   # GraphHopper expects [lon, lat]
-        "points_encoded": False,
-        "instructions": True,
-        "details": ["road_class", "max_speed", "average_speed"],
-        "locale": "fr",
-    }
-    if req.avoid_motorway:
-        payload["custom_model"] = {"priority": [{"if": "road_class == MOTORWAY", "multiply_by": "0"}]}
+    payload = graphhopper_payload(list(req.points), req.profile, req.avoid_motorway)
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(f"{GRAPHHOPPER_URL}/route", json=payload)

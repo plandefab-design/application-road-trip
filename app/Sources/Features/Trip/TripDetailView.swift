@@ -26,6 +26,18 @@ struct TripDetailContent: View {
     @State private var navigatingDay: TripDay?
     @State private var editing = false
     @State private var chatting = false
+    @State private var tracing = false
+    @State private var traceProgress: String?
+    @State private var traceMessage: String?
+
+    /// Days planned by Claude have no geometry until the PC computes it (needed to ride and export).
+    private var missingTracks: Bool { !trip.days.isEmpty && trip.days.contains { $0.track == nil } }
+
+    /// Selected day if it can be ridden, else the first day that has a track.
+    private var rideDay: TripDay? {
+        if let s = selectedDay, let d = trip.days.first(where: { $0.index == s }), d.track != nil { return d }
+        return trip.days.first { $0.track != nil }
+    }
 
     var body: some View {
         List {
@@ -33,6 +45,34 @@ struct TripDetailContent: View {
                 TripMapView(content: MapContent.from(trip: trip, highlightDay: selectedDay))
                     .frame(height: 280)
                     .listRowInsets(EdgeInsets())
+            }
+
+            if let day = rideDay {
+                Section {
+                    Button { startNavigation(day) } label: {
+                        Label("Rouler — Jour \(day.index)", systemImage: "location.north.line.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                } footer: {
+                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal : pleins, arrêts, hors tracé, fin d'étape.")
+                }
+            }
+
+            if missingTracks || tracing {
+                Section {
+                    Button { Task { await computeTracks() } } label: {
+                        Label(tracing ? "Calcul du tracé en cours…" : "Calculer le tracé des étapes",
+                              systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    }
+                    .disabled(tracing)
+                    if tracing {
+                        ProgressView(traceProgress ?? "Localisation des lieux…").font(.caption)
+                    }
+                } footer: {
+                    Text("Calculé par le PC (routes moto sinueuses). Nécessaire pour rouler et exporter le GPX ; ensuite la navigation n'a plus besoin du PC.")
+                }
             }
 
             Section {
@@ -83,9 +123,11 @@ struct TripDetailContent: View {
                 }
             }
 
-            Section {
-                ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
-                    Label("Exporter le GPX", systemImage: "square.and.arrow.up")
+            if trip.days.contains(where: { $0.track != nil }) {
+                Section {
+                    ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
+                        Label("Exporter le GPX", systemImage: "square.and.arrow.up")
+                    }
                 }
             }
         }
@@ -113,6 +155,11 @@ struct TripDetailContent: View {
             CreateTripView(editing: trip).environmentObject(store).environmentObject(settings)
         }
         .navigationDestination(isPresented: $chatting) { PlannerChatView(trip: trip) }
+        .alert("Tracé", isPresented: Binding(get: { traceMessage != nil }, set: { if !$0 { traceMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(traceMessage ?? "")
+        }
         .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
         .fullScreenCover(item: $navigatingDay) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace) { newPace in
@@ -127,6 +174,27 @@ struct TripDetailContent: View {
         t.status = .active
         store.save(t)
         navigatingDay = day
+    }
+
+    private func computeTracks() async {
+        guard let client = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) else {
+            traceMessage = "Companion non configuré (Réglages › Companion)."
+            return
+        }
+        tracing = true
+        defer { tracing = false; traceProgress = nil }
+        do {
+            let job = try await client.startFinalize(tripId: trip.id, trip: trip)
+            let done = try await client.waitForJob(tripId: trip.id, jobId: job.jobId) { traceProgress = $0 }
+            if done.status == "done", let reply = done.reply {
+                if let updated = reply.trip { store.save(updated) }
+                traceMessage = reply.text
+            } else {
+                traceMessage = "Tracé impossible : \(done.error ?? "erreur inconnue")"
+            }
+        } catch {
+            traceMessage = "Companion injoignable : vérifie que le PC est allumé et Tailscale actif. (\(error.localizedDescription))"
+        }
     }
 
     private func gpxFile() -> URL {

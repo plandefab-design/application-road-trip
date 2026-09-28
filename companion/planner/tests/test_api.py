@@ -85,6 +85,9 @@ def test_chat_runs_as_a_job_with_progress(client, monkeypatch):
 
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "x")
     monkeypatch.setattr(main.planner, "chat", fake_chat)
+    async def no_routes(trip, on_progress):
+        return ""
+    monkeypatch.setattr(main, "add_routes", no_routes)
     r = client.post("/trips/t1/chat", headers=AUTH, json={"message": "Salut", "trip": minimal_trip()})
     assert r.status_code == 202, r.text
     job_id = r.json()["jobId"]
@@ -120,3 +123,19 @@ def test_describe_tool_use():
     from app.planner import describe_tool_use
     assert describe_tool_use("WebSearch", {"query": "col du Galibier ouverture"}) == "Recherche : col du Galibier ouverture"
     assert describe_tool_use("WebFetch", {"url": "https://example.org"}).startswith("Lecture : ")
+
+
+def test_finalize_job_returns_traced_trip(client, monkeypatch):
+    import app.main as main
+
+    async def fake_routes(trip, on_progress):
+        trip["days"][0]["track"] = {"points": [{"lat": 1, "lon": 1}, {"lat": 2, "lon": 2}]}
+        return "Tracé calculé pour 1/1 jour(s)."
+
+    monkeypatch.setattr(main, "add_routes", fake_routes)
+    r = client.post("/trips/t1/finalize", headers=AUTH, json={"trip": minimal_trip()})
+    assert r.status_code == 202, r.text
+    got = client.get(f"/trips/t1/jobs/{r.json()['jobId']}", headers=AUTH).json()
+    assert got["status"] == "done"
+    assert got["reply"]["trip"]["days"][0]["track"]["points"][1] == {"lat": 2, "lon": 2}
+    assert got["reply"]["trip"]["pois"][0]["verification"] == "unverified"   # never-invent rule still applied

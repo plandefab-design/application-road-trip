@@ -11,7 +11,7 @@ Dernière mise à jour : 2026-09-28 — app 1.0.4 installée via SideStore ; com
 | M4 — Navigation | 🟠 Mode « suivre le tracé » | Local : bandeaux plein / arrêt / fin avec heure d'arrivée à l'allure, avance/retard, hors tracé + cap de retour, voix, écran allumé, SOS SMS, trace réelle. **Guidage virage par virage Ferrostar : à intégrer (S3).** |
 | M5 — Hors ligne, radars, stations | ⚪ À faire | |
 | M6 — Météo sur la route, TomTom | ⚪ À faire | |
-| M7 — Création complète | 🟠 Partiel | Chat branché ; finalisation (itinéraires GraphHopper par jour, GPX/PDF) à faire. |
+| M7 — Création complète | 🟠 Partiel | Chat branché (tâches suivies, progression). Finalisation : lieux localisés via OSM Nominatim (cache, 1 req/s) + route GraphHopper par jour, automatique après chaque réponse de Claude ou bouton « Calculer le tracé ». Couverture carte : extrait Alpes (Provence OK, Cévennes non). PDF à faire. |
 | M8 — Automatisations restantes | ⚪ À faire | Checklist + notifications locales, sync, purge des packs. |
 | M9 — Recette | ⚪ À faire | |
 

@@ -66,6 +66,34 @@ struct CompanionClient {
         try await get("trips/\(tripId)/chat/\(jobId)", timeout: 15)
     }
 
+    struct FinalizeRequest: Encodable { let trip: Trip }
+
+    /// Locates the waypoints and computes each day's road track on the PC (GraphHopper), no Claude involved.
+    func startFinalize(tripId: String, trip: Trip) async throws -> ChatJob {
+        try await post("trips/\(tripId)/finalize", body: FinalizeRequest(trip: trip), timeout: 30)
+    }
+
+    /// Polls a job every 3 s until it ends; short network drops are retried.
+    func waitForJob(tripId: String, jobId: String, onProgress: @escaping @MainActor (String?) -> Void) async throws -> ChatJob {
+        var failures = 0
+        let deadline = Date().addingTimeInterval(20 * 60)
+        while Date() < deadline {
+            do {
+                let job: ChatJob = try await get("trips/\(tripId)/jobs/\(jobId)", timeout: 15)
+                failures = 0
+                if job.status != "running" { return job }
+                await onProgress(job.progress?.last)
+            } catch let failure as Failure {
+                throw failure            // 404: job lost (PC restarted), 401: token
+            } catch {
+                failures += 1
+                if failures >= 40 { throw error }
+            }
+            try await Task.sleep(for: .seconds(3))
+        }
+        throw URLError(.timedOut)
+    }
+
     // MARK: - Transport
 
     private func request(_ path: String, timeout: TimeInterval) -> URLRequest {
