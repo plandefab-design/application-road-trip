@@ -9,6 +9,8 @@ struct RideLog: Codable, Identifiable, Equatable {
     let day: Int
     let summary: RideSummary
     let track: [GeoPoint]
+    /// Garage bike credited with the km (« Ma moto »).
+    var bikeId: String?
     var uploaded: Bool = false
 }
 

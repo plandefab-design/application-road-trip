@@ -55,187 +55,14 @@ struct TripDetailContent: View {
 
     var body: some View {
         List {
-            Section {
-                TripMapView(content: MapContent.from(trip: trip, highlightDay: selectedDay))
-                    .frame(height: 280)
-                    .listRowInsets(EdgeInsets())
-            }
-
-            if let day = rideDay {
-                Section {
-                    Button { startNavigation(day) } label: {
-                        Label("Rouler — Jour \(day.index)", systemImage: "location.north.line.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                } footer: {
-                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal virage par virage, pleins, hors tracé, fin d'étape.")
-                }
-            }
-
-            Section {
-                Button {
-                    Task { await prepareDeparture() }
-                } label: {
-                    Label(preparing ? "Préparation en cours…" : "Préparer le départ (tout mettre à jour)",
-                          systemImage: "checklist.checked")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(preparing || tracing)
-                ForEach(prep) { step in
-                    HStack(alignment: .top, spacing: 10) {
-                        Group {
-                            switch step.state {
-                            case .pending: Image(systemName: "circle").foregroundStyle(.secondary)
-                            case .running: ProgressView()
-                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                            case .warning: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                            case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
-                            }
-                        }
-                        .frame(width: 22)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(step.label).font(.subheadline.bold())
-                            if step.state == .running, step.id == "route", let traceProgress {
-                                Text(traceProgress).font(.caption).foregroundStyle(.secondary)
-                            } else if step.state == .running, step.id == "map", let s = offlineMaps.status[trip.id] {
-                                Text("\(Int(s.fraction * 100)) %").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                            } else if let detail = step.detail {
-                                Text(detail).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            } footer: {
-                Text("Le jour du départ (Wi-Fi + Tailscale) : recalcule le tracé et le guidage, met à jour radars, dangers, stations et pleins, télécharge la carte hors ligne, vérifie la météo et programme les rappels.")
-            }
-
-            if missingTracks || tracing {
-                Section {
-                    Button { Task { await computeTracks() } } label: {
-                        Label(tracing ? "Calcul du tracé en cours…" : "Calculer le tracé et le guidage",
-                              systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                    }
-                    .disabled(tracing)
-                    if tracing {
-                        ProgressView(traceProgress ?? "Localisation des lieux…").font(.caption)
-                    }
-                } footer: {
-                    Text("Calculé par le PC (routes moto sinueuses, instructions virage par virage). Nécessaire pour rouler et exporter le GPX ; ensuite la navigation n'a plus besoin du PC.")
-                }
-            }
-
-            Section {
-                Button { chatting = true } label: {
-                    Label(trip.days.isEmpty ? "Préparer l'itinéraire avec Claude" : "Modifier l'itinéraire avec Claude",
-                          systemImage: "bubble.left.and.bubble.right")
-                }
-                Button { editing = true } label: {
-                    Label("Modifier les paramètres (dates, motos, zones…)", systemImage: "slider.horizontal.3")
-                }
-                if !missingTracks && !tracing && trip.days.contains(where: { !$0.highlights.isEmpty }) {
-                    Button { Task { await computeTracks() } } label: {
-                        Label("Recalculer tracé, guidage, radars et dangers", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                }
-            }
-
-            let issues = TripValidator.validate(trip)
-            if !issues.isEmpty {
-                Section("Points à corriger") {
-                    ForEach(issues.indices, id: \.self) { i in
-                        Label(issues[i].message, systemImage: issues[i].severity == .error ? "xmark.octagon" : "exclamationmark.triangle")
-                            .foregroundStyle(issues[i].severity == .error ? .red : .orange)
-                    }
-                }
-            }
-
-            Section("Étapes") {
-                ForEach(trip.days) { day in
-                    DayRow(trip: trip, day: day, selected: selectedDay == day.index)
-                        .contentShape(Rectangle())
-                        .onTapGesture { selectedDay = selectedDay == day.index ? nil : day.index }
-                        .swipeActions {
-                            if day.track != nil {
-                                Button("Rouler") { startNavigation(day) }.tint(.orange)
-                            }
-                        }
-                }
-            }
-
-            if !trip.pois.isEmpty {
-                Section("Adresses") {
-                    ForEach(trip.pois) { poi in POIRow(poi: poi) }
-                }
-            }
-
-            Section {
-                ForEach(TripChecklist.merged(trip)) { item in
-                    Button { toggle(item) } label: {
-                        Label(item.label, systemImage: item.done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.done ? .secondary : .primary)
-                    }
-                    .badge(item.due)
-                }
-                Button(remindersMessage ?? "Programmer les rappels (9 h le jour indiqué)") {
-                    Task { await scheduleReminders() }
-                }
-            } header: {
-                Text("Préparation")
-            } footer: {
-                Text("Notifications locales sur l'iPhone, sans serveur. Coche une ligne quand c'est fait : son rappel est annulé.")
-            }
-
-            if trip.days.contains(where: { $0.track != nil }) {
-                offlineMapSection
-
-                let ridden = rides.rides(for: trip.id)
-                if !ridden.isEmpty {
-                    Section("Mes sorties") {
-                        ForEach(ridden) { ride in
-                            Button { shownRide = ride } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Jour \(ride.day) · \(Format.distance(ride.summary.distance))").font(.subheadline.bold())
-                                        Text("\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "") · \(ride.summary.bends) virages · \(Int((ride.summary.averageMovingSpeed * 3.6).rounded())) km/h de moyenne")
-                                            .font(.caption).foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                        .onDelete { idx in idx.map { ridden[$0] }.forEach(rides.delete) }
-                    }
-                }
-
-                Section {
-                    Button(checkingWeather ? "Vérification de la météo…" : "Vérifier la météo sur la route") {
-                        Task {
-                            checkingWeather = true
-                            weatherReport = await WeatherClient().tripReport(trip, pace: settings.pace)
-                            checkingWeather = false
-                        }
-                    }
-                    .disabled(checkingWeather)
-                    ForEach(weatherReport, id: \.self) { line in
-                        Text(line).font(.subheadline)
-                    }
-                } header: {
-                    Text("Météo sur la route")
-                } footer: {
-                    Text("Prévision Open-Meteo à l'heure de passage estimée (départ 9 h), un point tous les 15 km : pluie > 0,5 mm/h, rafales > 60 km/h, < 5 °C, visibilité < 1 km. En roulant, mise à jour toutes les 20 min si réseau.")
-                }
-
-                Section {
-                    ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
-                        Label("Exporter le GPX", systemImage: "square.and.arrow.up")
-                    }
-                }
-            }
+            mapAndRideSections
+            prepareSection
+            tracingSection
+            actionsSection
+            issuesSection
+            stepsAndAddressesSections
+            checklistSection
+            tracedSections
         }
         .task(id: trip.id) { await offlineMaps.refresh(tripId: trip.id) }
         .navigationTitle(trip.name)
@@ -559,4 +386,207 @@ struct POIRow: View {
             }
         }
     }
+}
+
+// MARK: - Sections (split so the type checker stays fast)
+
+extension TripDetailContent {
+    @ViewBuilder var mapAndRideSections: some View {
+            Section {
+                TripMapView(content: MapContent.from(trip: trip, highlightDay: selectedDay))
+                    .frame(height: 280)
+                    .listRowInsets(EdgeInsets())
+            }
+
+            if let day = rideDay {
+                Section {
+                    Button { startNavigation(day) } label: {
+                        Label("Rouler — Jour \(day.index)", systemImage: "location.north.line.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                } footer: {
+                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal virage par virage, pleins, hors tracé, fin d'étape.")
+                }
+            }
+    }
+
+    @ViewBuilder var prepareSection: some View {
+            Section {
+                Button {
+                    Task { await prepareDeparture() }
+                } label: {
+                    Label(preparing ? "Préparation en cours…" : "Préparer le départ (tout mettre à jour)",
+                          systemImage: "checklist.checked")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(preparing || tracing)
+                ForEach(prep) { step in
+                    HStack(alignment: .top, spacing: 10) {
+                        Group {
+                            switch step.state {
+                            case .pending: Image(systemName: "circle").foregroundStyle(.secondary)
+                            case .running: ProgressView()
+                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                            case .warning: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                            case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                            }
+                        }
+                        .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.label).font(.subheadline.bold())
+                            if step.state == .running, step.id == "route", let traceProgress {
+                                Text(traceProgress).font(.caption).foregroundStyle(.secondary)
+                            } else if step.state == .running, step.id == "map", let s = offlineMaps.status[trip.id] {
+                                Text("\(Int(s.fraction * 100)) %").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            } else if let detail = step.detail {
+                                Text(detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Le jour du départ (Wi-Fi + Tailscale) : recalcule le tracé et le guidage, met à jour radars, dangers, stations et pleins, télécharge la carte hors ligne, vérifie la météo et programme les rappels.")
+            }
+    }
+
+    @ViewBuilder var tracingSection: some View {
+            if missingTracks || tracing {
+                Section {
+                    Button { Task { await computeTracks() } } label: {
+                        Label(tracing ? "Calcul du tracé en cours…" : "Calculer le tracé et le guidage",
+                              systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    }
+                    .disabled(tracing)
+                    if tracing {
+                        ProgressView(traceProgress ?? "Localisation des lieux…").font(.caption)
+                    }
+                } footer: {
+                    Text("Calculé par le PC (routes moto sinueuses, instructions virage par virage). Nécessaire pour rouler et exporter le GPX ; ensuite la navigation n'a plus besoin du PC.")
+                }
+            }
+    }
+
+    @ViewBuilder var actionsSection: some View {
+            Section {
+                Button { chatting = true } label: {
+                    Label(trip.days.isEmpty ? "Préparer l'itinéraire avec Claude" : "Modifier l'itinéraire avec Claude",
+                          systemImage: "bubble.left.and.bubble.right")
+                }
+                Button { editing = true } label: {
+                    Label("Modifier les paramètres (dates, motos, zones…)", systemImage: "slider.horizontal.3")
+                }
+                if !missingTracks && !tracing && trip.days.contains(where: { !$0.highlights.isEmpty }) {
+                    Button { Task { await computeTracks() } } label: {
+                        Label("Recalculer tracé, guidage, radars et dangers", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder var issuesSection: some View {
+            let issues = TripValidator.validate(trip)
+            if !issues.isEmpty {
+                Section("Points à corriger") {
+                    ForEach(issues.indices, id: \.self) { i in
+                        Label(issues[i].message, systemImage: issues[i].severity == .error ? "xmark.octagon" : "exclamationmark.triangle")
+                            .foregroundStyle(issues[i].severity == .error ? .red : .orange)
+                    }
+                }
+            }
+    }
+
+    @ViewBuilder var stepsAndAddressesSections: some View {
+            Section("Étapes") {
+                ForEach(trip.days) { day in
+                    DayRow(trip: trip, day: day, selected: selectedDay == day.index)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedDay = selectedDay == day.index ? nil : day.index }
+                        .swipeActions {
+                            if day.track != nil {
+                                Button("Rouler") { startNavigation(day) }.tint(.orange)
+                            }
+                        }
+                }
+            }
+
+            if !trip.pois.isEmpty {
+                Section("Adresses") {
+                    ForEach(trip.pois) { poi in POIRow(poi: poi) }
+                }
+            }
+    }
+
+    @ViewBuilder var checklistSection: some View {
+            Section {
+                ForEach(TripChecklist.merged(trip)) { item in
+                    Button { toggle(item) } label: {
+                        Label(item.label, systemImage: item.done ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(item.done ? .secondary : .primary)
+                    }
+                    .badge(item.due)
+                }
+                Button(remindersMessage ?? "Programmer les rappels (9 h le jour indiqué)") {
+                    Task { await scheduleReminders() }
+                }
+            } header: {
+                Text("Préparation")
+            } footer: {
+                Text("Notifications locales sur l'iPhone, sans serveur. Coche une ligne quand c'est fait : son rappel est annulé.")
+            }
+    }
+
+    @ViewBuilder var tracedSections: some View {
+            if trip.days.contains(where: { $0.track != nil }) {
+                offlineMapSection
+
+                let ridden = rides.rides(for: trip.id)
+                if !ridden.isEmpty {
+                    Section("Mes sorties") {
+                        ForEach(ridden) { ride in
+                            Button { shownRide = ride } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Jour \(ride.day) · \(Format.distance(ride.summary.distance))").font(.subheadline.bold())
+                                        Text("\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "") · \(ride.summary.bends) virages · \(Int((ride.summary.averageMovingSpeed * 3.6).rounded())) km/h de moyenne")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { idx in idx.map { ridden[$0] }.forEach(rides.delete) }
+                    }
+                }
+
+                Section {
+                    Button(checkingWeather ? "Vérification de la météo…" : "Vérifier la météo sur la route") {
+                        Task {
+                            checkingWeather = true
+                            weatherReport = await WeatherClient().tripReport(trip, pace: settings.pace)
+                            checkingWeather = false
+                        }
+                    }
+                    .disabled(checkingWeather)
+                    ForEach(weatherReport, id: \.self) { line in
+                        Text(line).font(.subheadline)
+                    }
+                } header: {
+                    Text("Météo sur la route")
+                } footer: {
+                    Text("Prévision Open-Meteo à l'heure de passage estimée (départ 9 h), un point tous les 15 km : pluie > 0,5 mm/h, rafales > 60 km/h, < 5 °C, visibilité < 1 km. En roulant, mise à jour toutes les 20 min si réseau.")
+                }
+
+                Section {
+                    ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
+                        Label("Exporter le GPX", systemImage: "square.and.arrow.up")
+                    }
+                }
+            }
+    }
+
 }
