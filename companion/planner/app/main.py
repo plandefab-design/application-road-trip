@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
 from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
-from .radar_sources import merged_cameras, official_fr, refresh_loop
+from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
 from .trip_schema import sanitize_trip, validate_trip
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
@@ -122,13 +122,15 @@ def list_rides() -> list[str]:
 # ---------------------------------------------------------------- offline alert pack (free ride)
 
 def all_cameras() -> list[dict[str, Any]]:
-    """Official French list + OpenStreetMap, merged (see radar_sources)."""
-    return merged_cameras(load_features(DATA_DIR / "osm" / "speed_cameras.geojsonseq"), official_fr(DATA_DIR), camera_alert)
+    """Official lists (France, Spain) + OpenStreetMap + MapAtlas, merged by priority (see radar_sources)."""
+    return merged_cameras(load_features(DATA_DIR / "osm" / "speed_cameras.geojsonseq"),
+                          official_fr(DATA_DIR) + official_es(DATA_DIR), camera_alert, extra=mapatlas(DATA_DIR))
 
 
 def alert_pack_version() -> str:
     osm = DATA_DIR / "osm"
-    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq", "radars_fr.json")
+    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq", "radars_fr.json",
+                                                        "radars_es.json", "radars_mapatlas.json")
               if (osm / f).exists()]
     return str(max(stamps)) if stamps else ""
 
