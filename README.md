@@ -84,7 +84,7 @@ tailscale serve --bg 8080     # expose le planner en HTTPS sur ton réseau Tails
 ```
 Dans l'app : **Réglages › Companion** → URL affichée par `tailscale serve` (ex. `https://mon-pc.xxxx.ts.net`) + le même jeton que `PLANNER_TOKEN` → **Tester la connexion**.
 
-Mise à jour automatique chaque dimanche à 13 h (ou dès que le PC est allumé) : tâche Windows « MotoTrip - mise a jour cartes et radars » (cartes Alpes + PACA + Languedoc, radars, dangers, stations, puis réimport GraphHopper ~10 min). Journal : `companiondataPdate_osm.log`. Lancement manuel : `powershell -ExecutionPolicy Bypass -File companionjobsPdate_osm.ps1`.
+Mise à jour automatique chaque dimanche à 13 h (ou dès que le PC est allumé) : tâche Windows « MotoTrip - mise a jour cartes et radars » (cartes Alpes + PACA + Languedoc, radars, dangers, stations, puis réimport GraphHopper ~10 min). Journal : `companion\data\update_osm.log`. Lancement manuel : `powershell -ExecutionPolicy Bypass -File companion\jobs\update_osm.ps1`.
 
 ---
 
