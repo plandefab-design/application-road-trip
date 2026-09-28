@@ -73,3 +73,50 @@ def test_route_validates_input_and_reports_graphhopper_down(client):
     assert client.post("/route", headers=AUTH, json={"points": [[143.5, 5.4], [44, 6]]}).status_code == 422
     r = client.post("/route", headers=AUTH, json={"points": [[43.5, 5.4], [44.0, 6.0]]})
     assert r.status_code == 503
+
+
+def test_chat_runs_as_a_job_with_progress(client, monkeypatch):
+    import app.main as main
+    from app.planner import PlannerReply
+
+    async def fake_chat(message, trip, on_progress=None):
+        on_progress("Recherche : col de la Bonette")
+        return PlannerReply(text="Voici le trip", trip=trip, questions=["Hôtel ou camping ?"])
+
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "x")
+    monkeypatch.setattr(main.planner, "chat", fake_chat)
+    r = client.post("/trips/t1/chat", headers=AUTH, json={"message": "Salut", "trip": minimal_trip()})
+    assert r.status_code == 202, r.text
+    job_id = r.json()["jobId"]
+
+    got = client.get(f"/trips/t1/chat/{job_id}", headers=AUTH).json()
+    assert got["status"] == "done"
+    assert got["progress"] == ["Recherche : col de la Bonette"]
+    assert got["reply"]["text"] == "Voici le trip"
+    assert got["reply"]["questions"] == ["Hôtel ou camping ?"]
+    assert client.get("/trips/t1", headers=AUTH).status_code == 200   # proposed trip saved on the PC
+
+
+def test_chat_job_reports_planner_errors(client, monkeypatch):
+    import app.main as main
+
+    async def failing_chat(message, trip, on_progress=None):
+        raise RuntimeError("quota dépassé")
+
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "x")
+    monkeypatch.setattr(main.planner, "chat", failing_chat)
+    job_id = client.post("/trips/t1/chat", headers=AUTH, json={"message": "Salut", "trip": minimal_trip()}).json()["jobId"]
+    got = client.get(f"/trips/t1/chat/{job_id}", headers=AUTH).json()
+    assert got["status"] == "error"
+    assert "quota" in got["error"]
+
+
+def test_unknown_chat_job_is_404(client):
+    assert client.get("/trips/t1/chat/nope", headers=AUTH).status_code == 404
+    assert client.get("/trips/t1/chat/nope").status_code == 401
+
+
+def test_describe_tool_use():
+    from app.planner import describe_tool_use
+    assert describe_tool_use("WebSearch", {"query": "col du Galibier ouverture"}) == "Recherche : col du Galibier ouverture"
+    assert describe_tool_use("WebFetch", {"url": "https://example.org"}).startswith("Lecture : ")

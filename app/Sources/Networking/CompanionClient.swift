@@ -38,14 +38,32 @@ struct CompanionClient {
             case .http(let code, let body): return "Companion : HTTP \(code) \(body.prefix(200))"
             }
         }
+        var statusCode: Int {
+            switch self {
+            case .http(let code, _): return code
+            }
+        }
     }
 
     func health() async throws -> Health {
         try await get("health", timeout: 5)
     }
 
-    func chat(tripId: String, message: String, trip: Trip) async throws -> ChatReply {
-        try await post("trips/\(tripId)/chat", body: ChatRequest(message: message, trip: trip), timeout: 180)
+    /// A planner turn runs for several minutes on the PC: it is started, then polled.
+    struct ChatJob: Decodable {
+        let jobId: String
+        let status: String          // running | done | error
+        let progress: [String]?
+        let reply: ChatReply?
+        let error: String?
+    }
+
+    func startChat(tripId: String, message: String, trip: Trip) async throws -> ChatJob {
+        try await post("trips/\(tripId)/chat", body: ChatRequest(message: message, trip: trip), timeout: 20)
+    }
+
+    func chatJob(tripId: String, jobId: String) async throws -> ChatJob {
+        try await get("trips/\(tripId)/chat/\(jobId)", timeout: 15)
     }
 
     // MARK: - Transport

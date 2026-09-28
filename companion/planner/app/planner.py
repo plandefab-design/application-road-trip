@@ -8,12 +8,13 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .trip_schema import extract_json_block, sanitize_trip, validate_trip
 
 SYSTEM_PROMPT_FILE = Path(__file__).resolve().parent.parent / "system_prompt.md"
 MAX_REPAIR_ATTEMPTS = 1
+RESEARCH_TOOLS = ("WebSearch", "WebFetch")
 
 
 class PlannerUnavailable(RuntimeError):
@@ -29,6 +30,15 @@ class PlannerReply:
 
 def is_configured() -> bool:
     return bool(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def describe_tool_use(name: str, tool_input: dict[str, Any]) -> str:
+    """Short French progress line shown on the iPhone while Claude works."""
+    if name == "WebSearch":
+        return f"Recherche : {tool_input.get('query', '')}"[:140]
+    if name == "WebFetch":
+        return f"Lecture : {tool_input.get('url', '')}"[:140]
+    return f"Outil : {name}"
 
 
 def build_prompt(message: str, trip: dict[str, Any]) -> str:
@@ -57,20 +67,30 @@ class Planner:
         sessions[trip_id] = session_id
         self.sessions_file.write_text(json.dumps(sessions), encoding="utf-8")
 
-    async def chat(self, message: str, trip: dict[str, Any]) -> PlannerReply:
+    async def chat(
+        self, message: str, trip: dict[str, Any], on_progress: Callable[[str], None] | None = None
+    ) -> PlannerReply:
         if not is_configured():
             raise PlannerUnavailable("CLAUDE_CODE_OAUTH_TOKEN absent : lance `claude setup-token` sur le PC et renseigne .env")
         try:
-            from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, TextBlock, query
+            from claude_agent_sdk import (
+                AssistantMessage,
+                ClaudeAgentOptions,
+                ResultMessage,
+                TextBlock,
+                ToolUseBlock,
+                query,
+            )
         except ImportError as exc:  # pragma: no cover - depends on install
             raise PlannerUnavailable("claude-agent-sdk non installé") from exc
 
         trip_id = trip.get("id", "unknown")
         options = ClaudeAgentOptions(
             system_prompt=SYSTEM_PROMPT_FILE.read_text(encoding="utf-8"),
-            # Research only: web search/fetch. No shell, no file writes.
-            allowed_tools=["WebSearch", "WebFetch"],
-            disallowed_tools=["Bash", "Write", "Edit", "NotebookEdit"],
+            # Research only: web search/fetch are the ONLY tools available (no sub-agents, no shell, no files).
+            tools=list(RESEARCH_TOOLS),
+            allowed_tools=list(RESEARCH_TOOLS),
+            disallowed_tools=["Agent", "Task", "Bash", "Write", "Edit", "NotebookEdit"],
             permission_mode="default",
             resume=self._sessions().get(trip_id),
             model=os.environ.get("PLANNER_MODEL") or None,
@@ -82,7 +102,11 @@ class Planner:
             text_parts: list[str] = []
             async for msg in query(prompt=prompt, options=options):
                 if isinstance(msg, AssistantMessage):
-                    text_parts.extend(b.text for b in msg.content if isinstance(b, TextBlock))
+                    for block in msg.content:
+                        if isinstance(block, TextBlock):
+                            text_parts.append(block.text)
+                        elif isinstance(block, ToolUseBlock) and on_progress is not None:
+                            on_progress(describe_tool_use(block.name, block.input))
                 elif isinstance(msg, ResultMessage):
                     self._save_session(trip_id, msg.session_id)
                     options.resume = msg.session_id

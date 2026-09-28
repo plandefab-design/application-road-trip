@@ -5,14 +5,15 @@ import json
 import os
 import re
 import secrets
+import time
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .planner import Planner, PlannerUnavailable, is_configured
+from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
@@ -93,17 +94,57 @@ class ChatReply(BaseModel):
     questions: list[str] = []
 
 
-@app.post("/trips/{trip_id}/chat", dependencies=[Depends(require_token)], response_model=ChatReply)
-async def chat(trip_id: str, body: ChatRequest) -> ChatReply:
-    trip_path(trip_id)  # validates the id
-    body.trip["id"] = trip_id
+class ChatJob(BaseModel):
+    """A planner turn runs for minutes (web research): the iPhone starts it, then polls it."""
+    jobId: str
+    tripId: str
+    status: str = "running"            # running | done | error
+    progress: list[str] = []
+    startedAt: float = Field(default_factory=time.time)
+    reply: ChatReply | None = None
+    error: str | None = None
+
+
+JOBS: dict[str, ChatJob] = {}
+MAX_PROGRESS_LINES = 20
+
+
+async def run_chat_job(job: ChatJob, message: str, trip: dict[str, Any]) -> None:
+    def on_progress(line: str) -> None:
+        job.progress = (job.progress + [line])[-MAX_PROGRESS_LINES:]
+
     try:
-        reply = await planner.chat(body.message, body.trip)
-    except PlannerUnavailable as exc:
-        raise HTTPException(503, str(exc)) from exc
-    if reply.trip is not None:
-        trip_path(trip_id).write_text(json.dumps(reply.trip, ensure_ascii=False, indent=2), encoding="utf-8")
-    return ChatReply(text=reply.text, trip=reply.trip, questions=reply.questions)
+        reply = await planner.chat(message, trip, on_progress=on_progress)
+        if reply.trip is not None:
+            trip_path(job.tripId).write_text(json.dumps(reply.trip, ensure_ascii=False, indent=2), encoding="utf-8")
+        job.reply = ChatReply(text=reply.text, trip=reply.trip, questions=reply.questions)
+        job.status = "done"
+    except Exception as exc:  # reported to the iPhone instead of being lost in a background task
+        job.error = str(exc) or type(exc).__name__
+        job.status = "error"
+
+
+@app.post("/trips/{trip_id}/chat", dependencies=[Depends(require_token)], status_code=202, response_model=ChatJob)
+async def start_chat(trip_id: str, body: ChatRequest, background: BackgroundTasks) -> ChatJob:
+    trip_path(trip_id)  # validates the id
+    if not is_configured():
+        raise HTTPException(503, "CLAUDE_CODE_OAUTH_TOKEN absent : lance `claude setup-token` sur le PC et renseigne .env")
+    running = next((j for j in JOBS.values() if j.tripId == trip_id and j.status == "running"), None)
+    if running is not None:
+        return running                    # one planner turn per trip at a time
+    body.trip["id"] = trip_id
+    job = ChatJob(jobId=secrets.token_urlsafe(12), tripId=trip_id)
+    JOBS[job.jobId] = job
+    background.add_task(run_chat_job, job, body.message, body.trip)
+    return job
+
+
+@app.get("/trips/{trip_id}/chat/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)
+async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
+    job = JOBS.get(job_id)
+    if job is None or job.tripId != trip_id:
+        raise HTTPException(404, "tâche inconnue (le PC a peut-être redémarré) : renvoie ta demande")
+    return job
 
 
 # ---------------------------------------------------------------- routing (GraphHopper proxy)
