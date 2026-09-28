@@ -54,7 +54,7 @@ public enum TurnGuide {
         return "Dans \(value) kilomètre\(km >= 2 ? "s" : "")"
     }
 
-    static func lowercasingFirst(_ s: String) -> String {
+    public static func lowercasingFirst(_ s: String) -> String {
         guard let first = s.first else { return s }
         return first.lowercased() + s.dropFirst()
     }
