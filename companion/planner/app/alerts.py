@@ -172,3 +172,57 @@ def stations_along(track: list[dict[str, float]], stations: list[dict[str, Any]]
         out.append((along, {"id": station_id, "name": name, "point": {"lat": round(s["lat"], 6), "lon": round(s["lon"], 6)}}))
     out.sort(key=lambda x: x[0])
     return [s for _, s in out]
+
+
+# Pause spots (schema v6): max distance from the track per kind, and spacing between two spots of a kind.
+PAUSE_RULES = {"cafe": 150, "viewpoint": 400, "water": 100}
+PAUSE_SPACING_M = 3_000
+_GRID = 0.05   # degrees (≈ 5 km): coarse index so Europe-sized files stay fast
+
+
+def _cells_near(track: list[dict[str, float]]) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for p in track:
+        ci, cj = int(math.floor(p["lat"] / _GRID)), int(math.floor(p["lon"] / _GRID))
+        for di in (-1, 0, 1):
+            for dj in (-1, 0, 1):
+                cells.add((ci + di, cj + dj))
+    return cells
+
+
+def pause_kind(props: dict[str, Any]) -> str | None:
+    if props.get("amenity") == "cafe":
+        return "cafe"
+    if props.get("tourism") == "viewpoint":
+        return "viewpoint"
+    if props.get("amenity") == "drinking_water":
+        return "water"
+    return None
+
+
+def pauses_along(track: list[dict[str, float]], features: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Cafés, viewpoints and drinking water near the track, one per kind every 3 km, in route order."""
+    if len(track) < 2:
+        return []
+    cells = _cells_near(track[::3] + [track[-1]])
+    found: list[dict[str, Any]] = []
+    for f in features:
+        if (int(math.floor(f["lat"] / _GRID)), int(math.floor(f["lon"] / _GRID))) not in cells:
+            continue
+        kind = pause_kind(f["props"])
+        if kind is None:
+            continue
+        along, offset = _project(track, f["lat"], f["lon"])
+        if offset > PAUSE_RULES[kind]:
+            continue
+        name = f["props"].get("name") or {"cafe": "Café", "viewpoint": "Point de vue", "water": "Point d'eau"}[kind]
+        found.append({"along": round(along, 1), "kind": kind, "name": name,
+                      "point": {"lat": round(f["lat"], 6), "lon": round(f["lon"], 6)}})
+    found.sort(key=lambda p: (p["along"], p["name"] in ("Café", "Point de vue", "Point d'eau")))
+    kept: list[dict[str, Any]] = []
+    last: dict[str, float] = {}
+    for p in found:
+        if p["along"] - last.get(p["kind"], -PAUSE_SPACING_M) >= PAUSE_SPACING_M:
+            kept.append(p)
+            last[p["kind"]] = p["along"]
+    return kept

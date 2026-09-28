@@ -142,7 +142,7 @@ def test_schema_v1_is_upgraded():
     from app.trip_schema import validate_trip
     t = {"schemaVersion": 1, "id": "t", "name": "n", "status": "draft", "params": {}}
     assert validate_trip(t) == []
-    assert t["schemaVersion"] == 5
+    assert t["schemaVersion"] == 6
     assert validate_trip({"schemaVersion": 7, "id": "t", "name": "n", "status": "draft", "params": {}})
 
 
@@ -160,3 +160,15 @@ def test_route_profile_mirrors_tripcore():
 def test_payload_uses_profile():
     p = graphhopper_payload([(43.0, 5.0), (44.0, 6.0)], "moto_enduro", avoid_motorway=False)
     assert p["profile"] == "moto_enduro" and "custom_model" not in p
+
+
+def test_speed_limits_merged_along_the_track():
+    from app.finalize import speed_limits_from_path
+    path = {
+        "points": {"coordinates": [[5.0, 43.0 + i * 0.01] for i in range(5)]},   # ≈ 1 112 m steps
+        "details": {"max_speed": [[0, 1, 80], [1, 2, 80.0], [2, 3, None], [3, 4, 50], [4, 4, 90], [0, 1, "x"]]},
+    }
+    limits = speed_limits_from_path(path)
+    assert [l["kmh"] for l in limits] == [80, 50]
+    assert limits[0]["from"] == 0 and 2_200 < limits[0]["to"] < 2_250     # two 80 km/h stretches merged
+    assert 3_300 < limits[1]["from"] < 3_350

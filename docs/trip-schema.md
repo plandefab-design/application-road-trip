@@ -19,6 +19,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 - `days[].stations` (**v4**) : stations-service OSM (`amenity=fuel`) à moins de 3 km du tracé, `[{"id", "name", "point"}]`. L'iPhone y place les `fuelStops` (SPEC §5.2, plein complet au départ de chaque jour) et signale les tronçons sans station. Jamais écrit par Claude.
 
 ### Versions
+- **v6** : `days[].speedLimits` (`[{"from", "to", "kmh"}]`, limites légales connues, OSM via GraphHopper ; tronçons inconnus absents), `days[].pauses` (`[{"along", "kind": cafe|viewpoint|water, "name", "point"}]`, un par type tous les 3 km), `updatedAt` (ISO 8601 UTC, le plus récent gagne à la synchro iPhone ↔ PC).
 - **v5** : `params.bikes[].category` (sport|roadster|touring|trail|enduro|custom), `params.tripStyle` (balade|kiff|rapide|tourisme), `params.level` (debutant|intermediaire|confirme|expert), tous optionnels. Ils choisissent le profil de route du PC (moto_curvy, moto_fast, moto_adventure, moto_enduro : la moto la plus « routière » du groupe décide) et guident Claude.
 - **v4** : ajout de `days[].stations` (optionnel).
 - **v3** : ajout de `days[].alerts` (optionnel).
@@ -28,7 +29,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 ## Exemple complet (valeurs fictives)
 ```json
 {
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "id": "3F2A0C1E-0000-0000-0000-000000000001",
   "name": "Exemple",
   "status": "proposed",

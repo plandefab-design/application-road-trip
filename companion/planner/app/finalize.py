@@ -155,12 +155,39 @@ SIGN_TO_MANEUVER = {
 }
 
 
-def instructions_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
-    """Turn-by-turn list positioned by distance along the track (same haversine as TripCore)."""
+def cumulative_distances(path: dict[str, Any]) -> list[float]:
+    """Metres from the start of the path to each point (same haversine as TripCore)."""
     coords = path.get("points", {}).get("coordinates", [])
     cumulative = [0.0]
     for (lon1, lat1, *_), (lon2, lat2, *_) in zip(coords, coords[1:]):
         cumulative.append(cumulative[-1] + distance_km({"lat": lat1, "lon": lon1}, {"lat": lat2, "lon": lon2}) * 1000)
+    return cumulative
+
+
+def speed_limits_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
+    """Legal limits along the track (schema v6): [{"from", "to", "kmh"}], metres, merged; unknown stretches omitted."""
+    cumulative = cumulative_distances(path)
+    out: list[dict[str, Any]] = []
+    for start, end, value in (path.get("details") or {}).get("max_speed", []) or []:
+        if value is None or not (0 <= start < end < len(cumulative)):
+            continue
+        try:
+            kmh = int(round(float(value)))
+        except (TypeError, ValueError):
+            continue
+        if kmh <= 0 or kmh >= 150:          # 150 = GraphHopper's "no limit" placeholder on some roads
+            continue
+        a, b = round(cumulative[start], 1), round(cumulative[end], 1)
+        if out and out[-1]["kmh"] == kmh and abs(out[-1]["to"] - a) < 1:
+            out[-1]["to"] = b
+        else:
+            out.append({"from": a, "to": b, "kmh": kmh})
+    return out
+
+
+def instructions_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
+    """Turn-by-turn list positioned by distance along the track (same haversine as TripCore)."""
+    cumulative = cumulative_distances(path)
     out: list[dict[str, Any]] = []
     for n, ins in enumerate(path.get("instructions", []) or []):
         start = (ins.get("interval") or [0])[0]
@@ -186,7 +213,8 @@ def _valid(point: Any) -> bool:
 async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
                         on_progress: Callable[[str], None] | None = None,
                         alerts_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None,
-                        stations_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None) -> list[str]:
+                        stations_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None,
+                        pauses_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None) -> list[str]:
     """Fills points, days[].track, distanceKm and drivingTimeMin in place. Returns warnings (French)."""
     progress = on_progress or (lambda _line: None)
     warnings: list[str] = []
@@ -256,9 +284,12 @@ async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
         day["distanceKm"] = round(path.get("distance", 0) / 1000)
         day["drivingTimeMin"] = round(path.get("time", 0) / 60_000)
         day["instructions"] = instructions_from_path(path)
+        day["speedLimits"] = speed_limits_from_path(path)
         if alerts_for is not None:
             day["alerts"] = alerts_for(day["track"]["points"])
         if stations_for is not None:
             day["stations"] = stations_for(day["track"]["points"])
+        if pauses_for is not None:
+            day["pauses"] = pauses_for(day["track"]["points"])
         previous = waypoints[-1]
     return warnings

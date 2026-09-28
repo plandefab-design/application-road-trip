@@ -63,3 +63,18 @@ def test_area_features_are_reduced_to_a_point(tmp_path):
                              "properties": {"name": "Station"}}) + "\n", encoding="utf-8")
     [st] = load_features(f)
     assert abs(st["lat"] - 43.001) < 1e-9 and abs(st["lon"] - 5.001) < 1e-9
+
+
+def test_pauses_by_kind_spacing_and_distance():
+    from app.alerts import pauses_along
+    spots = [
+        feature(43.005, 5.0005, amenity="cafe", name="Café du Col"),          # ~40 m off
+        feature(43.006, 5.0005, amenity="cafe"),                               # same kind 110 m later: skipped
+        feature(43.02, 5.004, tourism="viewpoint"),                            # ~330 m off: viewpoint ok
+        feature(43.02, 5.004, amenity="cafe", name="Trop loin"),               # 330 m: too far for a café
+        feature(43.03, 5.0, amenity="drinking_water"),
+        feature(43.03, 5.0, shop="bakery"),                                    # not a pause spot
+    ]
+    out = pauses_along(TRACK, spots)
+    assert [(p["kind"], p["name"]) for p in out] == [("cafe", "Café du Col"), ("viewpoint", "Point de vue"), ("water", "Point d'eau")]
+    assert out == sorted(out, key=lambda p: p["along"])

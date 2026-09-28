@@ -139,3 +139,21 @@ def test_finalize_job_returns_traced_trip(client, monkeypatch):
     assert got["status"] == "done"
     assert got["reply"]["trip"]["days"][0]["track"]["points"][1] == {"lat": 2, "lon": 2}
     assert got["reply"]["trip"]["pois"][0]["verification"] == "unverified"   # never-invent rule still applied
+
+
+def test_sync_list_and_updated_at(client):
+    t = minimal_trip()
+    t["updatedAt"] = "2027-01-01T10:00:00Z"
+    client.put("/trips/t1", headers=AUTH, json=t)
+    assert client.get("/trips", headers=AUTH).json() == [{"id": "t1", "name": "Test", "updatedAt": "2027-01-01T10:00:00Z"}]
+    t2 = minimal_trip("t2")
+    client.put("/trips/t2", headers=AUTH, json=t2)                   # no date: stamped by the PC
+    listed = {x["id"]: x for x in client.get("/trips", headers=AUTH).json()}
+    assert listed["t2"]["updatedAt"].endswith("Z")
+    assert client.get("/trips").status_code == 401
+
+
+def test_rides_backup(client):
+    assert client.put("/rides/r1", headers=AUTH, json={"km": 120}).status_code == 200
+    assert client.get("/rides", headers=AUTH).json() == ["r1"]
+    assert client.put("/rides/a.b", headers=AUTH, json={}).status_code == 400

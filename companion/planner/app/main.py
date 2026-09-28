@@ -13,7 +13,7 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .alerts import alerts_along, load_features, stations_along
+from .alerts import alerts_along, load_features, pauses_along, stations_along
 from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
@@ -63,6 +63,51 @@ async def health() -> dict[str, str]:
 
 # ---------------------------------------------------------------- trips (sync, A11)
 
+def now_iso() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def store_trip(trip_id: str, trip: dict[str, Any], touch: bool = True) -> dict[str, Any]:
+    """Writes a trip; `updatedAt` (schema v6) drives the iPhone ↔ PC sync (most recent wins)."""
+    if touch or not trip.get("updatedAt"):
+        trip["updatedAt"] = now_iso()
+    trip_path(trip_id).write_text(json.dumps(trip, ensure_ascii=False, indent=2), encoding="utf-8")
+    return trip
+
+
+@app.get("/trips", dependencies=[Depends(require_token)])
+def list_trips() -> list[dict[str, Any]]:
+    """Summary of the trips stored on the PC, for the sync."""
+    out = []
+    for p in sorted(trips_dir().glob("*.json")):
+        try:
+            t = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        out.append({"id": t.get("id", p.stem), "name": t.get("name", ""), "updatedAt": t.get("updatedAt")})
+    return out
+
+
+def rides_dir() -> Path:
+    d = DATA_DIR / "rides"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+@app.put("/rides/{ride_id}", dependencies=[Depends(require_token)])
+def put_ride(ride_id: str, ride: dict[str, Any]) -> dict[str, str]:
+    """Backup of a ride summary + real track recorded by the iPhone."""
+    if not TRIP_ID.match(ride_id):
+        raise HTTPException(400, "id de sortie invalide")
+    (rides_dir() / f"{ride_id}.json").write_text(json.dumps(ride, ensure_ascii=False), encoding="utf-8")
+    return {"status": "ok"}
+
+
+@app.get("/rides", dependencies=[Depends(require_token)])
+def list_rides() -> list[str]:
+    return sorted(p.stem for p in rides_dir().glob("*.json"))
+
+
 @app.get("/trips/{trip_id}", dependencies=[Depends(require_token)])
 def get_trip(trip_id: str) -> dict[str, Any]:
     p = trip_path(trip_id)
@@ -78,9 +123,7 @@ def put_trip(trip_id: str, trip: dict[str, Any]) -> dict[str, Any]:
     errors = validate_trip(trip)
     if errors:
         raise HTTPException(422, errors)
-    trip = sanitize_trip(trip)
-    trip_path(trip_id).write_text(json.dumps(trip, ensure_ascii=False, indent=2), encoding="utf-8")
-    return trip
+    return store_trip(trip_id, sanitize_trip(trip), touch=False)   # keeps the iPhone's updatedAt
 
 
 # ---------------------------------------------------------------- planner chat (creation mode)
@@ -122,13 +165,15 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
     osm = DATA_DIR / "osm"
     cameras, hazards = load_features(osm / "speed_cameras.geojsonseq"), load_features(osm / "hazards.geojsonseq")
     fuel = load_features(osm / "fuel_stations.geojsonseq")
+    pause_spots = load_features(osm / "pauses.geojsonseq")
     params = trip.get("params") or {}
     profile = route_profile(params)
     avoid_motorway = (params.get("roads") or {}).get("avoidMotorway", True)
     router = graphhopper_router(GRAPHHOPPER_URL, profile, avoid_motorway)
     warnings = await finalize_trip(trip, geocoder().locate, router, on_progress,
                                    alerts_for=lambda track: alerts_along(track, cameras, hazards),
-                                   stations_for=(lambda track: stations_along(track, fuel)) if fuel else None)
+                                   stations_for=(lambda track: stations_along(track, fuel)) if fuel else None,
+                                   pauses_for=(lambda track: pauses_along(track, pause_spots)) if pause_spots else None)
     traced = sum(1 for d in trip["days"] if d.get("track"))
     radars = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] != "hazard")
     dangers = sum(1 for d in trip["days"] for a in d.get("alerts", []) if a["kind"] == "hazard")
@@ -154,7 +199,7 @@ def start_job(trip_id: str, background: BackgroundTasks, work) -> ChatJob:
         try:
             job.reply = await work(on_progress)
             if job.reply.trip is not None:
-                trip_path(trip_id).write_text(json.dumps(job.reply.trip, ensure_ascii=False, indent=2), encoding="utf-8")
+                store_trip(trip_id, job.reply.trip)
             job.status = "done"
         except Exception as exc:  # reported to the iPhone instead of being lost in a background task
             job.error = str(exc) or type(exc).__name__
