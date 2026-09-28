@@ -11,5 +11,6 @@ COPY config.yml /opt/config.yml
 COPY custom_models /opt/custom_models
 
 EXPOSE 8989
-# The graph is (re)built automatically when /data/graph-cache is missing (weekly job deletes it after a new extract).
+# The graph lives in the Docker volume mototrip-graphs (/graphs/current): native Linux disk, far faster than a
+# Windows folder for GraphHopper's memory-mapped files. Built automatically on first start when missing.
 CMD ["sh", "-c", "java $JAVA_OPTS -Ddw.graphhopper.datareader.file=$GH_PBF -jar /opt/graphhopper-web.jar server /opt/config.yml"]

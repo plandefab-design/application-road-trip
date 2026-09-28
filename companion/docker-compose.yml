@@ -9,7 +9,8 @@ services:
       JAVA_OPTS: "-Xmx${GH_HEAP:-6g} -Xms1g"
       GH_PBF: "/data/osm/region-4000.osm.pbf"
     volumes:
-      - ./data:/data
+      - ./data:/data              # OSM extracts (read once per import)
+      - graphs:/graphs            # routing graph: /graphs/current in service, /graphs/new while updating
     ports:
       - "127.0.0.1:8989:8989"     # local only — exposed to the iPhone through the planner, never directly
     healthcheck:
@@ -32,3 +33,7 @@ services:
       - "127.0.0.1:8080:8080"     # published on the tailnet with: tailscale serve --bg 8080
     depends_on:
       - graphhopper
+
+volumes:
+  graphs:
+    name: mototrip-graphs         # Docker volume (Linux disk): GraphHopper imports there in hours, not days

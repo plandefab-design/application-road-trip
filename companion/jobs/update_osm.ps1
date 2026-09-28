@@ -1,7 +1,8 @@
 # A5/A6 — OSM refresh (maps, speed cameras, hazards, fuel stations, pause spots) + GraphHopper re-import.
 # Scheduled every 4 weeks by the Windows task « MotoTrip - mise a jour cartes et radars » (see README).
 # Coverage: about 4 000 km around Salon-de-Provence (Europe, Russia, North Africa, Near East) ≈ 43 GB download.
-# The new graph is built NEXT TO the running one (graph-cache-new) and swapped at the end: routing stays available.
+# The new graph is built NEXT TO the running one (/graphs/new in the Docker volume mototrip-graphs) and swapped at
+# the end: routing stays available.
 param(
     [string[]]$Extracts = @(
         "europe", "russia",
@@ -53,25 +54,20 @@ if ($LASTEXITCODE -ne 0) { throw "Échec de la fusion / extraction osmium" }
 Move-Item -Force (Join-Path $osmDir "region-4000.osm.pbf.new") (Join-Path $osmDir "region-4000.osm.pbf")
 
 # 3. Build the new graph next to the running one.
-Step "Import GraphHopper dans graph-cache-new (plusieurs heures pour l'Europe)"
-$new = Join-Path $data "graph-cache-new"
-if (Test-Path $new) { Remove-Item -Recurse -Force $new }
+Step "Import GraphHopper dans le volume (/graphs/new, plusieurs heures)"
 Push-Location $companion
-docker compose run --rm --no-deps -e "JAVA_OPTS=-Xmx$Heap -Xms2g" graphhopper sh -c "java `$JAVA_OPTS -Ddw.graphhopper.datareader.file=/data/osm/region-4000.osm.pbf -Ddw.graphhopper.graph.location=/data/graph-cache-new -jar /opt/graphhopper-web.jar import /opt/config.yml"
+docker compose run --rm --no-deps -e "JAVA_OPTS=-Xmx$Heap -Xms2g" graphhopper sh -c "rm -rf /graphs/new && java `$JAVA_OPTS -Ddw.graphhopper.datareader.file=/data/osm/region-4000.osm.pbf -Ddw.graphhopper.graph.location=/graphs/new -jar /opt/graphhopper-web.jar import /opt/config.yml"
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Échec de l'import GraphHopper (la carte actuelle reste en service)" }
 
 # 4. Swap graph and point files, restart the router, clean up.
 Step "Bascule vers la nouvelle carte"
 docker compose stop graphhopper
-$current = Join-Path $data "graph-cache"
-$old = Join-Path $data "graph-cache-old"
-if (Test-Path $old) { Remove-Item -Recurse -Force $old }
-if (Test-Path $current) { Move-Item $current $old }
-Move-Item $new $current
+docker compose run --rm --no-deps graphhopper sh -c "rm -rf /graphs/old; if [ -d /graphs/current ]; then mv /graphs/current /graphs/old; fi; mv /graphs/new /graphs/current"
+if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Échec de la bascule (volume mototrip-graphs)" }
 foreach ($kind in "speed_cameras", "hazards", "fuel_stations", "pauses") {
     Move-Item -Force (Join-Path $osmDir "$kind.new") (Join-Path $osmDir "$kind.geojsonseq")
 }
 docker compose up -d graphhopper
+docker compose run --rm --no-deps graphhopper sh -c "rm -rf /graphs/old"
 Pop-Location
-if (Test-Path $old) { Remove-Item -Recurse -Force $old }
 Step "OK — nouvelle carte en service (GraphHopper redémarre en 1 à 2 minutes)."

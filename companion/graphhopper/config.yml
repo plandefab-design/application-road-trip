@@ -2,7 +2,7 @@
 # Based on config-example.yml and the official motorcycle.json / curvature.json custom models.
 graphhopper:
   datareader.file: ""
-  graph.location: /data/graph-cache
+  graph.location: /graphs/current
   custom_models.directory: /opt/custom_models
 
   graph.encoded_values: car_access, car_average_speed, road_access, road_class, road_environment, curvature, track_type, surface, max_speed, toll
