@@ -31,6 +31,8 @@ struct TripDetailContent: View {
     @State private var traceProgress: String?
     @State private var traceMessage: String?
     @State private var remindersMessage: String?
+    @State private var preparing = false
+    @State private var prep: [PrepStep] = []
     @State private var checkingWeather = false
     @State private var weatherReport: [String] = []
 
@@ -65,6 +67,44 @@ struct TripDetailContent: View {
                 } footer: {
                     Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal virage par virage, pleins, hors tracé, fin d'étape.")
                 }
+            }
+
+            Section {
+                Button {
+                    Task { await prepareDeparture() }
+                } label: {
+                    Label(preparing ? "Préparation en cours…" : "Préparer le départ (tout mettre à jour)",
+                          systemImage: "checklist.checked")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(preparing || tracing)
+                ForEach(prep) { step in
+                    HStack(alignment: .top, spacing: 10) {
+                        Group {
+                            switch step.state {
+                            case .pending: Image(systemName: "circle").foregroundStyle(.secondary)
+                            case .running: ProgressView()
+                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                            case .warning: Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                            case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                            }
+                        }
+                        .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(step.label).font(.subheadline.bold())
+                            if step.state == .running, step.id == "route", let traceProgress {
+                                Text(traceProgress).font(.caption).foregroundStyle(.secondary)
+                            } else if step.state == .running, step.id == "map", let s = offlineMaps.status[trip.id] {
+                                Text("\(Int(s.fraction * 100)) %").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            } else if let detail = step.detail {
+                                Text(detail).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Le jour du départ (Wi-Fi + Tailscale) : recalcule le tracé et le guidage, met à jour radars, dangers, stations et pleins, télécharge la carte hors ligne, vérifie la météo et programme les rappels.")
             }
 
             if missingTracks || tracing {
@@ -302,27 +342,90 @@ struct TripDetailContent: View {
     }
 
     private func computeTracks() async {
+        traceMessage = await runFinalize().message
+    }
+
+    /// Route, guidance, radars, dangers and stations from the PC, then fuel stops on the iPhone.
+    private func runFinalize() async -> (ok: Bool, message: String) {
         guard let client = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) else {
-            traceMessage = "Companion non configuré (Réglages › Companion)."
-            return
+            return (false, "Companion non configuré (Réglages › Companion).")
         }
+        let current = store.trips.first { $0.id == trip.id } ?? trip
         tracing = true
         defer { tracing = false; traceProgress = nil }
         do {
-            let job = try await client.startFinalize(tripId: trip.id, trip: trip)
-            let done = try await client.waitForJob(tripId: trip.id, jobId: job.jobId) { traceProgress = $0 }
-            if done.status == "done", let reply = done.reply {
-                var fuelWarnings: [String] = []
-                if var updated = reply.trip {
-                    fuelWarnings = updated.planFuelStops()      // stops placed on real stations (SPEC §5.2)
-                    store.save(updated)
-                }
-                traceMessage = ([reply.text] + fuelWarnings.map { "⛽ \($0)" }).joined(separator: "\n\n")
-            } else {
-                traceMessage = "Tracé impossible : \(done.error ?? "erreur inconnue")"
+            let job = try await client.startFinalize(tripId: current.id, trip: current)
+            let done = try await client.waitForJob(tripId: current.id, jobId: job.jobId) { traceProgress = $0 }
+            guard done.status == "done", let reply = done.reply else {
+                return (false, "Tracé impossible : \(done.error ?? "erreur inconnue")")
             }
+            var fuelWarnings: [String] = []
+            if var updated = reply.trip {
+                fuelWarnings = updated.planFuelStops()      // stops placed on real stations (SPEC §5.2)
+                store.save(updated)
+            }
+            return (true, ([reply.text] + fuelWarnings.map { "⛽ \($0)" }).joined(separator: "\n\n"))
         } catch {
-            traceMessage = "Companion injoignable : vérifie que le PC est allumé et Tailscale actif. (\(error.localizedDescription))"
+            return (false, "Companion injoignable : PC allumé ? Tailscale actif ? (\(error.localizedDescription))")
+        }
+    }
+
+    // MARK: Departure preparation (one tap)
+
+    struct PrepStep: Identifiable, Equatable {
+        enum State { case pending, running, ok, warning, failed }
+        let id: String
+        let label: String
+        var state: State = .pending
+        var detail: String?
+    }
+
+    /// Everything to refresh on departure day, in order; a failed step never blocks the next ones.
+    private func prepareDeparture() async {
+        preparing = true
+        defer { preparing = false }
+        prep = [
+            PrepStep(id: "route", label: "Tracé, guidage, radars, dangers, pleins"),
+            PrepStep(id: "map", label: "Carte hors ligne"),
+            PrepStep(id: "weather", label: "Météo sur la route"),
+            PrepStep(id: "reminders", label: "Rappels et signature SideStore"),
+        ]
+        func set(_ id: String, _ state: PrepStep.State, _ detail: String? = nil) {
+            if let i = prep.firstIndex(where: { $0.id == id }) { prep[i].state = state; prep[i].detail = detail }
+        }
+
+        set("route", .running)
+        if trip.days.contains(where: { !$0.highlights.isEmpty }) {
+            let r = await runFinalize()
+            set("route", r.ok ? (r.message.contains("⛽") || r.message.contains("introuvable") ? .warning : .ok) : .failed,
+                r.message.components(separatedBy: "\n\n").prefix(3).joined(separator: "\n"))
+        } else {
+            set("route", .ok, "Trace importée (GPX) conservée telle quelle.")
+        }
+
+        let latest = store.trips.first { $0.id == trip.id } ?? trip
+        set("map", .running)
+        do {
+            try await offlineMaps.download(trip: latest)
+            setPackIntegrity(.ok)
+            set("map", .ok, offlineMaps.status[latest.id].map { ByteCountFormatter.string(fromByteCount: Int64($0.bytes), countStyle: .file) })
+        } catch {
+            setPackIntegrity(.missing)
+            set("map", .failed, error.localizedDescription)
+        }
+
+        set("weather", .running)
+        weatherReport = await WeatherClient().tripReport(latest, pace: settings.pace)
+        let alerts = weatherReport.filter { !$0.contains("rien à signaler") }
+        set("weather", alerts.isEmpty ? .ok : .warning, alerts.isEmpty ? "Rien à signaler." : alerts.prefix(3).joined(separator: "\n"))
+
+        set("reminders", .running)
+        if await Reminders.isAuthorized() {
+            await scheduleReminders(for: latest)
+            let expiry = SigningInfo.expirationDate.map { "Signature valable jusqu'au \($0.formatted(date: .abbreviated, time: .shortened))." }
+            set("reminders", .ok, [remindersMessage, expiry].compactMap { $0 }.joined(separator: "\n"))
+        } else {
+            set("reminders", .warning, "Touche « Programmer les rappels » dans Préparation pour autoriser les notifications.")
         }
     }
 
