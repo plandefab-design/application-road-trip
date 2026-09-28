@@ -12,7 +12,7 @@ Dernière mise à jour : 2026-09-28 — app 1.0.45 (SideStore) ; companion en se
 | M5 — Hors ligne, radars, stations | 🟢 | Carte hors ligne MapLibre par trip, pack radars/dangers sur l'iPhone, stations OSM à ≤ 3 km. |
 | M6 — Météo, trafic | 🟢 | Open-Meteo à l'heure de passage (20 min), TomTom (clé) + Bison Futé/DGT via le PC, fusionnés sans doublon. |
 | M7 — Création | 🟢 | Formulaire 13 paramètres + cohérence, chat Claude (tâche + suivi), tracé GraphHopper, GPX, **cahier des charges validé + PDF** (cartes Apple Maps, étapes, lieux, checklist). |
-| M8 — Automatisations | 🟡 | Checklist + rappels, sync iPhone ↔ PC (suppressions comprises), radars quotidiens, cartes toutes les 4 semaines d'après `companion/maps.txt` (Alpes, PACA, Languedoc-Roussillon ; un pays s'ajoute par une ligne). Purge des packs : à faire. |
+| M8 — Automatisations | 🟡 | Checklist + rappels, sync iPhone ↔ PC (suppressions comprises), radars quotidiens, cartes toutes les 4 semaines d'après `companion/maps.txt` (France, Italie, Espagne ; un pays s'ajoute par une ligne). Purge des packs : à faire. |
 | M9 — Recette | 🟡 | Tests sur route par FAB en cours. Test complet en mode avion à faire. |
 
 ## Sources de données (vérifiées le 2026-09-28)
@@ -21,7 +21,7 @@ Dernière mise à jour : 2026-09-28 — app 1.0.45 (SideStore) ; companion en se
 - Écartés : Waze, Coyote, SCDB (fermés ou payants, pas d'API individuelle), Lufop (bloque l'accès automatisé).
 
 ## Points ouverts
-1. Couverture du routage limitée à Alpes + PACA + Languedoc-Roussillon (choix de FAB) : autres pays ajoutés un par un dans `companion/maps.txt` le moment venu.
+1. Couverture du routage : France, Italie, Espagne (choix de FAB) : autres pays ajoutés un par un dans `companion/maps.txt` le moment venu.
 2. `cols.json` vide : la vérification « col fermé à la période » ne se déclenche pas tant qu'aucun col n'est sourcé.
 3. Purge des cartes hors ligne des trips terminés.
 4. Recette en mode avion (SPEC §12).

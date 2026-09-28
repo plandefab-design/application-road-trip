@@ -5,7 +5,7 @@
 # the end: routing stays available.
 param(
     [string[]]$Extracts = @(),
-    [string]$Heap = "8g"
+    [string]$Heap = "12g"
 )
 $ErrorActionPreference = "Stop"
 $companion = Split-Path -Parent $PSScriptRoot
@@ -42,8 +42,8 @@ $sh = @"
 set -e
 apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null
 cd /osm
-osmium merge $($files -join ' ') -o region.osm.pbf.new --overwrite
-osmium tags-filter region.osm.pbf.new n/highway=speed_camera n/hazard nwr/amenity=fuel nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/poi.pbf --overwrite
+osmium merge $($files -join ' ') -o region.new.osm.pbf --overwrite
+osmium tags-filter region.new.osm.pbf n/highway=speed_camera n/hazard nwr/amenity=fuel nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/poi.pbf --overwrite
 osmium tags-filter /tmp/poi.pbf n/highway=speed_camera -o /tmp/c.pbf --overwrite && osmium export /tmp/c.pbf -f geojsonseq -o speed_cameras.new --overwrite
 osmium tags-filter /tmp/poi.pbf n/hazard -o /tmp/h.pbf --overwrite && osmium export /tmp/h.pbf -f geojsonseq -o hazards.new --overwrite
 osmium tags-filter /tmp/poi.pbf nwr/amenity=fuel -o /tmp/f.pbf --overwrite && osmium export /tmp/f.pbf -f geojsonseq -o fuel_stations.new --overwrite
@@ -51,7 +51,9 @@ osmium tags-filter /tmp/poi.pbf nwr/amenity=cafe nwr/tourism=viewpoint n/amenity
 "@
 docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c $sh
 if ($LASTEXITCODE -ne 0) { throw "Échec de la fusion / extraction osmium" }
-Move-Item -Force (Join-Path $osmDir "region.osm.pbf.new") (Join-Path $osmDir "region.osm.pbf")
+Move-Item -Force (Join-Path $osmDir "region.new.osm.pbf") (Join-Path $osmDir "region.osm.pbf")
+# The downloads are merged into region.osm.pbf and fetched fresh next time: free the disk.
+foreach ($f in $files) { Remove-Item -Force (Join-Path $osmDir $f) -ErrorAction SilentlyContinue }
 
 # 3. Build the new graph next to the running one.
 Step "Import GraphHopper dans le volume (/graphs/new)"
