@@ -118,7 +118,7 @@ public enum RouteWeather {
             let hourly: Series
         }
         let decoder = JSONDecoder()
-        let locations = (try? decoder.decode([Location].self, from: data)) ?? [try decoder.decode(Location.self, from: data)]
+        let locations = try (try? decoder.decode([Location].self, from: data)) ?? [decoder.decode(Location.self, from: data)]
         return locations.map { loc in
             let s = loc.hourly
             let n = s.time.count
