@@ -2,9 +2,10 @@
 # Schedule once (admin PowerShell):
 #   schtasks /Create /SC WEEKLY /D SUN /ST 03:00 /TN "MotoTrip OSM" /TR "powershell -ExecutionPolicy Bypass -File C:\chemin\application-road-trip\companion\jobs\update_osm.ps1"
 param(
-    # Geofabrik extracts, merged into one map. "europe/alps" covers the Alps (FR/IT/CH/AT) and Provence;
-    # "europe/france/languedoc-roussillon" adds the Cévennes. Add regions here if a trip goes elsewhere.
-    [string[]]$Extracts = @("europe/alps", "europe/france/languedoc-roussillon")
+    # Geofabrik extracts, merged into one map: the Alps (FR/IT/CH/AT), Provence-Alpes-Côte d'Azur (the Rhône
+    # bridges, which join the Alps to the west) and Languedoc-Roussillon (Cévennes). Neighbouring extracts must
+    # overlap, otherwise GraphHopper sees separate road networks. Add regions here if a trip goes elsewhere.
+    [string[]]$Extracts = @("europe/alps", "europe/france/provence-alpes-cote-d-azur", "europe/france/languedoc-roussillon")
 )
 $ErrorActionPreference = "Stop"
 $companion = Split-Path -Parent $PSScriptRoot
