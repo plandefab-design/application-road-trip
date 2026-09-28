@@ -102,7 +102,7 @@ struct TripMapView: UIViewRepresentable {
         let map = MLNMapView(frame: .zero, styleURL: styleURL(context))
         map.delegate = context.coordinator
         map.showsUserLocation = true
-        map.tintColor = .systemOrange                 // rider position and heading
+        map.tintColor = Theme.uiAccent               // controls; the rider is drawn by MotoPuckView
         map.compassViewPosition = .topRight
         map.attributionButtonPosition = .bottomLeft
         map.logoView.isHidden = true
@@ -168,7 +168,7 @@ struct TripMapView: UIViewRepresentable {
                 casing.lineJoin = NSExpression(forConstantValue: "round")
                 style.addLayer(casing)
                 let layer = MLNLineStyleLayer(identifier: "mt-line-\(line.id)", source: source)
-                layer.lineColor = NSExpression(forConstantValue: line.highlighted ? UIColor.systemOrange : UIColor.systemGray2)
+                layer.lineColor = NSExpression(forConstantValue: line.highlighted ? Theme.uiAccent : UIColor.systemGray2)
                 layer.lineWidth = NSExpression(forConstantValue: line.highlighted ? 6 : 3)
                 layer.lineCap = NSExpression(forConstantValue: "round")
                 layer.lineJoin = NSExpression(forConstantValue: "round")
@@ -268,14 +268,99 @@ struct TripMapView: UIViewRepresentable {
 
         func mapView(_ mapView: MLNMapView, annotationCanShowCallout annotation: MLNAnnotation) -> Bool { true }
 
-        /// Round white badge with the marker's emoji instead of the default pin.
+        /// The rider is a mini motorbike; markers are round badges with their emoji instead of the default pin.
         func mapView(_ mapView: MLNMapView, viewFor annotation: MLNAnnotation) -> MLNAnnotationView? {
+            if annotation is MLNUserLocation {
+                return (mapView.dequeueReusableAnnotationView(withIdentifier: "moto") as? MotoPuckView)
+                    ?? MotoPuckView(reuseIdentifier: "moto")
+            }
             guard let point = annotation as? MLNPointAnnotation else { return nil }
             let icon = point.title?.first.map { $0.isLetter || $0.isNumber ? "📍" : String($0) } ?? "📍"
             let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "emoji") as? EmojiAnnotationView)
                 ?? EmojiAnnotationView(reuseIdentifier: "emoji")
             view.label.text = icon
             return view
+        }
+    }
+}
+
+/// The rider's position: a mini motorbike in an orange disc with a soft pulsing halo, and a chevron around it
+/// pointing where the bike is heading (straight up when the map follows the course).
+final class MotoPuckView: MLNUserLocationAnnotationView {
+    private let halo = CALayer()
+    private let disc = UIView()
+    private let glyph = UIImageView()
+    private let pointer = UIView()          // rotates around the centre
+    private let chevron = CAShapeLayer()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 72, height: 72)
+        let c = CGPoint(x: 36, y: 36)
+
+        halo.bounds = CGRect(x: 0, y: 0, width: 60, height: 60)
+        halo.position = c
+        halo.cornerRadius = 30
+        halo.backgroundColor = Theme.uiAccent.withAlphaComponent(0.25).cgColor
+        layer.addSublayer(halo)
+
+        pointer.frame = bounds
+        pointer.isUserInteractionEnabled = false
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: 36, y: 2))
+        path.addLine(to: CGPoint(x: 46, y: 16))
+        path.addLine(to: CGPoint(x: 36, y: 12))
+        path.addLine(to: CGPoint(x: 26, y: 16))
+        path.close()
+        chevron.path = path.cgPath
+        chevron.fillColor = Theme.uiAccent.cgColor
+        chevron.strokeColor = UIColor.white.cgColor
+        chevron.lineWidth = 1.5
+        chevron.lineJoin = .round
+        pointer.layer.addSublayer(chevron)
+        addSubview(pointer)
+
+        disc.frame = CGRect(x: 0, y: 0, width: 38, height: 38)
+        disc.center = c
+        disc.backgroundColor = Theme.uiAccent
+        disc.layer.cornerRadius = 19
+        disc.layer.borderColor = UIColor.white.cgColor
+        disc.layer.borderWidth = 3
+        disc.layer.shadowColor = UIColor.black.cgColor
+        disc.layer.shadowOpacity = 0.35
+        disc.layer.shadowRadius = 4
+        disc.layer.shadowOffset = CGSize(width: 0, height: 2)
+        addSubview(disc)
+
+        glyph.image = MotoGlyph.image(pointSize: 15)
+        glyph.contentMode = .scaleAspectFit
+        glyph.frame = disc.bounds.insetBy(dx: 6, dy: 8)
+        disc.addSubview(glyph)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, halo.animation(forKey: "pulse") == nil else { return }
+        let pulse = CABasicAnimation(keyPath: "transform.scale")
+        pulse.fromValue = 0.75
+        pulse.toValue = 1.15
+        pulse.duration = 1.4
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        halo.add(pulse, forKey: "pulse")
+    }
+
+    /// Called by the map when the position, heading or camera changes.
+    override func update() {
+        guard let map = mapView, let location = userLocation?.location else { return }
+        let course = location.course >= 0 ? location.course : userLocation?.heading?.trueHeading
+        pointer.isHidden = course == nil
+        if let course {
+            let angle = (course - map.direction) * .pi / 180
+            pointer.transform = CGAffineTransform(rotationAngle: angle)
         }
     }
 }
@@ -289,7 +374,7 @@ final class EmojiAnnotationView: MLNAnnotationView {
         frame = CGRect(x: 0, y: 0, width: 34, height: 34)
         backgroundColor = .white
         layer.cornerRadius = 17
-        layer.borderColor = UIColor.systemOrange.cgColor
+        layer.borderColor = Theme.uiAccent.cgColor
         layer.borderWidth = 2
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.3

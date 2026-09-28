@@ -20,7 +20,7 @@ struct MotoTripApp: App {
                 .environmentObject(sync)
                 .environmentObject(maintenance)
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
-                .preferredColorScheme(settings.forceDark ? .dark : nil)
+                .preferredColorScheme(settings.lightTheme ? .light : .dark)
                 .task {
                     // After each SideStore refresh the expiry moves: keep the reminder in step (if allowed).
                     if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
@@ -52,6 +52,6 @@ struct RootView: View {
                 .tabItem { Label("Réglages", systemImage: "gearshape.fill") }
                 .tag(Tab.settings)
         }
-        .tint(.orange)
+        .tint(Theme.accent)
     }
 }

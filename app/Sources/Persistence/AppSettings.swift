@@ -14,7 +14,8 @@ final class AppSettings: ObservableObject {
     @Published var companionURL: String { didSet { defaults.set(companionURL, forKey: "companionURL") } }
     @Published var voiceEnabled: Bool { didSet { defaults.set(voiceEnabled, forKey: "voiceEnabled") } }
     @Published var radarAnnouncements: Bool { didSet { defaults.set(radarAnnouncements, forKey: "radarAnnouncements") } }
-    @Published var forceDark: Bool { didSet { defaults.set(forceDark, forKey: "forceDark") } }
+    /// MotoTrip is dark (carbon + racing orange) unless the rider prefers the light theme.
+    @Published var lightTheme: Bool { didSet { defaults.set(lightTheme, forKey: "lightTheme") } }
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }
     /// Garage bike whose odometer the rides advance (« Ma moto »).
     @Published var primaryBikeId: String { didSet { defaults.set(primaryBikeId, forKey: "primaryBikeId") } }
@@ -28,7 +29,7 @@ final class AppSettings: ObservableObject {
         companionURL = d.string(forKey: "companionURL") ?? ""
         voiceEnabled = (d.object(forKey: "voiceEnabled") as? Bool) ?? true
         radarAnnouncements = (d.object(forKey: "radarAnnouncements") as? Bool) ?? true   // on by default (rider's choice)
-        forceDark = d.bool(forKey: "forceDark")
+        lightTheme = d.bool(forKey: "lightTheme")
         pace = Self.load(PaceEstimator.self, "pace") ?? PaceEstimator()
         primaryBikeId = d.string(forKey: "primaryBikeId") ?? ""
     }

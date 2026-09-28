@@ -102,7 +102,7 @@ struct SettingsView: View {
                     Toggle("Guidage vocal", isOn: $settings.voiceEnabled)
                     Toggle("Annonces radar (à 500 m)", isOn: $settings.radarAnnouncements)
                     Toggle("Carte sombre la nuit (moins détaillée)", isOn: $mapDarkAtNight)
-                    Toggle("Thème sombre forcé", isOn: $settings.forceDark)
+                    Toggle("Thème clair (l'app est sombre par défaut)", isOn: $settings.lightTheme)
                     NavigationLink {
                         TomTomKeyView()
                     } label: {

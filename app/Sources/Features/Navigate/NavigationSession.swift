@@ -108,6 +108,7 @@ final class NavigationSession: ObservableObject {
             self?.handle(fix)
         }
         voice.say("Navigation démarrée. Étape \(day.index), \(Int(route.length / 1000)) kilomètres.", key: "start")
+        ActiveRide.shared.start(tripId: trip.id, day: day.index)
     }
 
     func stop() {
@@ -118,6 +119,8 @@ final class NavigationSession: ObservableObject {
         UIApplication.shared.isIdleTimerDisabled = false
         onPaceUpdate(pace)
         finishedRide = RideStore.log(trip: trip, day: day, points: recorded, times: recordedTimes, speeds: recordedSpeeds)
+        // Arrived: nothing to rejoin. Left before the end: the home screen offers « Reprendre ».
+        if let snap = snapshot, snap.endOfDay.distance < 300 { ActiveRide.shared.finish() }
     }
 
     /// Road route back to the track while off route (Apple Maps, 5 s, when online); cancelled once back on it.

@@ -43,8 +43,7 @@ struct NavigationView: View {
                 if !online.isEmpty {
                     Text(online.joined(separator: " · ")).font(.caption.bold())
                         .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Color.black.opacity(0.7), in: Capsule())
-                        .foregroundStyle(.white)
+                        .glass(radius: 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 priorityBadge
@@ -54,7 +53,8 @@ struct NavigationView: View {
                             .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+                    .tint(Theme.info)
+                    .buttonBorderShape(.roundedRectangle(radius: 18))
                 } else {
                     bottomCards
                 }
@@ -136,8 +136,7 @@ struct NavigationView: View {
             }
         }
         .padding(14)
-        .foregroundStyle(.white)
-        .background(session.offRoute ? Color.red.opacity(0.9) : Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
+        .glass(radius: 24, tint: session.offRoute ? Theme.camera : nil)
     }
 
     static func symbol(for maneuver: Maneuver) -> String {
@@ -177,8 +176,7 @@ struct NavigationView: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 96)
-        .foregroundStyle(.white)
-        .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 16))
+        .glass(radius: 18)
     }
 
     /// Next weather hazard on the route within 60 km (Open-Meteo).
@@ -194,8 +192,7 @@ struct NavigationView: View {
             Spacer()
         }
         .padding(10)
-        .foregroundStyle(.white)
-        .background(Color.blue.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
+        .glass(radius: 20, tint: Theme.info)
     }
 
     /// Live traffic incident within 10 km (TomTom).
@@ -210,8 +207,7 @@ struct NavigationView: View {
             Spacer()
         }
         .padding(12)
-        .foregroundStyle(.white)
-        .background(Color.purple.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+        .glass(radius: 20, tint: .purple)
     }
 
     /// Speed camera (with its limit) or hazard within 500 m.
@@ -249,8 +245,7 @@ struct NavigationView: View {
                 Spacer()
             }
             .padding(10)
-            .foregroundStyle(.white)
-            .background(Color.green.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
+            .glass(radius: 20, tint: Theme.ok)
         }
     }
 
@@ -258,25 +253,34 @@ struct NavigationView: View {
 
     private var controls: some View {
         HStack(spacing: 10) {
-            bigButton("Quitter", "xmark", .gray) {
-                if confirmQuit { dismiss() } else {
-                    confirmQuit = true
-                    Task { try? await Task.sleep(nanoseconds: 3_000_000_000); confirmQuit = false }
-                }
-            }
-            .overlay(alignment: .top) {
-                if confirmQuit { Text("Appuie encore").font(.caption.bold()).offset(y: -18) }
-            }
+            QuitButton(title: "Quitter", icon: "xmark", confirm: $confirmQuit) { dismiss() }
             SOSButton(name: settings.sosName, phone: settings.sosPhone, location: location)
         }
     }
+}
 
-    private func bigButton(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon).font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 60)
+/// Glass « Quitter / Terminer » button: a first tap arms it (« Appuie encore »), a second one within 3 s quits,
+/// so a glove brushing the screen never ends the ride.
+struct QuitButton: View {
+    let title: String
+    let icon: String
+    @Binding var confirm: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            if confirm { action() } else {
+                confirm = true
+                Task { try? await Task.sleep(nanoseconds: 3_000_000_000); confirm = false }
+            }
+        } label: {
+            Label(confirm ? "Appuie encore" : title, systemImage: confirm ? "hand.tap.fill" : icon)
+                .font(.title3.bold())
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .glass(radius: 18, tint: confirm ? Theme.accent : nil)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(color)
+        .buttonStyle(.plain)
     }
 }
 

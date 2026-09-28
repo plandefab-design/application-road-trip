@@ -43,8 +43,7 @@ struct FreeRideView: View {
                 if let detour = session.detour {
                     HStack(spacing: 14) { DetourBanner(name: detour.route.name, update: session.detourUpdate); Spacer() }
                         .padding(14)
-                        .foregroundStyle(.white)
-                        .background(Color.blue.opacity(0.85), in: RoundedRectangle(cornerRadius: 18))
+                        .glass(radius: 24, tint: Theme.info)
                 }
                 if !session.hasPack {
                     Text("Base radars absente : Réglages › Synchroniser avec le PC")
@@ -65,8 +64,7 @@ struct FreeRideView: View {
                     Label(incident, systemImage: "exclamationmark.octagon.fill")
                         .font(.title3.bold())
                         .frame(maxWidth: .infinity, minHeight: 56)
-                        .foregroundStyle(.white)
-                        .background(Color.purple.opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+                        .glass(radius: 20, tint: .purple)
                 }
                 if session.detour != nil {
                     Button { session.endDetour() } label: {
@@ -74,7 +72,8 @@ struct FreeRideView: View {
                             .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.blue)
+                    .tint(Theme.info)
+                    .buttonBorderShape(.roundedRectangle(radius: 18))
                 }
                 controls
             }
@@ -123,23 +122,12 @@ struct FreeRideView: View {
             }
         }
         .padding(14)
-        .foregroundStyle(.white)
-        .background(Color.black.opacity(0.8), in: RoundedRectangle(cornerRadius: 18))
+        .glass(radius: 24)
     }
 
     private var controls: some View {
         HStack(spacing: 10) {
-            Button {
-                if confirmQuit { dismiss() } else {
-                    confirmQuit = true
-                    Task { try? await Task.sleep(nanoseconds: 3_000_000_000); confirmQuit = false }
-                }
-            } label: {
-                Label(confirmQuit ? "Appuie encore" : "Terminer", systemImage: "flag.checkered")
-                    .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 60)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.gray)
+            QuitButton(title: "Terminer", icon: "flag.checkered", confirm: $confirmQuit) { dismiss() }
             SOSButton(name: settings.sosName, phone: settings.sosPhone, location: location)
         }
     }
@@ -170,7 +158,6 @@ struct AlertBadge: View {
             Spacer()
         }
         .padding(12)
-        .foregroundStyle(.white)
-        .background((alert.kind.isCamera ? Color.red : Color.orange).opacity(0.9), in: RoundedRectangle(cornerRadius: 16))
+        .glass(radius: 20, tint: alert.kind.isCamera ? Theme.camera : Theme.hazard)
     }
 }

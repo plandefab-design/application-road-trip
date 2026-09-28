@@ -1,26 +1,6 @@
 import SwiftUI
 import TripCore
 
-/// Round floating button over the riding map (recentre, search), glove-sized.
-struct MapRoundButton: View {
-    let icon: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .bold))
-                .frame(width: 54, height: 54)
-                .background(.regularMaterial, in: Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                .shadow(radius: 3)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-}
-
 /// Top banner content during a detour: next turn, or direction and distance when offline.
 struct DetourBanner: View {
     let name: String
