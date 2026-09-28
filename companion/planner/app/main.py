@@ -177,6 +177,17 @@ def put_trip(trip_id: str, trip: dict[str, Any]) -> dict[str, Any]:
     return store_trip(trip_id, sanitize_trip(trip), touch=False)   # keeps the iPhone's updatedAt
 
 
+@app.delete("/trips/{trip_id}", dependencies=[Depends(require_token)], status_code=204)
+def delete_trip(trip_id: str) -> None:
+    """Trip deleted by the rider on the iPhone: set aside in trips/deleted (recoverable by hand), never synced back."""
+    p = trip_path(trip_id)
+    if not p.exists():
+        raise HTTPException(404, "trip inconnu")
+    bin_dir = p.parent / "deleted"
+    bin_dir.mkdir(exist_ok=True)
+    p.replace(bin_dir / p.name)
+
+
 # ---------------------------------------------------------------- planner chat (creation mode)
 
 class ChatRequest(BaseModel):

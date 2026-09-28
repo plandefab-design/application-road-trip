@@ -14,9 +14,18 @@ final class SyncService: ObservableObject {
         defer { running = false }
         do {
             let remote = try await client.listTrips()
-            let plan = TripSync.plan(local: Dictionary(uniqueKeysWithValues: store.trips.map { ($0.id, $0.updatedAt) }),
-                                     remote: Dictionary(uniqueKeysWithValues: remote.map { ($0.id, $0.updatedAt) }))
+            let remoteDates = Dictionary(remote.map { ($0.id, $0.updatedAt) }, uniquingKeysWith: { a, _ in a })
+            let plan = TripSync.plan(local: Dictionary(store.trips.map { ($0.id, $0.updatedAt) }, uniquingKeysWith: { a, _ in a }),
+                                     remote: remoteDates, deleted: store.deletedIds)
             var failures = 0
+            // Deleted on the iPhone: deleted on the PC too; forgotten once the PC no longer has it.
+            store.deletedIds = store.deletedIds.filter { remoteDates.keys.contains($0) }
+            for id in plan.delete {
+                do {
+                    try await client.deleteTrip(id)
+                    store.deletedIds.remove(id)
+                } catch { failures += 1 }
+            }
             for id in plan.push {
                 guard let trip = store.trips.first(where: { $0.id == id }) else { continue }
                 do { try await client.putTrip(trip) } catch { failures += 1 }
@@ -35,7 +44,8 @@ final class SyncService: ObservableObject {
             do {
                 if try await AlertPackStore.shared.refresh(using: client) { packNote = " · radars à jour" }
             } catch { failures += 1 }
-            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(packNote)"
+            let deletions = plan.delete.isEmpty ? "" : " · 🗑 \(plan.delete.count)"
+            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(deletions)\(packNote)"
             status = failures == 0 ? "Synchronisé \(Format.time(Date())) (\(what))" : "Synchro partielle (\(failures) erreur(s))"
         } catch {
             status = "PC injoignable : synchro reportée"

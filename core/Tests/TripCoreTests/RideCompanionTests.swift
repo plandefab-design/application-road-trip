@@ -82,4 +82,13 @@ final class RideCompanionTests: XCTestCase {
         XCTAssertEqual(out.map(\.name), ["Eau", "Café"])
         XCTAssertEqual(out[1].along, 10_000, accuracy: 5)
     }
+
+    func testTripDeletedOnThePhoneIsNeverPulledBack() {
+        let plan = TripSync.plan(local: ["kept": "2027-01-02T00:00:00Z"],
+                                 remote: ["kept": "2027-01-01T00:00:00Z", "gone": "2027-01-01T00:00:00Z", "other": nil],
+                                 deleted: ["gone", "never-synced"])
+        XCTAssertEqual(plan.push, ["kept"])
+        XCTAssertEqual(plan.pull, ["other"])
+        XCTAssertEqual(plan.delete, ["gone"])
+    }
 }

@@ -150,6 +150,15 @@ struct CompanionClient {
         throw URLError(.timedOut)
     }
 
+    /// Deletes a trip on the PC (set aside there). An unknown trip counts as deleted.
+    func deleteTrip(_ id: String) async throws {
+        var r = request("trips/\(id)", timeout: 15)
+        r.httpMethod = "DELETE"
+        let (data, response) = try await URLSession.shared.data(for: r)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 204 || code == 404 else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+    }
+
     // MARK: - Live events (riding: 5 s max, never waited for)
 
     func liveEvents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {

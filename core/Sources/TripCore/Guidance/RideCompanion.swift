@@ -144,14 +144,18 @@ public struct RideSummary: Codable, Equatable, Sendable {
 // MARK: - Sync
 
 public enum TripSync {
-    /// Which trips to send to the PC and which to fetch, from their `updatedAt` (ISO 8601 UTC compares as text).
-    /// The most recent wins; a trip missing on one side is copied there; no date loses against a date.
-    public static func plan(local: [String: String?], remote: [String: String?]) -> (push: [String], pull: [String]) {
-        var push: [String] = [], pull: [String] = []
+    /// Which trips to send to the PC, to fetch and to delete on the PC, from their `updatedAt` (ISO 8601 UTC
+    /// compares as text). The most recent wins; a trip missing on one side is copied there, unless the rider
+    /// deleted it on the iPhone (`deleted`): then it is deleted on the PC too, never brought back.
+    public static func plan(local: [String: String?], remote: [String: String?], deleted: Set<String> = [])
+        -> (push: [String], pull: [String], delete: [String]) {
+        var push: [String] = [], pull: [String] = [], delete: [String] = []
         for id in Set(local.keys).union(remote.keys).sorted() {
             let onPhone = local.keys.contains(id), onPC = remote.keys.contains(id)
             let l = local[id] ?? nil, r = remote[id] ?? nil
-            if onPhone && !onPC {
+            if deleted.contains(id) && !onPhone {
+                if onPC { delete.append(id) }
+            } else if onPhone && !onPC {
                 push.append(id)
             } else if onPC && !onPhone {
                 pull.append(id)
@@ -163,7 +167,7 @@ public enum TripSync {
                 pull.append(id)
             }
         }
-        return (push, pull)
+        return (push, pull, delete)
     }
 
     public static func timestamp(_ date: Date = Date()) -> String {

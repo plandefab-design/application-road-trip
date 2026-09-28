@@ -40,6 +40,13 @@ final class TripStore: ObservableObject {
         try? FileManager.default.removeItem(at: fileURL(trip.id))
         ChatHistory.delete(trip.id)
         trips.removeAll { $0.id == trip.id }
+        deletedIds.insert(trip.id)          // the next sync deletes it on the PC instead of bringing it back
+    }
+
+    /// Trips deleted on the iPhone and not yet deleted on the PC.
+    var deletedIds: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "deletedTripIds") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "deletedTripIds") }
     }
 
     func fileURL(_ id: String) -> URL { folder.appendingPathComponent("\(id).json") }

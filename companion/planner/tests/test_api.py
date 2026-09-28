@@ -171,3 +171,11 @@ def test_alert_pack(client, tmp_path):
     assert pack["hazards"] == [[43.7, 5.2, "chutes de pierres"]]
     assert pack["version"] == client.get("/alerts-pack/version", headers=AUTH).json()["version"] != ""
     assert client.get("/alerts-pack").status_code == 401
+
+
+def test_delete_trip_sets_it_aside(client):
+    client.put("/trips/t1", headers=AUTH, json=minimal_trip())
+    assert client.delete("/trips/t1", headers=AUTH).status_code == 204
+    assert client.get("/trips/t1", headers=AUTH).status_code == 404
+    assert [t["id"] for t in client.get("/trips", headers=AUTH).json()] == []
+    assert client.delete("/trips/t1", headers=AUTH).status_code == 404
