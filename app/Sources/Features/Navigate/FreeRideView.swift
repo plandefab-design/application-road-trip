@@ -7,6 +7,8 @@ struct FreeRideView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: FreeRideSession
     @State private var confirmQuit = false
+    @State private var recenter = 0
+    @State private var showNearby = false
     private let location: LocationService
     private let onFinished: (RideLog?) -> Void
 
@@ -21,21 +23,49 @@ struct FreeRideView: View {
         ZStack {
             TripMapView(content: MapContent(lines: [.init(id: "ride", points: session.trackPreview, highlighted: true)],
                                             alerts: session.nearbyAlerts,
-                                            followUser: true))
+                                            followUser: true, recenter: recenter,
+                                            detour: session.detour?.route.track.points ?? []))
                 .ignoresSafeArea()
             VStack(spacing: 8) {
                 header
+                if let detour = session.detour {
+                    HStack(spacing: 14) { DetourBanner(name: detour.route.name, update: session.detourUpdate); Spacer() }
+                        .padding(14)
+                        .foregroundStyle(.white)
+                        .background(Color.blue.opacity(0.85), in: RoundedRectangle(cornerRadius: 18))
+                }
                 if !session.hasPack {
                     Text("Base radars absente : Réglages › Synchroniser avec le PC")
                         .font(.caption.bold()).padding(8).frame(maxWidth: .infinity)
                         .background(Color.orange, in: Capsule()).foregroundStyle(.black)
                 }
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
+                        MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
+                    }
+                }
                 Spacer()
                 if let next = session.nextAlert { AlertBadge(alert: next.alert, distance: next.distance) }
+                if session.detour != nil {
+                    Button { session.endDetour() } label: {
+                        Label("Arrêter le guidage", systemImage: "xmark.circle.fill")
+                            .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                }
                 controls
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
+        }
+        .sheet(isPresented: $showNearby) {
+            NearbySheet(location: location, trip: nil) { route in
+                session.startDetour(route)
+                recenter += 1
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear { session.start() }

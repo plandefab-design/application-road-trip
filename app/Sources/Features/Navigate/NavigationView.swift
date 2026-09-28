@@ -8,6 +8,8 @@ struct NavigationView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: NavigationSession
     @State private var confirmQuit = false
+    @State private var recenter = 0
+    @State private var showNearby = false
 
     private let location: LocationService
     private let onFinished: (RideLog?) -> Void
@@ -30,6 +32,13 @@ struct NavigationView: View {
 
             VStack(spacing: 8) {
                 topBanner
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
+                        MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
+                    }
+                }
                 Spacer()
                 if let h = session.weatherAhead, let progress = session.snapshot?.progress, h.along - progress <= 60_000 {
                     weatherBadge(h, distance: h.along - progress)
@@ -61,12 +70,27 @@ struct NavigationView: View {
                     .foregroundStyle(.white)
                     .background(Color.green.opacity(0.85), in: RoundedRectangle(cornerRadius: 16))
                 }
-                if let delay = session.snapshot?.delay { delayBadge(delay) }
-                bottomCards
+                if session.detour != nil {
+                    Button { session.endDetour() } label: {
+                        Label("Reprendre l'itinéraire", systemImage: "arrow.uturn.backward.circle.fill")
+                            .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                } else {
+                    if let delay = session.snapshot?.delay { delayBadge(delay) }
+                    bottomCards
+                }
                 controls
             }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
+        }
+        .sheet(isPresented: $showNearby) {
+            NearbySheet(location: location, trip: session.trip) { route in
+                session.startDetour(route)
+                recenter += 1
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear { session.start() }
@@ -80,6 +104,8 @@ struct NavigationView: View {
         var c = MapContent.from(trip: session.trip, highlightDay: session.day.index)
         c.lines = c.lines.filter { $0.id == "day\(session.day.index)" }
         c.followUser = true
+        c.recenter = recenter
+        c.detour = session.detour?.route.track.points ?? []
         return c
     }
 
@@ -87,7 +113,9 @@ struct NavigationView: View {
 
     private var topBanner: some View {
         HStack(spacing: 14) {
-            if session.offRoute {
+            if let detour = session.detour {
+                DetourBanner(name: detour.route.name, update: session.detourUpdate)
+            } else if session.offRoute {
                 Image(systemName: "location.north.fill")
                     .font(.system(size: 44, weight: .bold))
                     .rotationEffect(.degrees(session.rejoinBearing ?? 0))

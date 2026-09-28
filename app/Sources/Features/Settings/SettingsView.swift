@@ -8,6 +8,7 @@ struct SettingsView: View {
     @EnvironmentObject private var sync: SyncService
     @EnvironmentObject private var maintenance: MaintenanceStore
     @ObservedObject private var alertPack = AlertPackStore.shared
+    @AppStorage("mapDarkAtNight") private var mapDarkAtNight = false
     @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
@@ -95,6 +96,7 @@ struct SettingsView: View {
                 Section("Navigation") {
                     Toggle("Guidage vocal", isOn: $settings.voiceEnabled)
                     Toggle("Annonces radar (à 500 m)", isOn: $settings.radarAnnouncements)
+                    Toggle("Carte sombre la nuit (moins détaillée)", isOn: $mapDarkAtNight)
                     Toggle("Thème sombre forcé", isOn: $settings.forceDark)
                     NavigationLink {
                         TomTomKeyView()

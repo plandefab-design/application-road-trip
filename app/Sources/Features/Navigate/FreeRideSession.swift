@@ -52,6 +52,24 @@ final class FreeRideSession: ObservableObject {
                                      points: points, times: times, speeds: speeds)
     }
 
+    /// Guided detour to a place picked « autour de moi » (voice turns, arrival); cameras stay announced.
+    @Published private(set) var detour: DetourRoute.Guidance?
+    @Published private(set) var detourUpdate: DetourRoute.Guidance.Update?
+    private var detourId = ""
+
+    func startDetour(_ route: DetourRoute) {
+        detourId = String(UUID().uuidString.prefix(6))
+        detour = DetourRoute.Guidance(route: route)
+        detourUpdate = nil
+        voice.say(route.isRoad ? "Itinéraire vers \(route.name)." : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
+                  key: "\(detourId)-start", cooldown: 5)
+    }
+
+    func endDetour() {
+        detour = nil
+        detourUpdate = nil
+    }
+
     private func handle(_ fix: LocationService.Fix) {
         guard fix.accuracy >= 0, fix.accuracy <= 50 else { return }        // poor fixes would inflate the km
         if let last = points.last { distance += Geo.distance(last, fix.point) }
@@ -59,6 +77,12 @@ final class FreeRideSession: ObservableObject {
         times.append(fix.time)
         speeds.append(fix.speed)
         speedKmh = max(0, fix.speed) * 3.6
+        if var d = detour {
+            let u = d.update(position: fix.point, speed: max(0, fix.speed))
+            detour = d
+            detourUpdate = u
+            for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
+        }
         if points.count % 15 == 0 || points.count == 1 {
             trackPreview = points
             nearbyAlerts = (guide?.near(fix.point) ?? [])

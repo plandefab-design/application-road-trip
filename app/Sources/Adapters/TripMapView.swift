@@ -28,8 +28,12 @@ struct MapContent: Equatable {
     var alerts: [AlertDot] = []
     /// Suggested pause spots (green dots) of the selected day.
     var pauses: [GeoPoint] = []
-    /// true = follow the rider, heading up, tilted 3D view (navigation mode).
+    /// true = follow the rider, heading up, slightly tilted (navigation mode).
     var followUser = false
+    /// Incremented by the « recentre » button: the map follows the rider again.
+    var recenter = 0
+    /// Optional detour route (« Autour de moi »), drawn in blue.
+    var detour: [GeoPoint] = []
 }
 
 extension MapContent {
@@ -86,11 +90,11 @@ struct TripMapView: UIViewRepresentable {
     static var allStyleURLs: [URL] { [lightStyleURL, darkStyleURL] }
 
     var content: MapContent
-    /// nil = follow the system appearance; riding screens force dark.
-    var forceDark: Bool? = nil
+    /// Rider option (Réglages › Navigation), off by default: the dark style has far fewer names and details.
+    @AppStorage("mapDarkAtNight") private var darkAtNight = false
 
     private func styleURL(_ context: Context) -> URL {
-        let dark = forceDark ?? (content.followUser || context.environment.colorScheme == .dark)
+        let dark = darkAtNight && context.environment.colorScheme == .dark
         return dark ? Self.darkStyleURL : Self.lightStyleURL
     }
 
@@ -121,6 +125,13 @@ struct TripMapView: UIViewRepresentable {
         private var styleLoaded = false
         private var pending: MapContent?
         private var tilted = false
+        private var lastRecenter = 0
+        /// The rider moved the map by hand: stop following until « recentrer » is pressed.
+        private var userMovedMap = false
+
+        func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
+            if mode == .none { userMovedMap = true }
+        }
 
         func styleWillChange() {
             styleLoaded = false
@@ -200,15 +211,42 @@ struct TripMapView: UIViewRepresentable {
             }
             map.addAnnotations(annotations)
 
+            // Detour (« Autour de moi »): blue line on top.
+            for id in ["mt-detour-case", "mt-detour"] {
+                if let layer = style.layer(withIdentifier: id) { style.removeLayer(layer) }
+            }
+            if let source = style.source(withIdentifier: "mt-detour-src") { style.removeSource(source) }
+            if content.detour.count > 1 {
+                var coords = content.detour.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+                let source = MLNShapeSource(identifier: "mt-detour-src",
+                                            shape: MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count)), options: nil)
+                style.addSource(source)
+                for (id, color, width) in [("mt-detour-case", UIColor(white: 0.08, alpha: 0.85), 10.0), ("mt-detour", UIColor.systemBlue, 6.0)] {
+                    let layer = MLNLineStyleLayer(identifier: id, source: source)
+                    layer.lineColor = NSExpression(forConstantValue: color)
+                    layer.lineWidth = NSExpression(forConstantValue: width)
+                    layer.lineCap = NSExpression(forConstantValue: "round")
+                    layer.lineJoin = NSExpression(forConstantValue: "round")
+                    style.addLayer(layer)
+                }
+            }
+
             // Camera
             if content.followUser {
-                map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
-                if !tilted {
+                let recentre = content.recenter != lastRecenter
+                lastRecenter = content.recenter
+                if !tilted || recentre {
                     tilted = true
+                    // Street-level zoom and a light tilt: readable at a glance, names stay flat enough to read.
+                    map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
+                    map.setZoomLevel(16, animated: true)
                     let camera = map.camera
-                    camera.pitch = 50                          // « 3D » riding view
+                    camera.pitch = 30
                     map.setCamera(camera, animated: true)
+                } else if map.userTrackingMode == .none && !userMovedMap {
+                    map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
                 }
+                if recentre { userMovedMap = false }
             } else if geometryChanged {
                 let all = content.lines.flatMap(\.points) + content.markers.map(\.point)
                 fit(map, all)

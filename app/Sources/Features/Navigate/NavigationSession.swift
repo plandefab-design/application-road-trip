@@ -46,6 +46,11 @@ final class NavigationSession: ObservableObject {
     private var weatherUpdatedAt: Date?
     private var weatherTask: Task<Void, Never>?
 
+    /// Detour to a place picked « autour de moi »: while active, it replaces the trip guidance.
+    @Published private(set) var detour: DetourRoute.Guidance?
+    @Published private(set) var detourUpdate: DetourRoute.Guidance.Update?
+    private var detourId = ""
+
     let trip: Trip
     let day: TripDay
     let route: Polyline
@@ -107,12 +112,42 @@ final class NavigationSession: ObservableObject {
         finishedRide = RideStore.log(trip: trip, day: day, points: recorded, times: recordedTimes, speeds: recordedSpeeds)
     }
 
+    func startDetour(_ route: DetourRoute) {
+        detourId = String(UUID().uuidString.prefix(6))
+        detour = DetourRoute.Guidance(route: route)
+        detourUpdate = nil
+        voice.say(route.isRoad
+                  ? "Itinéraire vers \(route.name), \(TurnGuide.spokenDistance(route.track.length).replacingOccurrences(of: "Dans ", with: ""))."
+                  : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
+                  key: "\(detourId)-start", cooldown: 5)
+    }
+
+    func endDetour() {
+        detour = nil
+        detourUpdate = nil
+        detector = OffRouteDetector()
+        voice.say("Reprise de l'itinéraire.", key: "\(detourId)-end", cooldown: 5)
+    }
+
     private func handle(_ fix: LocationService.Fix) {
         if let last = recordedTimes.last { breaks.update(speed: fix.speed, dt: fix.time.timeIntervalSince(last)) }
         recorded.append(fix.point)
         recordedTimes.append(fix.time)
         recordedSpeeds.append(fix.speed)
         speedKmh = max(0, fix.speed) * 3.6
+
+        if var d = detour {
+            let u = d.update(position: fix.point, speed: max(0, fix.speed))
+            detour = d
+            detourUpdate = u
+            for a in u.announcements { voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600) }
+            // Cameras and hazards stay announced during the detour (offline pack, direction of travel).
+            let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
+            for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
+                voice.say(a.text, key: a.key, cooldown: 600)
+            }
+            return
+        }
 
         guard let snap = computer.snapshot(position: fix.point, lastProgress: lastProgress, now: fix.time, pace: pace) else { return }
 
