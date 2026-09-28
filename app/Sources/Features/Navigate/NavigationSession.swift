@@ -202,19 +202,19 @@ final class NavigationSession: ObservableObject {
         snapshot = snap
     }
 
-    /// Every 5 min when a TomTom key is set: incidents on the next 50 km. Located once per fetch (not per GPS
-    /// fix) to spare the battery. A failure only changes the status line; guidance never waits for it.
+    /// Every 5 min when a TomTom key is set: incidents on the next 200 km (4 requests of 50 km). Located once per
+    /// fetch (not per GPS fix) to spare the battery. A failure only changes the status line; guidance never waits.
     private func refreshTrafficIfNeeded(progress: Double) {
         guard let traffic, trafficTask == nil else { return }
         if let last = lastTrafficFetch, Date().timeIntervalSince(last) < 300 { return }
-        guard let box = TrafficIncidents.boundingBox(route: route, progress: progress) else { return }
         lastTrafficFetch = Date()
+        let route = self.route
         trafficTask = Task { [weak self] in
             do {
-                let found = try await traffic.incidents(minLon: box.minLon, minLat: box.minLat, maxLon: box.maxLon, maxLat: box.maxLat)
+                let ahead = try await traffic.alongRoute(route, from: progress, length: 200_000)
                 guard let self else { return }
-                self.located = TrafficIncidents.ahead(found, route: self.route, progress: progress)
-                self.trafficStatus = "Trafic à jour \(Format.time(Date()))"
+                self.located = ahead
+                self.trafficStatus = "Trafic à jour \(Format.time(Date())) · \(ahead.count) incident(s) sur 200 km"
             } catch {
                 self?.trafficStatus = "Trafic : \(TomTomTrafficClient.describe(error))"
             }

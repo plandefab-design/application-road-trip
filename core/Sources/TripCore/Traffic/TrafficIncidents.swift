@@ -79,6 +79,20 @@ public enum TrafficIncidents {
         return nil
     }
 
+    /// Boxes covering the route from `progress` over `length` metres (whole route by default), one per `piece`,
+    /// so traffic can be checked all along the trip, not only on the next kilometres.
+    public static func boxes(route: Polyline, from progress: Double = 0, length: Double? = nil, piece: Double = 50_000)
+        -> [(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double)] {
+        let end = min(route.length, progress + (length ?? route.length))
+        var out: [(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double)] = []
+        var start = max(0, progress)
+        while start < end - 1 {
+            if let b = boundingBox(route: route, progress: start, horizon: min(piece, end - start)) { out.append(b) }
+            start += piece
+        }
+        return out
+    }
+
     // MARK: Response
 
     /// Parses an Incident Details v5 response (GeoJSON features; Point or LineString geometry).

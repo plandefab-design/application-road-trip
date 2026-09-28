@@ -246,14 +246,16 @@ struct TripDetailContent: View {
         var detail: String?
     }
 
-    /// Everything to refresh on departure day, in order; a failed step never blocks the next ones.
+    /// Leaving NOW (the trip dates are ignored): everything refreshed for the selected day, in order;
+    /// a failed step never blocks the next ones.
     private func prepareDeparture() async {
         preparing = true
         defer { preparing = false }
         prep = [
             PrepStep(id: "route", label: "Tracé, guidage, radars, dangers, pleins"),
+            PrepStep(id: "traffic", label: "Trafic en direct sur tout le trajet"),
+            PrepStep(id: "weather", label: "Météo à l'heure de passage, départ maintenant"),
             PrepStep(id: "map", label: "Carte hors ligne"),
-            PrepStep(id: "weather", label: "Météo sur la route"),
             PrepStep(id: "maintenance", label: "Entretien de ma moto"),
             PrepStep(id: "reminders", label: "Rappels et signature SideStore"),
         ]
@@ -271,6 +273,39 @@ struct TripDetailContent: View {
         }
 
         let latest = store.trips.first { $0.id == trip.id } ?? trip
+        // The day to ride: the selected one, else the first traced day.
+        let day = latest.days.first { $0.index == selectedDay && $0.track != nil } ?? latest.days.first { $0.track != nil }
+
+        set("traffic", .running)
+        if let track = day?.track, !settings.tomtomKey.isEmpty {
+            do {
+                let incidents = try await TomTomTrafficClient(key: settings.tomtomKey).alongRoute(track)
+                let lines = incidents.prefix(4).map { i in
+                    "\(i.incident.category.label) au km \(Int(i.along / 1000))" + (i.incident.delay.map { " (+\(Int(($0 / 60).rounded())) min)" } ?? "")
+                }
+                set("traffic", incidents.isEmpty ? .ok : .warning,
+                    incidents.isEmpty ? "Aucun incident sur les \(Int(track.length / 1000)) km (jour \(day!.index))."
+                        : lines.joined(separator: "\n") + (incidents.count > 4 ? "\n… et \(incidents.count - 4) autre(s)" : ""))
+            } catch {
+                set("traffic", .failed, TomTomTrafficClient.describe(error))
+            }
+        } else {
+            set("traffic", .warning, day == nil ? "Aucune étape tracée." : "Ajoute ta clé TomTom (Réglages › Trafic TomTom).")
+        }
+
+        set("weather", .running)
+        if let track = day?.track {
+            if let hazards = await WeatherClient().nowReport(track: track, pace: settings.pace) {
+                weatherReport = hazards.map { "\($0.summary) au km \(Int($0.along / 1000)) vers \(WeatherClient.hour($0.eta))" }
+                set("weather", hazards.isEmpty ? .ok : .warning,
+                    hazards.isEmpty ? "Rien à signaler en partant maintenant." : weatherReport.prefix(3).joined(separator: "\n"))
+            } else {
+                set("weather", .failed, "Météo indisponible (pas de réseau ?).")
+            }
+        } else {
+            set("weather", .warning, "Aucune étape tracée.")
+        }
+
         set("map", .running)
         do {
             try await offlineMaps.download(trip: latest)
@@ -280,11 +315,6 @@ struct TripDetailContent: View {
             setPackIntegrity(.missing)
             set("map", .failed, error.localizedDescription)
         }
-
-        set("weather", .running)
-        weatherReport = await WeatherClient().tripReport(latest, pace: settings.pace)
-        let alerts = weatherReport.filter { !$0.contains("rien à signaler") }
-        set("weather", alerts.isEmpty ? .ok : .warning, alerts.isEmpty ? "Rien à signaler." : alerts.prefix(3).joined(separator: "\n"))
 
         set("maintenance", .running)
         if let bike = settings.primaryBike {
@@ -385,37 +415,81 @@ struct POIRow: View {
 
 extension TripDetailContent {
     @ViewBuilder var mapAndRideSections: some View {
-            Section {
+        Section {
+            VStack(alignment: .leading, spacing: 12) {
                 TripMapView(content: MapContent.from(trip: trip, highlightDay: selectedDay))
-                    .frame(height: 280)
-                    .listRowInsets(EdgeInsets())
-            }
-
-            if let day = rideDay {
-                Section {
+                    .frame(height: 260)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) { ForEach(chips, id: \.self) { chip($0) } }
+                }
+                if let day = rideDay {
                     Button { startNavigation(day) } label: {
                         Label("Rouler — Jour \(day.index)", systemImage: "location.north.line.fill")
-                            .frame(maxWidth: .infinity)
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 52)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.orange)
-                } footer: {
-                    Text("Touche une étape ci-dessous pour choisir le jour. Guidage vocal virage par virage, pleins, hors tracé, fin d'étape.")
+                }
+                HStack(spacing: 8) {
+                    actionTile(preparing ? "En cours…" : "Préparer", "bolt.fill", .green) {
+                        Task { await prepareDeparture() }
+                    }
+                    .disabled(preparing || tracing)
+                    actionTile("Claude", "bubble.left.and.bubble.right.fill", .purple) { chatting = true }
+                    actionTile("Paramètres", "slider.horizontal.3", .blue) { editing = true }
                 }
             }
+            .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 12, trailing: 8))
+            .listRowBackground(Color.clear)
+        } footer: {
+            Text("« Préparer » = départ maintenant : tracé, trafic, météo, radars, carte hors ligne, entretien. Touche une étape pour choisir le jour.")
+        }
+    }
+
+    /// Key figures of the trip at a glance.
+    private var chips: [String] {
+        let km = trip.days.compactMap(\.distanceKm).reduce(0, +)
+        let radars = trip.days.reduce(0) { $0 + $1.alerts.filter(\.kind.isCamera).count }
+        let dangers = trip.days.reduce(0) { $0 + $1.alerts.filter { !$0.kind.isCamera }.count }
+        let pauses = trip.days.reduce(0) { $0 + $1.pauses.count }
+        return ["🗓 \(trip.days.count) j", "🛣 \(Int(km)) km", "🏍 \(profileLabel)"]
+            + (radars > 0 ? ["📷 \(radars)"] : []) + (dangers > 0 ? ["⚠️ \(dangers)"] : [])
+            + (pauses > 0 ? ["☕ \(pauses)"] : [])
+    }
+
+    private var profileLabel: String {
+        switch trip.params.routeProfile {
+        case .curvy: "sinueux"
+        case .fast: "rapide"
+        case .adventure: "trail"
+        case .enduro: "enduro"
+        }
+    }
+
+    private func chip(_ text: String) -> some View {
+        Text(text).font(.caption.bold())
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(.background.secondary, in: Capsule())
+    }
+
+    private func actionTile(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.title3)
+                Text(title).font(.caption.bold())
+            }
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .foregroundStyle(color)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder var prepareSection: some View {
+        if !prep.isEmpty {
             Section {
-                Button {
-                    Task { await prepareDeparture() }
-                } label: {
-                    Label(preparing ? "Préparation en cours…" : "Préparer le départ (tout mettre à jour)",
-                          systemImage: "checklist.checked")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(preparing || tracing)
                 ForEach(prep) { step in
                     HStack(alignment: .top, spacing: 10) {
                         Group {
@@ -440,9 +514,12 @@ extension TripDetailContent {
                         }
                     }
                 }
+            } header: {
+                Text("Départ maintenant")
             } footer: {
-                Text("Le jour du départ (Wi-Fi + Tailscale) : recalcule le tracé et le guidage, met à jour radars, dangers, stations et pleins, télécharge la carte hors ligne, vérifie la météo et programme les rappels.")
+                Text("Wi-Fi + Tailscale conseillés. Ensuite, en roulant : trafic toutes les 5 min sur 200 km, météo toutes les 20 min, radars et dangers hors ligne.")
             }
+        }
     }
 
     @ViewBuilder var tracingSection: some View {
@@ -462,21 +539,16 @@ extension TripDetailContent {
             }
     }
 
+    /// Claude and parameters moved to the action bar; only the explicit recompute stays here.
     @ViewBuilder var actionsSection: some View {
+        if !missingTracks && !tracing && trip.days.contains(where: { !$0.highlights.isEmpty }) {
             Section {
-                Button { chatting = true } label: {
-                    Label(trip.days.isEmpty ? "Préparer l'itinéraire avec Claude" : "Modifier l'itinéraire avec Claude",
-                          systemImage: "bubble.left.and.bubble.right")
-                }
-                Button { editing = true } label: {
-                    Label("Modifier les paramètres (dates, motos, zones…)", systemImage: "slider.horizontal.3")
-                }
-                if !missingTracks && !tracing && trip.days.contains(where: { !$0.highlights.isEmpty }) {
-                    Button { Task { await computeTracks() } } label: {
-                        Label("Recalculer tracé, guidage, radars et dangers", systemImage: "arrow.triangle.2.circlepath")
-                    }
+                Button { Task { await computeTracks() } } label: {
+                    Label("Recalculer seulement le tracé (guidage, radars, dangers, pauses)", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.subheadline)
                 }
             }
+        }
     }
 
     @ViewBuilder var issuesSection: some View {
@@ -506,26 +578,29 @@ extension TripDetailContent {
             }
 
             if !trip.pois.isEmpty {
-                Section("Adresses") {
-                    ForEach(trip.pois) { poi in POIRow(poi: poi) }
+                Section {
+                    DisclosureGroup("Adresses (\(trip.pois.count))") {
+                        ForEach(trip.pois) { poi in POIRow(poi: poi) }
+                    }
                 }
             }
     }
 
     @ViewBuilder var checklistSection: some View {
+            let items = TripChecklist.merged(trip)
             Section {
-                ForEach(TripChecklist.merged(trip)) { item in
-                    Button { toggle(item) } label: {
-                        Label(item.label, systemImage: item.done ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.done ? .secondary : .primary)
+                DisclosureGroup("Préparation · \(items.filter(\.done).count)/\(items.count) fait") {
+                    ForEach(items) { item in
+                        Button { toggle(item) } label: {
+                            Label(item.label, systemImage: item.done ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(item.done ? .secondary : .primary)
+                        }
+                        .badge(item.due)
                     }
-                    .badge(item.due)
+                    Button(remindersMessage ?? "Programmer les rappels (9 h le jour indiqué)") {
+                        Task { await scheduleReminders() }
+                    }
                 }
-                Button(remindersMessage ?? "Programmer les rappels (9 h le jour indiqué)") {
-                    Task { await scheduleReminders() }
-                }
-            } header: {
-                Text("Préparation")
             } footer: {
                 Text("Notifications locales sur l'iPhone, sans serveur. Coche une ligne quand c'est fait : son rappel est annulé.")
             }

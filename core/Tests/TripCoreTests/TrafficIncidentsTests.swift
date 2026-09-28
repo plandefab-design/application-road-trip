@@ -53,4 +53,15 @@ final class TrafficIncidentsTests: XCTestCase {
         let area = (b.maxLat - b.minLat) * 111.2 * (b.maxLon - b.minLon) * 111.2 * cos((b.minLat + b.maxLat) / 2 * .pi / 180)
         XCTAssertLessThanOrEqual(area, TrafficIncidents.maxBoxArea)
     }
+
+    func testBoxesCoverTheWholeRoute() {
+        // Synthetic 111 km road north.
+        let road = Polyline((0...100).map { GeoPoint(lat: 43.0 + Double($0) * 0.01, lon: 5.0) })
+        let boxes = TrafficIncidents.boxes(route: road)
+        XCTAssertEqual(boxes.count, 3)                                   // 50 + 50 + 11 km
+        XCTAssertLessThan(boxes.first!.minLat, 43.0)
+        XCTAssertGreaterThan(boxes.last!.maxLat, 44.0)
+        XCTAssertEqual(TrafficIncidents.boxes(route: road, from: 100_000).count, 1)
+        XCTAssertEqual(TrafficIncidents.boxes(route: road, from: 0, length: 60_000).count, 2)
+    }
 }

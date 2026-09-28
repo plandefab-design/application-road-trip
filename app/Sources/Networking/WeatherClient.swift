@@ -44,6 +44,14 @@ struct WeatherClient {
         return lines
     }
 
+    /// Leaving NOW on this route: weather hazards at the passing times from the current time (nil = no network).
+    func nowReport(track: Polyline, pace: PaceEstimator, now: Date = Date()) async -> [RouteWeather.Hazard]? {
+        let samples = RouteWeather.samples(route: track)
+        let etas = RouteWeather.etas(samples: samples, route: track, progress: 0, start: now, pace: pace)
+        guard let forecasts = try? await forecasts(for: samples, timeout: 15) else { return nil }
+        return RouteWeather.hazards(samples: samples, etas: etas, forecasts: forecasts)
+    }
+
     /// Day date (or trip start + index − 1) at 9:00 local time.
     static func departure(of day: TripDay, trip: Trip) -> Date? {
         var utc = Calendar(identifier: .gregorian)

@@ -9,12 +9,14 @@ struct NavigationView: View {
     @StateObject private var session: NavigationSession
     @State private var confirmQuit = false
 
+    private let location: LocationService
     private let onFinished: (RideLog?) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
          camerasEnabled: Bool, tomtomKey: String, onFinished: @escaping (RideLog?) -> Void = { _ in },
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         let traffic: TrafficClient? = tomtomKey.isEmpty ? nil : TomTomTrafficClient(key: tomtomKey) as TrafficClient
+        self.location = location
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
                                                                pace: pace, camerasEnabled: camerasEnabled, traffic: traffic,
@@ -233,7 +235,7 @@ struct NavigationView: View {
             .overlay(alignment: .top) {
                 if confirmQuit { Text("Appuie encore").font(.caption.bold()).offset(y: -18) }
             }
-            SOSButton(name: settings.sosName, phone: settings.sosPhone, position: session.recorded.last)
+            SOSButton(name: settings.sosName, phone: settings.sosPhone, location: location)
         }
     }
 
@@ -246,11 +248,15 @@ struct NavigationView: View {
     }
 }
 
-/// SOS: long press (1.5 s) CALLS the SOS contact; the small button sends the position by SMS. No server involved.
+/// SOS group, big targets for gloves. No server involved.
+/// - long press (1.5 s) on SOS: CALLS the SOS contact;
+/// - message button: SMS « SOS » with the town and a map link to the exact position;
+/// - check-point button: SMS « tout va bien, je suis à … » (no alarm).
 struct SOSButton: View {
     let name: String
     let phone: String
-    let position: GeoPoint?
+    let location: LocationService
+    @State private var sending = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -260,41 +266,33 @@ struct SOSButton: View {
                 .frame(maxWidth: .infinity, minHeight: 60)
                 .background(Color.red, in: RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(.white)
-                .onLongPressGesture(minimumDuration: 1.5) { call() }
-            Button { send() } label: {
-                Image(systemName: "message.fill").font(.title3.bold()).frame(width: 52, height: 60)
+                .onLongPressGesture(minimumDuration: 1.5) { Messaging.open(URL(string: "tel:\(number)")) }
+            small("message.fill", .red.opacity(0.75), "SMS SOS avec ma position") {
+                await Messaging.sendSOS(to: phone, location: location)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red.opacity(0.75))
-            .accessibilityLabel("Envoyer ma position par SMS")
+            small("hand.thumbsup.fill", .green, "Petit point : tout va bien, avec ma ville") {
+                await Messaging.sendCheckpoint(to: phone, location: location)
+            }
         }
         .opacity(phone.isEmpty ? 0.4 : 1)
-        .disabled(phone.isEmpty)
+        .disabled(phone.isEmpty || sending)
     }
 
     private var number: String { phone.filter { "+0123456789".contains($0) } }
 
-    /// Phone call to the SOS contact (iOS asks for a single confirmation tap).
-    private func call() {
-        guard !number.isEmpty, let url = URL(string: "tel:\(number)") else { return }
-        UIApplication.shared.open(url)
-    }
-
-    private func send() {
-        guard !phone.isEmpty else { return }
-        var body = "SOS moto — besoin d'aide."
-        if let p = position {
-            body += String(format: " Position : %.5f, %.5f https://www.openstreetmap.org/?mlat=%.5f&mlon=%.5f#map=16/%.5f/%.5f",
-                           p.lat, p.lon, p.lat, p.lon, p.lat, p.lon)
+    private func small(_ icon: String, _ color: Color, _ label: String, action: @escaping () async -> Void) -> some View {
+        Button {
+            Task {
+                sending = true
+                await action()
+                sending = false
+            }
+        } label: {
+            Image(systemName: icon).font(.title3.bold()).frame(width: 48, height: 60)
         }
-        var comps = URLComponents()
-        comps.scheme = "sms"
-        comps.path = number
-        comps.queryItems = [URLQueryItem(name: "body", value: body)]
-        // iOS expects "sms:NUMBER&body=…"
-        if let s = comps.string?.replacingOccurrences(of: "?body=", with: "&body="), let url = URL(string: s) {
-            UIApplication.shared.open(url)
-        }
+        .buttonStyle(.borderedProminent)
+        .tint(color)
+        .accessibilityLabel(label)
     }
 }
 

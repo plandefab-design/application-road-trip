@@ -6,6 +6,20 @@ protocol TrafficClient {
     func incidents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident]
 }
 
+extension TrafficClient {
+    /// Incidents on the route from `progress` over `length` metres (whole route by default), one request per
+    /// 50 km piece, de-duplicated, nearest first.
+    func alongRoute(_ route: Polyline, from progress: Double = 0, length: Double? = nil) async throws -> [IncidentAhead] {
+        var found: [TrafficIncident] = []
+        for b in TrafficIncidents.boxes(route: route, from: progress, length: length) {
+            found += try await incidents(minLon: b.minLon, minLat: b.minLat, maxLon: b.maxLon, maxLat: b.maxLat)
+        }
+        var seen = Set<String>()
+        found = found.filter { seen.insert($0.id).inserted }
+        return TrafficIncidents.ahead(found, route: route, progress: progress, horizon: length ?? route.length)
+    }
+}
+
 /// TomTom Traffic Incident Details v5 (free tier, key entered in Réglages, stored in the Keychain).
 struct TomTomTrafficClient: TrafficClient {
     let key: String

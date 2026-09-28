@@ -23,6 +23,18 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     freeRideButton
+                    if !settings.sosPhone.isEmpty {
+                        Button {
+                            Task { await Messaging.sendCheckpoint(to: settings.sosPhone, location: location) }
+                        } label: {
+                            Label("Petit point à \(settings.sosName.isEmpty ? "mon contact" : settings.sosName) : tout va bien + ma ville",
+                                  systemImage: "hand.thumbsup.fill")
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                    }
                     if let expiry = SigningInfo.expirationDate, expiry.timeIntervalSinceNow < 2 * 86_400 {
                         banner("Signature expire \(expiry.formatted(.relative(presentation: .named)))",
                                detail: "Rafraîchis MotoTrip dans SideStore (LocalDevVPN connecté).",

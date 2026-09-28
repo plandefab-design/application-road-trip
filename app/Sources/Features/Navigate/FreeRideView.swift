@@ -7,9 +7,11 @@ struct FreeRideView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: FreeRideSession
     @State private var confirmQuit = false
+    private let location: LocationService
     private let onFinished: (RideLog?) -> Void
 
     init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, onFinished: @escaping (RideLog?) -> Void) {
+        self.location = location
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled,
                                                              location: location, voice: voice))
@@ -74,7 +76,7 @@ struct FreeRideView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.gray)
-            SOSButton(name: settings.sosName, phone: settings.sosPhone, position: session.trackPreview.last)
+            SOSButton(name: settings.sosName, phone: settings.sosPhone, location: location)
         }
     }
 }

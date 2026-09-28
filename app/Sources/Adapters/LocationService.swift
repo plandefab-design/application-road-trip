@@ -48,6 +48,18 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
         manager.startUpdatingLocation()
     }
 
+    /// Where the rider is now: the last fix if recent, else one fresh fix (≤ 10 s), else the last known one.
+    func currentPosition(maxAge: TimeInterval = 60) async -> GeoPoint? {
+        if let f = lastFix, Date().timeIntervalSince(f.time) < maxAge { return f.point }
+        let before = lastFix?.time
+        manager.requestLocation()
+        for _ in 0..<50 {
+            try? await Task.sleep(for: .milliseconds(200))
+            if let f = lastFix, f.time != before { return f.point }
+        }
+        return lastFix?.point ?? manager.location.map { GeoPoint(lat: $0.coordinate.latitude, lon: $0.coordinate.longitude) }
+    }
+
     func stop() {
         manager.stopUpdatingLocation()
         manager.allowsBackgroundLocationUpdates = false
