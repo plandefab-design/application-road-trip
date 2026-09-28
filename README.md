@@ -84,18 +84,19 @@ tailscale serve --bg 8080     # expose le planner en HTTPS sur ton réseau Tails
 ```
 Dans l'app : **Réglages › Companion** → URL affichée par `tailscale serve` (ex. `https://mon-pc.xxxx.ts.net`) + le même jeton que `PLANNER_TOKEN` → **Tester la connexion**.
 
-Mise à jour hebdomadaire automatique des cartes : voir l'en-tête de `companion/jobs/update_osm.ps1`.
+Mise à jour automatique chaque dimanche à 13 h (ou dès que le PC est allumé) : tâche Windows « MotoTrip - mise a jour cartes et radars » (cartes Alpes + PACA + Languedoc, radars, dangers, stations, puis réimport GraphHopper ~10 min). Journal : `companiondataPdate_osm.log`. Lancement manuel : `powershell -ExecutionPolicy Bypass -File companionjobsPdate_osm.ps1`.
 
 ---
 
 ## Utilisation
-1. **Réglages › Garage** : ajoute ta ou tes motos avec leur autonomie réelle (touche une moto pour la modifier).
-   Optionnel : **Réglages › Navigation › Clé TomTom** (gratuite sur developer.tomtom.com) pour les accidents, travaux et fermetures en direct.
+1. **Réglages › Garage** : ajoute ta ou tes motos avec leur **type** (sportive, roadster, routière, trail, enduro, custom) et leur autonomie réelle.
+   Optionnel : **Réglages › Navigation › Trafic TomTom** : colle la clé gratuite (developer.tomtom.com), **Tester la clé**, **Enregistrer**.
+   Dans **Créer**, choisis l'**envie** (balade, kiff, rapide, tourisme) et ton **niveau** : Claude et le calcul de route s'adaptent (bitume sinueux, pistes trail, chemins enduro ouverts aux motos, ou rapide).
 2. **Créer** : remplis le formulaire → **Vérifier la cohérence** → **Continuer avec Claude** (chat + carte).
    Le PC calcule ensuite automatiquement la route de chaque jour (routes sinueuses), le guidage virage par virage,
    les radars, les dangers et les stations ; l'iPhone place les pleins.
    Ou **Trips › Importer** : un `trip.json` ou un GPX produit par ton projet Claude « MOTO _ road trip ».
-3. **Avant de partir**, sur la fiche du trip (Tailscale actif pour le PC, Wi-Fi pour la carte) :
+3. **Le jour du départ** : fiche du trip › **Préparer le départ** (tout est remis à jour d'un coup) ou, étape par étape (Tailscale actif pour le PC, Wi-Fi pour la carte) :
    - **Calculer le tracé et le guidage** si le bouton apparaît (trips créés avant ces fonctions) ;
    - **Télécharger la carte hors ligne** (la carte s'affiche ensuite sans réseau) ;
    - **Vérifier la météo sur la route** ;
