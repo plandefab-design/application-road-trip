@@ -69,6 +69,11 @@ Alternative ponctuelle : télécharger l'IPA de la Release et l'installer avec [
 > Si SideStore n'arrive plus à rafraîchir après une mise à jour ou une réinitialisation de l'iPhone, le fichier d'appairage a expiré : le remplacer en suivant le guide officiel.
 
 ### 4. Démarrer les services du PC (création de trips)
+Préalables (une fois) :
+- **WSL** pour Docker : Terminal **administrateur** › `wsl --install --no-distribution`, puis redémarrer. Docker Desktop › ⚙️ › General › cocher « Start Docker Desktop when you sign in ».
+- **Tailscale** connecté avec le même compte que l'iPhone. Au premier `tailscale serve`, Tailscale affiche un lien pour activer « Serve » (et HTTPS) sur ton compte : l'ouvrir et valider.
+- **Jeton Claude** : `claude setup-token` (si `claude` n'est pas reconnu : `& "$env:USERPROFILE\.local\bin\claude.exe" setup-token`). Le coller dans `.env` sur `CLAUDE_CODE_OAUTH_TOKEN=`, sans le partager.
+
 ```powershell
 cd companion
 copy .env.example .env        # puis remplis PLANNER_TOKEN et CLAUDE_CODE_OAUTH_TOKEN (voir commentaires)
