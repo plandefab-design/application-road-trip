@@ -157,3 +157,17 @@ def test_rides_backup(client):
     assert client.put("/rides/r1", headers=AUTH, json={"km": 120}).status_code == 200
     assert client.get("/rides", headers=AUTH).json() == ["r1"]
     assert client.put("/rides/a.b", headers=AUTH, json={}).status_code == 400
+
+
+def test_alert_pack(client, tmp_path):
+    osm = tmp_path / "osm"
+    osm.mkdir()
+    (osm / "speed_cameras.geojsonseq").write_text(json.dumps({"type": "Feature", "geometry": {"type": "Point", "coordinates": [5.1, 43.6]},
+                                                             "properties": {"highway": "speed_camera", "maxspeed": "80"}}) + "\n", encoding="utf-8")
+    (osm / "hazards.geojsonseq").write_text(json.dumps({"type": "Feature", "geometry": {"type": "Point", "coordinates": [5.2, 43.7]},
+                                                       "properties": {"hazard": "falling_rocks"}}) + "\n", encoding="utf-8")
+    pack = client.get("/alerts-pack", headers=AUTH).json()
+    assert pack["cameras"] == [[43.6, 5.1, 80, 0]]
+    assert pack["hazards"] == [[43.7, 5.2, "chutes de pierres"]]
+    assert pack["version"] == client.get("/alerts-pack/version", headers=AUTH).json()["version"] != ""
+    assert client.get("/alerts-pack").status_code == 401

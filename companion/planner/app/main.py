@@ -13,7 +13,7 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .alerts import alerts_along, load_features, pauses_along, stations_along
+from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
 from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
 from .planner import Planner, is_configured
 from .trip_schema import sanitize_trip, validate_trip
@@ -106,6 +106,32 @@ def put_ride(ride_id: str, ride: dict[str, Any]) -> dict[str, str]:
 @app.get("/rides", dependencies=[Depends(require_token)])
 def list_rides() -> list[str]:
     return sorted(p.stem for p in rides_dir().glob("*.json"))
+
+
+# ---------------------------------------------------------------- offline alert pack (free ride)
+
+def alert_pack_version() -> str:
+    osm = DATA_DIR / "osm"
+    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq") if (osm / f).exists()]
+    return str(max(stamps)) if stamps else ""
+
+
+@app.get("/alerts-pack/version", dependencies=[Depends(require_token)])
+def get_alert_pack_version() -> dict[str, str]:
+    return {"version": alert_pack_version()}
+
+
+@app.get("/alerts-pack", dependencies=[Depends(require_token)])
+def get_alert_pack() -> dict[str, Any]:
+    """Every speed camera and hazard of the map, compact, for riding without an itinerary (stored on the iPhone)."""
+    osm = DATA_DIR / "osm"
+    cameras = []
+    for f in load_features(osm / "speed_cameras.geojsonseq"):
+        a = camera_alert(f["props"])
+        cameras.append([round(f["lat"], 5), round(f["lon"], 5), a.get("maxspeed"), 1 if a["kind"] == "redLightCamera" else 0])
+    hazards = [[round(f["lat"], 5), round(f["lon"], 5), hazard_alert(f["props"])["label"]]
+               for f in load_features(osm / "hazards.geojsonseq")]
+    return {"version": alert_pack_version(), "cameras": cameras, "hazards": hazards}
 
 
 @app.get("/trips/{trip_id}", dependencies=[Depends(require_token)])

@@ -2,7 +2,7 @@ import Foundation
 
 /// Speed-camera and hazard announcements, pure and offline: alerts are embedded in the trip by the PC.
 public enum AlertGuide {
-    /// Cameras are announced 500 m ahead, hazards 300 m ahead (the rider asked for 500 m radar warnings).
+    /// Cameras are announced 500 m ahead and again 150 m before, hazards 300 m ahead.
     public static let cameraLead = 500.0
     public static let hazardLead = 300.0
 
@@ -24,7 +24,11 @@ public enum AlertGuide {
         for (i, a) in alerts.enumerated() where a.along > progress && (cameras || !a.kind.isCamera) {
             let d = a.along - progress
             if d > cameraLead { break }            // sorted by `along`: nothing due further on
-            if d <= lead(for: a.kind) {
+            if a.kind.isCamera && d <= FreeRideGuide.nearCamera {
+                // Second warning right before the camera.
+                let limit = a.maxspeed.map { ", limité à \($0)" } ?? ""
+                out.append(TurnGuide.Announcement(key: "alert-\(i)-near", text: "Radar maintenant\(limit)"))
+            } else if d <= lead(for: a.kind) {
                 out.append(TurnGuide.Announcement(key: "alert-\(i)", text: text(for: a, distance: d)))
             }
         }

@@ -16,9 +16,10 @@ final class AlertGuideTests: XCTestCase {
     }
 
     func testHazardBehindACameraIsNotMasked() {
-        // 900 m: camera 100 m ahead (already spoken) and hazard 300 m ahead are both due.
+        // 900 m: camera 100 m ahead (second warning) and hazard 300 m ahead are both due.
         let due = AlertGuide.announcements(alerts, progress: 900, cameras: true)
-        XCTAssertEqual(due.map(\.key), ["alert-0", "alert-1"])
+        XCTAssertEqual(due.map(\.key), ["alert-0-near", "alert-1"])
+        XCTAssertEqual(due[0].text, "Radar maintenant, limité à 80")
         XCTAssertEqual(due[1].text, "Attention, chutes de pierres dans 300 mètres")
     }
 
@@ -36,14 +37,16 @@ final class AlertGuideTests: XCTestCase {
             var progress = 0.0
             while progress < 6_000 {
                 for a in AlertGuide.announcements(alerts, progress: progress, cameras: true) where !spoken.contains(a.key) {
-                    let i = Int(a.key.dropFirst("alert-".count))!
-                    XCTAssertLessThanOrEqual(alerts[i].along - progress, AlertGuide.lead(for: alerts[i].kind))
-                    XCTAssertGreaterThan(alerts[i].along - progress, AlertGuide.lead(for: alerts[i].kind) - step - 1)
+                    let near = a.key.hasSuffix("-near")
+                    let i = Int(a.key.dropFirst("alert-".count).split(separator: "-")[0])!
+                    let lead = near ? FreeRideGuide.nearCamera : AlertGuide.lead(for: alerts[i].kind)
+                    XCTAssertLessThanOrEqual(alerts[i].along - progress, lead)
+                    XCTAssertGreaterThan(alerts[i].along - progress, lead - step - 1)
                     spoken.append(a.key)
                 }
                 progress += step
             }
-            XCTAssertEqual(spoken, ["alert-0", "alert-1", "alert-2"], "step \(step)")
+            XCTAssertEqual(spoken, ["alert-0", "alert-0-near", "alert-1", "alert-2", "alert-2-near"], "step \(step)")
         }
     }
 
