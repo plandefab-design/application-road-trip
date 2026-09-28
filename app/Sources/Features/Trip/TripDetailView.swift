@@ -259,8 +259,12 @@ struct TripDetailContent: View {
             let job = try await client.startFinalize(tripId: trip.id, trip: trip)
             let done = try await client.waitForJob(tripId: trip.id, jobId: job.jobId) { traceProgress = $0 }
             if done.status == "done", let reply = done.reply {
-                if let updated = reply.trip { store.save(updated) }
-                traceMessage = reply.text
+                var fuelWarnings: [String] = []
+                if var updated = reply.trip {
+                    fuelWarnings = updated.planFuelStops()      // stops placed on real stations (SPEC §5.2)
+                    store.save(updated)
+                }
+                traceMessage = ([reply.text] + fuelWarnings.map { "⛽ \($0)" }).joined(separator: "\n\n")
             } else {
                 traceMessage = "Tracé impossible : \(done.error ?? "erreur inconnue")"
             }

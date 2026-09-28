@@ -318,6 +318,8 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     public var instructions: [TurnInstruction]
     /// Speed cameras and hazards along `track` (schema v3).
     public var alerts: [RoadAlert]
+    /// Fuel stations within 3 km of `track` (schema v4), from OpenStreetMap; `fuelStops` are placed among them.
+    public var stations: [FuelStation]
 
     public var id: Int { index }
 
@@ -325,7 +327,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
                 curvinessScore: Double? = nil, ascentM: Double? = nil, highlights: [Highlight] = [],
                 routeRef: String? = nil, track: Polyline? = nil, planBRefs: [PlanBRef] = [],
                 fuelStops: [FuelStopRef] = [], meals: [POIChoice] = [], lodging: [POIChoice] = [],
-                instructions: [TurnInstruction] = [], alerts: [RoadAlert] = []) {
+                instructions: [TurnInstruction] = [], alerts: [RoadAlert] = [], stations: [FuelStation] = []) {
         self.index = index
         self.date = date
         self.distanceKm = distanceKm
@@ -341,11 +343,12 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         self.lodging = lodging
         self.instructions = instructions
         self.alerts = alerts
+        self.stations = stations
     }
 
     enum CodingKeys: String, CodingKey {
         case index, date, distanceKm, drivingTimeMin, curvinessScore, ascentM, highlights, routeRef, track
-        case planBRefs, fuelStops, meals, lodging, instructions, alerts
+        case planBRefs, fuelStops, meals, lodging, instructions, alerts, stations
     }
 
     /// Lenient: missing lists default to empty (planner output robustness).
@@ -366,6 +369,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         lodging = try c.decodeIfPresent([POIChoice].self, forKey: .lodging) ?? []
         instructions = try c.decodeIfPresent([TurnInstruction].self, forKey: .instructions) ?? []
         alerts = try c.decodeIfPresent([RoadAlert].self, forKey: .alerts) ?? []
+        stations = try c.decodeIfPresent([FuelStation].self, forKey: .stations) ?? []
     }
 }
 
@@ -404,8 +408,8 @@ public struct OfflinePack: Codable, Hashable, Sendable {
 }
 
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
-    /// v2: `days[].instructions` ; v3: `days[].alerts` (both additive). Older files are migrated on decode.
-    public static let currentSchemaVersion = 3
+    /// v2 `days[].instructions`, v3 `days[].alerts`, v4 `days[].stations` (all additive). Older files are migrated on decode.
+    public static let currentSchemaVersion = 4
 
     public var schemaVersion: Int
     public var id: String
@@ -466,7 +470,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1/v2 → v3: only optional fields were added
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v3 → v4: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

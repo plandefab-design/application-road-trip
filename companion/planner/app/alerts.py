@@ -41,8 +41,26 @@ HAZARD_LABELS = {
 _cache: dict[Path, tuple[float, list[dict[str, Any]]]] = {}
 
 
+def _representative_point(geom: dict[str, Any]) -> tuple[float, float] | None:
+    """(lon, lat) of a point, or the average of the outline of a line / (multi)polygon (fuel stations are often areas)."""
+    kind, coords = geom.get("type"), geom.get("coordinates")
+    if not coords:
+        return None
+    if kind == "Point":
+        return coords[0], coords[1]
+    if kind == "LineString":
+        ring = coords
+    elif kind == "Polygon":
+        ring = coords[0]
+    elif kind == "MultiPolygon":
+        ring = coords[0][0]
+    else:
+        return None
+    return sum(c[0] for c in ring) / len(ring), sum(c[1] for c in ring) / len(ring)
+
+
 def load_features(path: Path) -> list[dict[str, Any]]:
-    """GeoJSON sequence → [{"lat", "lon", "props"}], cached until the file changes."""
+    """GeoJSON sequence → [{"lat", "lon", "props"}] (areas reduced to a point), cached until the file changes."""
     if not path.exists():
         return []
     mtime = path.stat().st_mtime
@@ -56,10 +74,10 @@ def load_features(path: Path) -> list[dict[str, Any]]:
             if not line:
                 continue
             feat = json.loads(line)
-            geom = feat.get("geometry") or {}
-            if geom.get("type") != "Point":
+            point = _representative_point(feat.get("geometry") or {})
+            if point is None:
                 continue
-            lon, lat = geom["coordinates"][:2]
+            lon, lat = point
             features.append({"lat": lat, "lon": lon, "props": feat.get("properties") or {}})
     _cache[path] = (mtime, features)
     return features
@@ -128,3 +146,29 @@ def alerts_along(track: list[dict[str, float]], cameras: list[dict[str, Any]],
             continue
         deduped.append(a)
     return deduped
+
+
+STATION_MAX_DETOUR_M = 3_000   # same as TripCore FuelPlanner.maxDetour
+
+
+def stations_along(track: list[dict[str, float]], stations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fuel stations within 3 km of the track (schema v4): the iPhone places the stops (TripCore FuelPlanner)."""
+    if len(track) < 2:
+        return []
+    margin = 0.03   # ≈ 3 km bounding-box prefilter
+    lats = [p["lat"] for p in track]
+    lons = [p["lon"] for p in track]
+    sparse = track[::5] + [track[-1]]   # 3 km tolerance: a coarser line is enough and 5× faster
+    out: list[tuple[float, dict[str, Any]]] = []
+    for s in stations:
+        if not (min(lats) - margin <= s["lat"] <= max(lats) + margin and min(lons) - margin <= s["lon"] <= max(lons) + margin):
+            continue
+        along, offset = _project(sparse, s["lat"], s["lon"])
+        if offset > STATION_MAX_DETOUR_M:
+            continue
+        props = s["props"]
+        name = props.get("name") or props.get("brand") or props.get("operator") or "Station-service"
+        station_id = f"osm-{round(s['lat'], 5)}-{round(s['lon'], 5)}"
+        out.append((along, {"id": station_id, "name": name, "point": {"lat": round(s["lat"], 6), "lon": round(s["lon"], 6)}}))
+    out.sort(key=lambda x: x[0])
+    return [s for _, s in out]

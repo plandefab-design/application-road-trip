@@ -163,9 +163,13 @@ struct PlannerChatView: View {
         if let q = reply.questions, !q.isEmpty {
             messages.append(Message(fromUser: false, text: q.map { "• \($0)" }.joined(separator: "\n")))
         }
-        if let updated = reply.trip {
+        if var updated = reply.trip {
+            let fuelWarnings = updated.planFuelStops()   // stops placed on real stations (SPEC §5.2)
             trip = updated          // map redraws immediately
             store.save(updated)
+            if !fuelWarnings.isEmpty {
+                messages.append(Message(fromUser: false, text: fuelWarnings.map { "⛽ \($0)" }.joined(separator: "\n")))
+            }
         }
     }
 }

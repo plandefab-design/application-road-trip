@@ -41,3 +41,25 @@ def test_load_features_reads_geojson_sequence(tmp_path):
                                       "properties": {"maxspeed": "80"}}) + "\n", encoding="utf-8")
     assert load_features(f) == [{"lat": 43.0, "lon": 5.0, "props": {"maxspeed": "80"}}]
     assert load_features(tmp_path / "missing") == []
+
+
+def test_stations_within_3km_in_route_order():
+    from app.alerts import stations_along
+    stations = [
+        feature(43.02, 5.02, name="Loin"),                    # ~1.6 km east: kept (detour ≤ 3 km)
+        feature(43.01, 5.001, brand="Marque"),                # on the road, earlier along
+        feature(43.02, 5.2),                                  # ~16 km away: dropped
+    ]
+    out = stations_along(TRACK, stations)
+    assert [s["name"] for s in out] == ["Marque", "Loin"]
+    assert out[0]["point"] == {"lat": 43.01, "lon": 5.001}
+    assert out[0]["id"].startswith("osm-")
+
+
+def test_area_features_are_reduced_to_a_point(tmp_path):
+    f = tmp_path / "fuel.geojsonseq"
+    square = [[[5.0, 43.0], [5.002, 43.0], [5.002, 43.002], [5.0, 43.002]]]
+    f.write_text(json.dumps({"type": "Feature", "geometry": {"type": "MultiPolygon", "coordinates": [square]},
+                             "properties": {"name": "Station"}}) + "\n", encoding="utf-8")
+    [st] = load_features(f)
+    assert abs(st["lat"] - 43.001) < 1e-9 and abs(st["lon"] - 5.001) < 1e-9

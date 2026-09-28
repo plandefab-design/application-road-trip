@@ -171,7 +171,8 @@ def _valid(point: Any) -> bool:
 
 async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
                         on_progress: Callable[[str], None] | None = None,
-                        alerts_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None) -> list[str]:
+                        alerts_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None,
+                        stations_for: Callable[[list[Point]], list[dict[str, Any]]] | None = None) -> list[str]:
     """Fills points, days[].track, distanceKm and drivingTimeMin in place. Returns warnings (French)."""
     progress = on_progress or (lambda _line: None)
     warnings: list[str] = []
@@ -243,5 +244,7 @@ async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
         day["instructions"] = instructions_from_path(path)
         if alerts_for is not None:
             day["alerts"] = alerts_for(day["track"]["points"])
+        if stations_for is not None:
+            day["stations"] = stations_for(day["track"]["points"])
         previous = waypoints[-1]
     return warnings

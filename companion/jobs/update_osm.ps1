@@ -34,9 +34,9 @@ Write-Host "Fusion : $($files -join ', ')"
 docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c "apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null && osmium merge $($files -join ' ') -o /osm/region.osm.pbf --overwrite"
 if ($LASTEXITCODE -ne 0) { throw "Échec de la fusion osmium" }
 
-# A6 — Speed cameras and mapped hazards, embedded in each trip by the planner (announced offline).
-Write-Host "Extraction radars et dangers"
-docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c "apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null && osmium tags-filter /osm/region.osm.pbf n/highway=speed_camera -o /tmp/cams.osm.pbf --overwrite && osmium export /tmp/cams.osm.pbf -f geojsonseq -o /osm/speed_cameras.geojsonseq --overwrite && osmium tags-filter /osm/region.osm.pbf n/hazard -o /tmp/hazards.osm.pbf --overwrite && osmium export /tmp/hazards.osm.pbf -f geojsonseq -o /osm/hazards.geojsonseq --overwrite"
+# A6 — Speed cameras, mapped hazards and fuel stations, embedded in each trip by the planner (offline).
+Write-Host "Extraction radars, dangers et stations"
+docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c "apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null && osmium tags-filter /osm/region.osm.pbf n/highway=speed_camera -o /tmp/cams.osm.pbf --overwrite && osmium export /tmp/cams.osm.pbf -f geojsonseq -o /osm/speed_cameras.geojsonseq --overwrite && osmium tags-filter /osm/region.osm.pbf n/hazard -o /tmp/hazards.osm.pbf --overwrite && osmium export /tmp/hazards.osm.pbf -f geojsonseq -o /osm/hazards.geojsonseq --overwrite && osmium tags-filter /osm/region.osm.pbf nwr/amenity=fuel -o /tmp/fuel.osm.pbf --overwrite && osmium export /tmp/fuel.osm.pbf -f geojsonseq -o /osm/fuel_stations.geojsonseq --overwrite"
 if ($LASTEXITCODE -ne 0) { throw "Échec de l'extraction radars/dangers" }
 
 # Force a fresh graph import on next start.

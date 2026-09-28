@@ -43,17 +43,17 @@ def describe_tool_use(name: str, tool_input: dict[str, Any]) -> str:
 
 def without_geometry(trip: dict[str, Any]) -> dict[str, Any]:
     """Trip as shown to Claude: tracks, instructions and alerts (thousands of points) are recomputed by the PC anyway."""
-    days = [{k: v for k, v in d.items() if k not in ("track", "instructions", "alerts")} for d in trip.get("days", []) or []]
+    days = [{k: v for k, v in d.items() if k not in ("track", "instructions", "alerts", "stations")} for d in trip.get("days", []) or []]
     return {**trip, "days": days}
 
 
 def build_prompt(message: str, trip: dict[str, Any]) -> str:
     return (
-        "Formulaire et état actuel du trip (trip.json v3) :\n"
+        "Formulaire et état actuel du trip (trip.json v4) :\n"
         f"```json\n{json.dumps(without_geometry(trip), ensure_ascii=False)}\n```\n\n"
         f"Demande du pilote : {message}\n\n"
         "Réponds d'abord en texte pour le pilote, puis termine OBLIGATOIREMENT par UN bloc ```json contenant "
-        "le trip.json v3 COMPLET mis à jour (même id). S'il manque une information indispensable, pose tes "
+        "le trip.json v4 COMPLET mis à jour (même id). S'il manque une information indispensable, pose tes "
         "questions dans le champ \"questions\" du JSON (liste de chaînes) au lieu de deviner."
     )
 
@@ -126,5 +126,5 @@ class Planner:
             if not errors:
                 return PlannerReply(text=prose, trip=sanitize_trip(proposed), questions=questions)
             # One repair attempt with the validation errors (SPEC §7: schema-validated output).
-            prompt = "Le JSON produit est invalide : " + "; ".join(errors) + ". Renvoie le trip.json v3 complet corrigé."
+            prompt = "Le JSON produit est invalide : " + "; ".join(errors) + ". Renvoie le trip.json v4 complet corrigé."
         return PlannerReply(text=prose, trip=None, questions=["Le planner n'a pas produit de trip valide : " + "; ".join(errors)])

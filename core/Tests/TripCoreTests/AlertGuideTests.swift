@@ -55,7 +55,7 @@ final class AlertGuideTests: XCTestCase {
                                           {"along": 20, "kind": "speedCamera", "label": "radar", "maxspeed": 90}]}]}
         """
         let trip = try TripCodec.decode(Data(json.utf8))
-        XCTAssertEqual(trip.schemaVersion, 3)
+        XCTAssertEqual(trip.schemaVersion, Trip.currentSchemaVersion)
         XCTAssertEqual(trip.days[0].alerts.map(\.kind), [.hazard, .speedCamera])
         XCTAssertEqual(try TripCodec.decode(TripCodec.encode(trip)).days[0].alerts, trip.days[0].alerts)
     }

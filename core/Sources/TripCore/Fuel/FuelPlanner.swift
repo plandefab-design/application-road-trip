@@ -83,3 +83,30 @@ public enum FuelPlanner {
         plan.stops.first { $0.distanceAlong > position }
     }
 }
+
+extension Trip {
+    /// Places each day's fuel stops on the real stations embedded by the PC (SPEC §5.2), assuming a full tank at
+    /// the start of every day. Days without embedded stations keep their stops. Returns French warnings for
+    /// stretches with no reachable station (blocking alert at creation).
+    public mutating func planFuelStops() -> [String] {
+        var warnings: [String] = []
+        let interval = params.fuelIntervalMeters
+        for i in days.indices {
+            guard let track = days[i].track, !track.isEmpty else { continue }
+            if days[i].stations.isEmpty {
+                if track.length > interval {
+                    warnings.append("Jour \(days[i].index) : aucune station connue le long de l'étape (\(Int(track.length / 1000)) km, autonomie \(Int(interval / 1000)) km).")
+                }
+                continue
+            }
+            let plan = FuelPlanner.plan(route: track, stations: days[i].stations, interval: interval)
+            days[i].fuelStops = plan.stops.map {
+                FuelStopRef(name: $0.station.name, point: $0.station.point, kmFromStart: ($0.distanceAlong / 1000).rounded())
+            }
+            for gap in plan.gaps {
+                warnings.append("Jour \(days[i].index) : aucune station entre le km \(Int(gap.from / 1000)) et le km \(Int(gap.to / 1000)) (autonomie \(Int(interval / 1000)) km).")
+            }
+        }
+        return warnings
+    }
+}
