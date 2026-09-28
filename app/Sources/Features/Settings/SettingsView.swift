@@ -7,7 +7,6 @@ struct SettingsView: View {
     @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
-    @State private var tomtom = ""
 
     enum BikeSheet: Identifiable {
         case add
@@ -54,8 +53,8 @@ struct SettingsView: View {
                 Section {
                     TextField("https://mon-pc.xxxx.ts.net", text: $settings.companionURL)
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Jeton d'accès", text: $token)
-                        .onChange(of: token) { _, value in settings.companionToken = value }
+                    SecureField("Jeton d'accès (coller)", text: $token)
+                        .onSubmit { settings.companionToken = token }
                     Button("Tester la connexion") { Task { await testCompanion() } }
                     LabeledContent("État", value: health)
                 } header: {
@@ -68,10 +67,11 @@ struct SettingsView: View {
                     Toggle("Guidage vocal", isOn: $settings.voiceEnabled)
                     Toggle("Annonces radar (à 500 m)", isOn: $settings.radarAnnouncements)
                     Toggle("Thème sombre forcé", isOn: $settings.forceDark)
-                    SecureField("Clé TomTom (trafic)", text: $tomtom)
-                        .onChange(of: tomtom) { _, value in settings.tomtomKey = value }
-                    Link("Clé gratuite : developer.tomtom.com › compte › API Key", destination: URL(string: "https://developer.tomtom.com")!)
-                        .font(.footnote)
+                    NavigationLink {
+                        TomTomKeyView()
+                    } label: {
+                        LabeledContent("Trafic TomTom", value: settings.tomtomKey.isEmpty ? "Aucune clé" : "Clé …\(settings.tomtomKey.suffix(4))")
+                    }
                 }
 
                 Section("État du système") {
@@ -107,7 +107,9 @@ struct SettingsView: View {
             }
             .onAppear {
                 token = settings.companionToken
-                tomtom = settings.tomtomKey
+            }
+            .onDisappear {
+                if token != settings.companionToken { settings.companionToken = token }   // saved once, not per keystroke
             }
         }
     }

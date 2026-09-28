@@ -184,7 +184,7 @@ final class NavigationSession: ObservableObject {
                 self.located = TrafficIncidents.ahead(found, route: self.route, progress: progress)
                 self.trafficStatus = "Trafic à jour \(Format.time(Date()))"
             } catch {
-                self?.trafficStatus = "Trafic indisponible (pas de réseau)"
+                self?.trafficStatus = "Trafic : \(TomTomTrafficClient.describe(error))"
             }
             self?.trafficTask = nil
         }
