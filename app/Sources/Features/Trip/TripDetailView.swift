@@ -23,6 +23,7 @@ struct TripDetailContent: View {
     @EnvironmentObject private var sync: SyncService
     @EnvironmentObject private var maintenance: MaintenanceStore
     @ObservedObject private var favoritesStore = FavoritePlaces.shared
+    @ObservedObject private var validation = RoadBookValidation.shared
     @State private var pendingRide: RideLog?
     @State private var shownRide: RideLog?
     @StateObject private var location = LocationService()
@@ -363,40 +364,41 @@ struct DayRow: View {
     let trip: Trip
     let day: TripDay
     let selected: Bool
+    var pace = PaceEstimator()
 
+    /// One stage at a glance: how far, how long on the bike, when you get there.
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let timing = StageTimer.estimate(day, in: trip, pace: pace)
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Jour \(day.index)").font(.headline)
-                if let d = day.date { Text(d).foregroundStyle(.secondary) }
+                Text("Étape \(day.index)").font(.headline)
+                if let date = RoadBook.stageDate(day.date) { Text(date).foregroundStyle(.secondary) }
                 Spacer()
-                if selected { Image(systemName: "eye.fill").foregroundStyle(.orange) }
+                if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(.orange) }
             }
-            HStack(spacing: 12) {
-                if let km = day.distanceKm { Label("\(Int(km)) km", systemImage: "road.lanes") }
-                if let min = day.drivingTimeMin { Label(Format.duration(minutes: min), systemImage: "clock") }
-                if let c = day.curvinessScore { Label("\(Int(c))/100", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
-                if let a = day.ascentM, a > 0 { Label("\(Int(a)) m", systemImage: "mountain.2") }
+            HStack(spacing: 14) {
+                if let km = day.distanceKm { Label("\(Int(km.rounded())) km", systemImage: "road.lanes") }
+                if let t = timing { Label(RoadBook.duration(t.riding), systemImage: "timer") }
+                if let a = day.ascentM, a > 0 { Label("+\(Int(a)) m", systemImage: "mountain.2") }
             }
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.subheadline.bold())
+            if let t = timing, let departure = StageTimer.defaultDeparture(for: day) {
+                Text("Départ \(RoadBook.clockText(departure)) → arrivée vers \(RoadBook.clockText(departure.addingTimeInterval(t.total)))"
+                     + (t.stopsDuration > 0 ? " (arrêts compris : \(RoadBook.duration(t.stopsDuration)))" : ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if !day.highlights.isEmpty {
-                Text(day.highlights.map(\.name).joined(separator: " · ")).font(.caption)
+                Text(day.highlights.prefix(4).map(\.name).joined(separator: " · ")).font(.caption)
             }
             if !day.fuelStops.isEmpty {
-                Text("⛽ " + day.fuelStops.map { "\($0.name) (km \(Int($0.kmFromStart)))" }.joined(separator: ", ")).font(.caption)
-            }
-            if !day.pauses.isEmpty {
-                let count = { (k: PauseKind) in day.pauses.filter { $0.kind == k }.count }
-                Text("Pauses possibles : ☕ \(count(.cafe)) · 👁 \(count(.viewpoint)) · 💧 \(count(.water))"
-                     + (day.speedLimits.isEmpty ? "" : " · limites connues sur \(Int(day.speedLimits.reduce(0) { $0 + $1.to - $1.from } / 1000)) km"))
-                    .font(.caption).foregroundStyle(.secondary)
+                Text("⛽ " + day.fuelStops.map { "km \(Int($0.kmFromStart)) \($0.name)" }.joined(separator: " · ")).font(.caption)
             }
             let chosen = trip.selectedStops(for: day)
             if !chosen.isEmpty {
                 Text(chosen.map(\.name).joined(separator: " · ")).font(.caption).foregroundStyle(.blue)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
     }
 }
 
@@ -451,14 +453,17 @@ extension TripDetailContent {
                         Task { await prepareDeparture() }
                     }
                     .disabled(preparing || tracing)
+                    NavigationLink { RoadBookView(tripId: trip.id) } label: {
+                        tileLabel(roadBookTitle, roadBookIcon, roadBookColor)
+                    }
+                    .buttonStyle(.plain)
                     actionTile("Claude", "bubble.left.and.bubble.right.fill", .purple) { chatting = true }
-                    actionTile("Paramètres", "slider.horizontal.3", .blue) { editing = true }
                 }
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 12, trailing: 8))
             .listRowBackground(Color.clear)
         } footer: {
-            Text("« Préparer » = départ maintenant : tracé, trafic, météo, radars, carte hors ligne, entretien. Touche une étape pour choisir le jour.")
+            Text("« Préparer » : départ maintenant, tout est remis à jour (tracé, trafic, météo, radars, carte, entretien). Touche une étape pour choisir le jour.")
         }
     }
 
@@ -467,10 +472,10 @@ extension TripDetailContent {
         let km = trip.days.compactMap(\.distanceKm).reduce(0, +)
         let radars = trip.days.reduce(0) { $0 + $1.alerts.filter(\.kind.isCamera).count }
         let dangers = trip.days.reduce(0) { $0 + $1.alerts.filter { !$0.kind.isCamera }.count }
-        let pauses = trip.days.reduce(0) { $0 + $1.pauses.count }
-        return ["🗓 \(trip.days.count) j", "🛣 \(Int(km)) km", "🏍 \(profileLabel)"]
+        let riding = trip.days.compactMap { StageTimer.estimate($0, in: trip, pace: settings.pace)?.riding }.reduce(0, +)
+        return ["🗓 \(trip.days.count) j", "🛣 \(Int(km)) km"] + (riding > 0 ? ["⏱ \(RoadBook.duration(riding))"] : [])
+            + ["🏍 \(profileLabel)"]
             + (radars > 0 ? ["📷 \(radars)"] : []) + (dangers > 0 ? ["⚠️ \(dangers)"] : [])
-            + (pauses > 0 ? ["☕ \(pauses)"] : [])
     }
 
     private var profileLabel: String {
@@ -489,16 +494,31 @@ extension TripDetailContent {
     }
 
     private func actionTile(_ title: String, _ icon: String, _ color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
-                Image(systemName: icon).font(.title3)
-                Text(title).font(.caption.bold())
-            }
-            .frame(maxWidth: .infinity, minHeight: 64)
-            .foregroundStyle(color)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+        Button(action: action) { tileLabel(title, icon, color) }
+            .buttonStyle(.plain)
+    }
+
+    private func tileLabel(_ title: String, _ icon: String, _ color: Color) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon).font(.title3)
+            Text(title).font(.caption.bold()).multilineTextAlignment(.center)
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .foregroundStyle(color)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    // Cahier des charges tile: validated (green), changed since (orange), to validate (blue).
+    private var roadBookTitle: String {
+        if validation.validatedAt(trip) != nil { return "Cahier validé" }
+        return validation.isOutdated(trip) ? "Cahier à revalider" : "Cahier des charges"
+    }
+    private var roadBookIcon: String {
+        validation.validatedAt(trip) != nil ? "checkmark.seal.fill" : "doc.text.fill"
+    }
+    private var roadBookColor: Color {
+        if validation.validatedAt(trip) != nil { return .green }
+        return validation.isOutdated(trip) ? .orange : .blue
     }
 
     @ViewBuilder var prepareSection: some View {
@@ -580,7 +600,7 @@ extension TripDetailContent {
     @ViewBuilder var stepsAndAddressesSections: some View {
             Section("Étapes") {
                 ForEach(trip.days) { day in
-                    DayRow(trip: trip, day: day, selected: selectedDay == day.index)
+                    DayRow(trip: trip, day: day, selected: selectedDay == day.index, pace: settings.pace)
                         .contentShape(Rectangle())
                         .onTapGesture { selectedDay = selectedDay == day.index ? nil : day.index }
                         .swipeActions {
