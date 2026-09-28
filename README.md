@@ -25,7 +25,8 @@ distribution/ Source SideStore générée automatiquement
 | Où | Quoi |
 |---|---|
 | PC Windows | [Git](https://git-scm.com/download/win), [Docker Desktop](https://www.docker.com/products/docker-desktop/) (option « Start when you sign in »), [Tailscale](https://tailscale.com/download/windows), [Claude Code](https://code.claude.com) |
-| iPhone | iOS 17 ou plus récent, [Tailscale](https://apps.apple.com/app/tailscale/id1470499037), un identifiant Apple (gratuit) |
+| iPhone | iOS 17 ou plus récent avec code de verrouillage, [Tailscale](https://apps.apple.com/app/tailscale/id1470499037), LocalDevVPN (App Store), un identifiant Apple (gratuit) |
+| PC (installation de SideStore) | iTunes, [iloader](https://docs.sidestore.io/docs/installation/prerequisites) |
 | En ligne | Un compte GitHub |
 
 ### 2. Dépôt GitHub (déjà fait)
@@ -37,14 +38,35 @@ Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin
 Toutes les versions : <https://github.com/plandefab-design/application-road-trip/releases>
 
 ### 3. Installer l'app sur l'iPhone (sans Mac)
-1. Installe **SideStore** sur l'iPhone en suivant le guide officiel : <https://docs.sidestore.io> (installation initiale depuis le PC Windows, iPhone branché en USB, avec ton identifiant Apple).
-2. Dans SideStore › **Sources** › **+**, ajoute :
+Résumé du guide officiel <https://docs.sidestore.io> (s'y référer en cas de doute : il évolue). Il faut du **Wi-Fi** (pas la 4G/5G) et un code de verrouillage sur l'iPhone.
+
+**A. Préparer**
+1. iPhone : installe **LocalDevVPN** (App Store), ouvre-la › **Connect** › autorise la configuration VPN.
+2. PC : iTunes (version téléchargée chez Apple de préférence ; sinon l'app « Apple Devices »), puis **iloader** (installateur MSI, lien sur la page « Prerequisites » du guide).
+
+**B. Installer SideStore depuis le PC**
+
+3. Branche l'iPhone en USB › **Se fier à cet ordinateur** › code.
+4. Ouvre **iloader** › connecte-toi avec ton identifiant Apple (sensible à la casse) › choisis l'iPhone › **Install SideStore (Stable)**.
+
+**C. Sur l'iPhone**
+
+5. Réglages › Général › **VPN et gestion de l'appareil** › « App de développeur » › ton identifiant › **Faire confiance** › **Autoriser et redémarrer**.
+6. Réglages › **Confidentialité et sécurité** › tout en bas › **Mode développeur** (l'iPhone redémarre).
+7. **LocalDevVPN** › **Connect**, puis ouvre **SideStore** et connecte-toi avec le même identifiant Apple.
+8. **My Apps** › touche le compteur **« 7 DAYS »** de SideStore ; si on te propose de révoquer/créer un certificat : **Oui** / **Refresh Now**.
+
+**D. Installer MotoTrip**
+
+9. LocalDevVPN connecté, SideStore › **Sources** › **+**, ajoute :
    `https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/source.json`
-3. Installe **MotoTrip** depuis cette source. Chaque nouvelle version poussée sur `main` y apparaîtra automatiquement.
+10. Installe **MotoTrip** depuis cette source. Chaque nouvelle version poussée sur `main` y apparaîtra automatiquement.
 
 Alternative ponctuelle : télécharger l'IPA de la Release et l'installer avec [Sideloadly](https://sideloadly.io) (renouvellement à refaire tous les 7 jours).
 
-> ⚠️ Compte Apple gratuit : l'app expire au bout de **7 jours** sans rafraîchissement. SideStore la re-signe depuis l'iPhone (VPN local de SideStore). iOS n'autorise qu'**un VPN à la fois** : rafraîchis SideStore, puis réactive Tailscale. **La navigation n'a besoin d'aucun des deux.** Avant un trip : rafraîchir la veille du départ.
+> ⚠️ Compte Apple gratuit : l'app expire au bout de **7 jours** sans rafraîchissement. SideStore la re-signe depuis l'iPhone ; **LocalDevVPN doit être connecté** pour installer, mettre à jour ou rafraîchir. iOS n'autorise qu'**un VPN à la fois** : coupe Tailscale, rafraîchis dans SideStore, puis réactive Tailscale. **La navigation n'a besoin d'aucun des deux.** Avant un trip : rafraîchir la veille du départ.
+>
+> Si SideStore n'arrive plus à rafraîchir après une mise à jour ou une réinitialisation de l'iPhone, le fichier d'appairage a expiré : le remplacer en suivant le guide officiel.
 
 ### 4. Démarrer les services du PC (création de trips)
 ```powershell
