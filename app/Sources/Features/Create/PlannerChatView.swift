@@ -62,8 +62,12 @@ struct PlannerChatView: View {
             Button("Enregistrer") { store.save(trip) }
         }
         .task {
-            if messages.isEmpty {
+            guard messages.isEmpty else { return }
+            if trip.days.isEmpty {
                 await send("Propose l'itinéraire complet jour par jour selon le formulaire et les règles du projet.", showAsUser: false)
+            } else {
+                // Existing itinerary: never re-plan it automatically, wait for the rider's request.
+                messages.append(Message(fromUser: false, text: "Itinéraire actuel : \(trip.days.count) jour(s). Dis-moi ce que tu veux changer."))
             }
         }
     }

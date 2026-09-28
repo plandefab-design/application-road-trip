@@ -30,7 +30,7 @@ struct TripsListView: View {
             }
             .navigationTitle("Mes trips")
             .navigationDestination(for: String.self) { id in
-                if let trip = store.trips.first(where: { $0.id == id }) { TripDetailView(trip: trip) }
+                TripDetailView(tripId: id)
             }
             .toolbar {
                 Button { importing = true } label: { Image(systemName: "square.and.arrow.down") }
@@ -77,7 +77,9 @@ struct StatusBadge: View {
             .foregroundStyle(color)
     }
 
-    private var label: String {
+    private var label: String { Self.label(for: status) }
+
+    static func label(for status: TripStatus) -> String {
         switch status {
         case .draft: "Brouillon"
         case .proposed: "Proposé"

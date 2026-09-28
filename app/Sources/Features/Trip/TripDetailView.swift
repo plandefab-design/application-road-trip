@@ -1,7 +1,21 @@
 import SwiftUI
 import TripCore
 
+/// Always shows the stored version of the trip, so edits (form, Claude) appear immediately.
 struct TripDetailView: View {
+    @EnvironmentObject private var store: TripStore
+    let tripId: String
+
+    var body: some View {
+        if let trip = store.trips.first(where: { $0.id == tripId }) {
+            TripDetailContent(trip: trip)
+        } else {
+            ContentUnavailableView("Trip introuvable", systemImage: "map", description: Text("Ce trip a été supprimé."))
+        }
+    }
+}
+
+struct TripDetailContent: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
     @StateObject private var location = LocationService()
@@ -10,6 +24,8 @@ struct TripDetailView: View {
     let trip: Trip
     @State private var selectedDay: Int?
     @State private var navigatingDay: TripDay?
+    @State private var editing = false
+    @State private var chatting = false
 
     var body: some View {
         List {
@@ -65,14 +81,28 @@ struct TripDetailView: View {
         }
         .navigationTitle(trip.name)
         .toolbar {
-            if let day = trip.days.first(where: { $0.index == (selectedDay ?? 1) }), day.track != nil {
-                Button { startNavigation(day) } label: {
-                    Label("Rouler", systemImage: "location.north.line.fill")
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button { editing = true } label: { Label("Modifier les paramètres", systemImage: "slider.horizontal.3") }
+                    Button { chatting = true } label: { Label("Continuer avec Claude", systemImage: "bubble.left.and.bubble.right") }
+                } label: {
+                    Label("Modifier", systemImage: "pencil.circle")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
+            }
+            if let day = trip.days.first(where: { $0.index == (selectedDay ?? 1) }), day.track != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { startNavigation(day) } label: {
+                        Label("Rouler", systemImage: "location.north.line.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
             }
         }
+        .sheet(isPresented: $editing) {
+            CreateTripView(editing: trip).environmentObject(store).environmentObject(settings)
+        }
+        .navigationDestination(isPresented: $chatting) { PlannerChatView(trip: trip) }
         .onAppear { location.requestPermissions() }   // permissions asked before riding, never during
         .fullScreenCover(item: $navigatingDay) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace) { newPace in

@@ -3,9 +3,15 @@ import TripCore
 
 /// Guided form covering the 13 parameters of the project brief (SPEC §4.2 step 1).
 /// Drop-downs and sliders only, except the trip name and free constraints.
+/// With `editing`, the same form edits an existing trip's parameters (days, POIs and checklist are kept).
 struct CreateTripView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dismiss) private var dismiss
+
+    var editing: Trip? = nil
+    @State private var loaded = false
+    @State private var status: TripStatus = .draft
 
     @State private var name = ""
     @State private var startName = ""
@@ -57,7 +63,7 @@ struct CreateTripView: View {
                         Text("Ajoute tes motos dans Réglages › Garage (l'autonomie réelle est nécessaire pour placer les pleins).")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
-                    ForEach(settings.garage) { bike in
+                    ForEach(availableBikes) { bike in
                         Toggle(isOn: Binding(get: { bikeIds.contains(bike.id) },
                                              set: { on in if on { bikeIds.insert(bike.id) } else { bikeIds.remove(bike.id) } })) {
                             Text("\(bike.model) — \(Int(bike.rangeKm)) km")
@@ -101,19 +107,88 @@ struct CreateTripView: View {
                     }
                 }
 
+                if editing != nil {
+                    Section("Statut") {
+                        Picker("Statut", selection: $status) {
+                            ForEach(TripStatus.allCases, id: \.self) { Text(StatusBadge.label(for: $0)).tag($0) }
+                        }
+                    }
+                }
+
                 Section {
                     Button("Vérifier la cohérence") { questions = ConsistencyChecker.check(params, cols: Catalog.cols()) }
+                    if editing != nil {
+                        Button("Enregistrer les modifications") {
+                            store.save(updatedTrip)
+                            dismiss()
+                        }
+                        .disabled(name.isEmpty || startName.isEmpty)
+                    }
                     Button("Continuer avec Claude") { startPlanning() }
                         .disabled(name.isEmpty || startName.isEmpty)
                         .buttonStyle(.borderedProminent)
                 }
             }
-            .navigationTitle("Nouveau trip")
+            .navigationTitle(editing == nil ? "Nouveau trip" : "Modifier le trip")
+            .keyboardDoneButton()
+            .toolbar {
+                if editing != nil {
+                    ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
+                }
+            }
             .navigationDestination(item: $draft) { trip in
                 PlannerChatView(trip: trip)
             }
-            .onAppear { maxKmPerDay = settings.defaultKmPerDay }
+            .onAppear(perform: loadOnce)
         }
+    }
+
+    /// Garage bikes, plus bikes stored in the edited trip that are no longer in the garage.
+    private var availableBikes: [Bike] {
+        let extra = (editing?.params.bikes ?? []).filter { b in !settings.garage.contains { $0.id == b.id } }
+        return settings.garage + extra
+    }
+
+    private func loadOnce() {
+        guard !loaded else { return }
+        loaded = true
+        guard let trip = editing else {
+            maxKmPerDay = settings.defaultKmPerDay
+            return
+        }
+        let p = trip.params
+        name = trip.name
+        status = trip.status
+        startName = p.start.name
+        loop = p.end == nil
+        endName = p.end?.name ?? ""
+        if let d = ISODate.parse(p.dateStart) { dateStart = d }
+        if let d = ISODate.parse(p.dateEnd) { dateEnd = max(d, dateStart) }
+        zones = Set(p.zone)
+        bikeIds = Set(p.bikes.map(\.id))
+        riders = p.riders
+        luggage = p.luggage
+        maxKmPerDay = p.maxKmPerDay
+        style = p.style
+        budget = p.budgetPerDayEur ?? budget
+        constraints = p.constraints
+        roads = p.roads
+    }
+
+    /// Edited trip: new parameters, everything else (days, POIs, checklist, pack) unchanged.
+    private var updatedTrip: Trip {
+        guard var trip = editing else { return Trip(name: name, status: .draft, params: params) }
+        let old = trip.params
+        var p = params
+        // Keep the fields the form does not show, and known start/end coordinates when the town is unchanged.
+        p.mandatoryStops = old.mandatoryStops
+        p.maxFuelIntervalKm = old.maxFuelIntervalKm
+        if p.start.name == old.start.name { p.start = old.start }
+        if let end = p.end, end.name == old.end?.name { p.end = old.end }
+        trip.name = name
+        trip.status = status
+        trip.params = p
+        return trip
     }
 
     private var dayCount: Int {
@@ -125,14 +200,14 @@ struct CreateTripView: View {
                    end: loop ? nil : Place(name: endName),
                    dateStart: ISODate.format(dateStart), dateEnd: ISODate.format(dateEnd),
                    zone: Array(zones).sorted(),
-                   bikes: settings.garage.filter { bikeIds.contains($0.id) },
+                   bikes: availableBikes.filter { bikeIds.contains($0.id) },
                    riders: riders, luggage: luggage, maxKmPerDay: maxKmPerDay, style: style,
                    budgetPerDayEur: budget, constraints: constraints, roads: roads)
     }
 
     private func startPlanning() {
         questions = ConsistencyChecker.check(params, cols: Catalog.cols())
-        let trip = Trip(name: name, status: .draft, params: params)
+        let trip = updatedTrip
         store.save(trip)
         draft = trip
     }

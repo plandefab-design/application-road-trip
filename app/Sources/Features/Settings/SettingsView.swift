@@ -4,24 +4,45 @@ import TripCore
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: TripStore
-    @State private var addingBike = false
+    @State private var bikeSheet: BikeSheet?
     @State private var health: String = "Non testé"
     @State private var token = ""
     @State private var tomtom = ""
 
+    enum BikeSheet: Identifiable {
+        case add
+        case edit(Bike)
+        var id: String {
+            switch self {
+            case .add: "add"
+            case .edit(let bike): bike.id
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Garage") {
+                Section {
                     ForEach(settings.garage) { bike in
-                        VStack(alignment: .leading) {
-                            Text(bike.model).font(.headline)
-                            Text("Autonomie \(Int(bike.rangeKm)) km · marge \(Int(bike.reserveMarginPct)) % · utile \(Int(bike.usableRangeMeters / 1000)) km")
-                                .font(.caption).foregroundStyle(.secondary)
+                        Button { bikeSheet = .edit(bike) } label: {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(bike.model).font(.headline).foregroundStyle(.primary)
+                                    Text("Autonomie \(Int(bike.rangeKm)) km · marge \(Int(bike.reserveMarginPct)) % · utile \(Int(bike.usableRangeMeters / 1000)) km")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "pencil").foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .onDelete { settings.garage.remove(atOffsets: $0) }
-                    Button("Ajouter une moto") { addingBike = true }
+                    Button("Ajouter une moto") { bikeSheet = .add }
+                } header: {
+                    Text("Garage")
+                } footer: {
+                    Text("Touche une moto pour la modifier, glisse vers la gauche pour la supprimer.")
                 }
 
                 Section("Pilote") {
@@ -34,7 +55,7 @@ struct SettingsView: View {
                     TextField("https://mon-pc.xxxx.ts.net", text: $settings.companionURL)
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("Jeton d'accès", text: $token)
-                        .onSubmit { settings.companionToken = token }
+                        .onChange(of: token) { _, value in settings.companionToken = value }
                     Button("Tester la connexion") { Task { await testCompanion() } }
                     LabeledContent("État", value: health)
                 } header: {
@@ -48,7 +69,7 @@ struct SettingsView: View {
                     Toggle("Annonces radar", isOn: $settings.radarAnnouncements)
                     Toggle("Thème sombre forcé", isOn: $settings.forceDark)
                     SecureField("Clé TomTom (trafic)", text: $tomtom)
-                        .onSubmit { settings.tomtomKey = tomtom }
+                        .onChange(of: tomtom) { _, value in settings.tomtomKey = value }
                 }
 
                 Section("État du système") {
@@ -65,14 +86,20 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Réglages")
-            .sheet(isPresented: $addingBike) { AddBikeView { settings.garage.append($0) } }
+            .keyboardDoneButton()
+            .sheet(item: $bikeSheet) { sheet in
+                switch sheet {
+                case .add:
+                    BikeEditorView(bike: nil) { settings.garage.append($0) }
+                case .edit(let bike):
+                    BikeEditorView(bike: bike) { updated in
+                        if let i = settings.garage.firstIndex(where: { $0.id == updated.id }) { settings.garage[i] = updated }
+                    }
+                }
+            }
             .onAppear {
                 token = settings.companionToken
                 tomtom = settings.tomtomKey
-            }
-            .onDisappear {
-                settings.companionToken = token
-                settings.tomtomKey = tomtom
             }
         }
     }
@@ -86,19 +113,39 @@ struct SettingsView: View {
             let h = try await client.health()
             health = "OK · routage \(h.graphhopper ?? "?") · planner \(h.planner ?? "?")"
         } catch {
-            health = "Injoignable"
+            health = "Injoignable : \(error.localizedDescription)"
         }
     }
 }
 
-struct AddBikeView: View {
+/// Add a bike (bike == nil) or edit an existing one (keeps its id).
+struct BikeEditorView: View {
     @Environment(\.dismiss) private var dismiss
-    let onAdd: (Bike) -> Void
+    let bike: Bike?
+    let onSave: (Bike) -> Void
 
-    @State private var model = Catalog.bikeModels().first ?? ""
-    @State private var custom = ""
-    @State private var range = 200.0
-    @State private var margin = 15.0
+    @State private var model: String
+    @State private var custom: String
+    @State private var range: Double
+    @State private var margin: Double
+
+    init(bike: Bike?, onSave: @escaping (Bike) -> Void) {
+        self.bike = bike
+        self.onSave = onSave
+        let known = Catalog.bikeModels()
+        if let bike {
+            let inCatalog = known.contains(bike.model)
+            _model = State(initialValue: inCatalog ? bike.model : "")
+            _custom = State(initialValue: inCatalog ? "" : bike.model)
+            _range = State(initialValue: bike.rangeKm)
+            _margin = State(initialValue: bike.reserveMarginPct)
+        } else {
+            _model = State(initialValue: known.first ?? "")
+            _custom = State(initialValue: "")
+            _range = State(initialValue: 200)
+            _margin = State(initialValue: 15)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -113,12 +160,17 @@ struct AddBikeView: View {
                 Text("Saisis l'autonomie constatée sur ta moto (réserve comprise), pas la valeur constructeur.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            .navigationTitle("Ajouter une moto")
+            .navigationTitle(bike == nil ? "Ajouter une moto" : "Modifier la moto")
+            .keyboardDoneButton()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Ajouter") {
-                        onAdd(Bike(model: model.isEmpty ? custom : model, rangeKm: range, reserveMarginPct: margin))
+                    Button(bike == nil ? "Ajouter" : "Enregistrer") {
+                        var saved = bike ?? Bike(model: "", rangeKm: range)
+                        saved.model = model.isEmpty ? custom : model
+                        saved.rangeKm = range
+                        saved.reserveMarginPct = margin
+                        onSave(saved)
                         dismiss()
                     }
                     .disabled(model.isEmpty && custom.isEmpty)
