@@ -7,3 +7,7 @@
 europe/france
 europe/italy
 europe/spain
+europe/switzerland
+europe/germany
+europe/portugal
+europe/netherlands

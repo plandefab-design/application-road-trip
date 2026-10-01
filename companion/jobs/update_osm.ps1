@@ -5,7 +5,7 @@
 # the end: routing stays available. A run stopped midway can simply be started again (fresh downloads are reused).
 param(
     [string[]]$Extracts = @(),
-    [string]$Heap = "12g"
+    [string]$Heap = "16g"
 )
 $ErrorActionPreference = "Stop"
 # Any failure is written to the log (update_osm.log) before stopping; the map in service is never touched.
