@@ -48,8 +48,8 @@ enum Reminders {
         let fire = max(expiry.addingTimeInterval(-24 * 3_600), now.addingTimeInterval(60))
         guard fire < expiry else { return }
         let content = UNMutableNotificationContent()
-        content.title = "MotoTrip expire bientôt"
-        content.body = "Ouvre SideStore (LocalDevVPN connecté, Tailscale coupé) et rafraîchis MotoTrip avant \(expiry.formatted(date: .abbreviated, time: .shortened))."
+        content.title = "Moto Road expire bientôt"
+        content.body = "Ouvre SideStore (LocalDevVPN connecté, Tailscale coupé) et rafraîchis Moto Road avant \(expiry.formatted(date: .abbreviated, time: .shortened))."
         content.sound = .default
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: fire.timeIntervalSince(now), repeats: false)
         try? await center.add(UNNotificationRequest(identifier: "sidestore-expiry", content: content, trigger: trigger))

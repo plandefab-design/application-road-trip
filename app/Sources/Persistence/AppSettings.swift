@@ -16,7 +16,7 @@ final class AppSettings: ObservableObject {
     @Published var voiceEnabled: Bool { didSet { defaults.set(voiceEnabled, forKey: "voiceEnabled") } }
     /// Camera, hazard and incident warnings are always spoken, in every mode (rider's choice).
     let radarAnnouncements = true
-    /// MotoTrip is dark (carbon + racing orange) unless the rider prefers the light theme.
+    /// Moto Road is dark (carbon + racing orange) unless the rider prefers the light theme.
     @Published var lightTheme: Bool { didSet { defaults.set(lightTheme, forKey: "lightTheme") } }
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }
     /// Garage bike whose odometer the rides advance (« Ma moto »).

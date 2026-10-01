@@ -58,7 +58,7 @@ git push origin main        # déclenche ios-build.yml
 2. `core` : `swift test`.
 3. `brew install xcodegen` → `xcodegen generate` dans `app/`.
 4. `xcodebuild archive` **sans signature** (`CODE_SIGNING_ALLOWED=NO`), cache SPM.
-5. Empaquetage `Payload/*.app` → `MotoTrip-<version>.ipa`.
+5. Empaquetage `Payload/*.app` → `MotoRoad-<version>.ipa` (app affichée « Moto Road » ; cible Xcode, bundle id et données inchangés).
 6. GitHub Release `v<version>` avec l'IPA.
 7. Mise à jour de `distribution/source.json` (version, date, URL de l'IPA, taille) + commit par le bot.
 Numéro de version : `1.0.<run_number>` injecté dans `Info.plist`.

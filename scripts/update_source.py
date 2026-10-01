@@ -13,17 +13,17 @@ KEEP_VERSIONS = 5
 
 def base_source(repo: str) -> dict:
     return {
-        "name": "MotoTrip (FAB)",
+        "name": "Moto Road (FAB)",
         "identifier": f"{BUNDLE_ID}.source",
         "sourceURL": f"https://raw.githubusercontent.com/{repo}/main/distribution/source.json",
         "apps": [{
-            "name": "MotoTrip",
+            "name": "Moto Road",
             "bundleIdentifier": BUNDLE_ID,
             "developerName": "FAB",
-            "subtitle": "Road trips moto sur routes sinueuses",
-            "localizedDescription": "Création de road trips assistée par Claude et navigation 100 % locale.",
-            "iconURL": f"https://raw.githubusercontent.com/{repo}/main/distribution/icon.png",
-            "tintColor": "FF6B00",
+            "subtitle": "Road trips moto, guidage vocal, radars et dangers",
+            "localizedDescription": "Road trips moto préparés avec Claude, guidage vocal façon GPS, radars, dangers et trafic en direct, carnet d'entretien. Navigation 100 % locale.",
+            "iconURL": f"https://raw.githubusercontent.com/{repo}/main/distribution/moto-road-icon.png",
+            "tintColor": "FF5E1A",
             "versions": [],
             "appPermissions": {
                 "entitlements": [],
@@ -67,8 +67,13 @@ def main() -> None:
     if not src.get("apps"):
         src = base_source(a.repo)
     src["sourceURL"] = f"https://raw.githubusercontent.com/{a.repo}/main/distribution/source.json"
+    # Name, texts and icon follow the app (renamed MotoTrip → Moto Road); versions are kept.
+    base = base_source(a.repo)
+    src["name"] = base["name"]
     for app in src["apps"]:
-        app["iconURL"] = f"https://raw.githubusercontent.com/{a.repo}/main/distribution/icon.png"
+        if app.get("bundleIdentifier") == BUNDLE_ID:
+            for key in ("name", "subtitle", "localizedDescription", "iconURL", "tintColor"):
+                app[key] = base["apps"][0][key]
     update(src, a.version, a.build, a.url, a.size, datetime.now(timezone.utc))
     a.source.parent.mkdir(parents=True, exist_ok=True)
     a.source.write_text(json.dumps(src, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

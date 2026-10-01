@@ -1,4 +1,4 @@
-# SPEC — MotoTrip (nom de travail)
+# SPEC — Moto Road (anciennement MotoTrip, nom de travail)
 
 Application iPhone personnelle de **création** et de **navigation** de road trips moto sur routes sinueuses.
 Utilisateur unique : FAB. Coût cible : **0 €** (hors abonnement Claude déjà existant).

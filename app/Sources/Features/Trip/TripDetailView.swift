@@ -144,7 +144,7 @@ struct TripDetailContent: View {
         var allowed = await Reminders.isAuthorized()
         if !allowed { allowed = await Reminders.requestAuthorization() }
         guard allowed else {
-            remindersMessage = "Notifications refusées (Réglages iPhone › MotoTrip)"
+            remindersMessage = "Notifications refusées (Réglages iPhone › Moto Road)"
             return
         }
         let count = await Reminders.schedule(trip: t, items: TripChecklist.merged(t))

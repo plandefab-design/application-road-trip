@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// MotoTrip look, one product everywhere: racing orange, glass panels, heavy rounded type. Dark by default
+/// Moto Road look, one product everywhere: racing orange, glass panels, heavy rounded type. Dark by default
 /// (carbon), light on request (pearl grey); the riding screens always stay dark.
 enum Theme {
     static let accent = Color(red: 1.00, green: 0.37, blue: 0.10)      // racing orange #FF5E1A
@@ -37,9 +37,9 @@ enum Theme {
     static let rideGradient = LinearGradient(colors: [accent, accentHot], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let background = LinearGradient(colors: [backgroundTop, backgroundBottom], startPoint: .top, endPoint: .bottom)
 
-    /// « MOTO TRIP » wordmark: heavy italic, TRIP in orange.
+    /// « MOTO ROAD » wordmark: heavy italic, ROAD in orange.
     static func wordmark(size: CGFloat = 30) -> some View {
-        (Text("MOTO").foregroundColor(.primary) + Text("TRIP").foregroundColor(accent))
+        (Text("MOTO ").foregroundColor(.primary) + Text("ROAD").foregroundColor(accent))
             .font(.system(size: size, weight: .black, design: .rounded).italic())
             .tracking(1)
     }

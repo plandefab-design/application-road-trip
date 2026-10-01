@@ -16,7 +16,7 @@ public enum TripChecklist {
             .init(id: "auto-weather", label: "Vérifier la météo sur la route", due: "J-3"),
             .init(id: "auto-passes-j1", label: "Revérifier les cols (état post-hivernal, fermetures)", due: "J-1"),
             .init(id: "auto-offline", label: "Télécharger la carte hors ligne (Wi-Fi)", due: "J-1"),
-            .init(id: "auto-sidestore", label: "Rafraîchir MotoTrip dans SideStore", due: "J-1"),
+            .init(id: "auto-sidestore", label: "Rafraîchir Moto Road dans SideStore", due: "J-1"),
             .init(id: "auto-battery", label: "Charger téléphone et batterie externe, prévoir le câble", due: "J-1"),
         ]
         if !hasPasses { items.removeAll { $0.id == "auto-passes-j1" } }

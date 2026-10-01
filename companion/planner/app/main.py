@@ -1,4 +1,4 @@
-"""MotoTrip companion API — reachable only through Tailscale (`tailscale serve --bg 8080`) + bearer token."""
+"""Moto Road companion API — reachable only through Tailscale (`tailscale serve --bg 8080`) + bearer token."""
 from __future__ import annotations
 
 import asyncio
@@ -37,7 +37,7 @@ async def lifespan(_app: FastAPI):
     live.cancel()
 
 
-app = FastAPI(title="MotoTrip companion", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Moto Road companion", version="0.1.0", lifespan=lifespan)
 planner = Planner(DATA_DIR)
 
 

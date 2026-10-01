@@ -1,7 +1,7 @@
 import SwiftUI
 import TripCore
 
-/// « Rouler »: MotoTrip's cockpit. Your bike, the ride in progress if any, one big button to ride now, where to
+/// « Rouler »: Moto Road's cockpit. Your bike, the ride in progress if any, one big button to ride now, where to
 /// go, favourite places in one tap. Carbon and racing orange, big targets, few words: made to be used helmet on.
 struct HomeView: View {
     @EnvironmentObject private var store: TripStore
@@ -83,9 +83,15 @@ struct HomeView: View {
     // MARK: Header and bike
 
     private var header: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 12) {
+            Image("Logo")
+                .resizable()
+                .frame(width: 52, height: 52)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .shadow(color: Theme.accent.opacity(0.35), radius: 8, y: 3)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Theme.wordmark(size: 30)
+                Theme.wordmark(size: 28)
                 Text(greeting).font(.subheadline.weight(.medium)).foregroundStyle(Theme.muted)
             }
             Spacer()

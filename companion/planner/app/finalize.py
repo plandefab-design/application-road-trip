@@ -17,7 +17,7 @@ from typing import Any, Awaitable, Callable
 import httpx
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
-USER_AGENT = "MotoTrip-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
+USER_AGENT = "MotoRoad-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
 
 Point = dict[str, float]
 Locate = Callable[[str, "Point | None"], Awaitable["Point | None"]]

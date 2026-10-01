@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 
 FR_URL = "https://radars.securite-routiere.gouv.fr/radars/all?_format=json"
-USER_AGENT = "MotoTrip-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
+USER_AGENT = "MotoRoad-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
 REFRESH_S = 24 * 3600
 MERGE_M = 60
 

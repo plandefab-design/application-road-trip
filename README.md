@@ -1,4 +1,4 @@
-# Application road trip — MotoTrip
+# Application road trip — Moto Road
 
 Application iPhone personnelle pour **créer** des road trips moto sur routes sinueuses (avec Claude, depuis ton PC)
 et les **suivre en temps réel** (navigation 100 % locale, sans IA, sans dépendre du PC).
@@ -34,7 +34,7 @@ Le dépôt public est <https://github.com/plandefab-design/application-road-trip
 ```powershell
 git clone https://github.com/plandefab-design/application-road-trip.git
 ```
-Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin d'`iOS build` (quelques minutes), une **Release** contient `MotoTrip-1.0.N.ipa` et `distribution/source.json` est mis à jour automatiquement.
+Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin d'`iOS build` (quelques minutes), une **Release** contient `MotoRoad-1.0.N.ipa` et `distribution/source.json` est mis à jour automatiquement.
 Toutes les versions : <https://github.com/plandefab-design/application-road-trip/releases>
 
 ### 3. Installer l'app sur l'iPhone (sans Mac)
@@ -56,11 +56,11 @@ Résumé du guide officiel <https://docs.sidestore.io> (s'y référer en cas de 
 7. **LocalDevVPN** › **Connect**, puis ouvre **SideStore** et connecte-toi avec le même identifiant Apple.
 8. **My Apps** › touche le compteur **« 7 DAYS »** de SideStore ; si on te propose de révoquer/créer un certificat : **Oui** / **Refresh Now**.
 
-**D. Installer MotoTrip**
+**D. Installer Moto Road**
 
 9. LocalDevVPN connecté, SideStore › **Sources** › **+**, ajoute :
    `https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/source.json`
-10. Installe **MotoTrip** depuis cette source. Chaque nouvelle version poussée sur `main` y apparaîtra automatiquement.
+10. Installe **Moto Road** depuis cette source (anciennement MotoTrip : même app, mise à jour normale, tes données sont gardées). Chaque nouvelle version poussée sur `main` y apparaîtra automatiquement.
 
 Alternative ponctuelle : télécharger l'IPA de la Release et l'installer avec [Sideloadly](https://sideloadly.io) (renouvellement à refaire tous les 7 jours).
 

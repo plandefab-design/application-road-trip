@@ -20,7 +20,7 @@ FEEDS = {
     "fr": "https://tipi.bison-fute.gouv.fr/bison-fute-ouvert/publicationsDIR/Evenementiel-DIR/grt/RRN/content.xml",
     "es": "https://nap.dgt.es/datex2/v3/dgt/SituationPublication/datex2_v37.xml",
 }
-USER_AGENT = "MotoTrip-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
+USER_AGENT = "MotoRoad-companion/1.0 (personal trip planner; https://github.com/plandefab-design/application-road-trip)"
 REFRESH_S = 300
 
 # DATEX II sub-type value → TomTom iconCategory (ids ≥ 20 are MotoTrip additions, see TrafficIncident.Category).

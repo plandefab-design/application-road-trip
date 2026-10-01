@@ -19,7 +19,7 @@ enum RoadBookPDF {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName) — cahier des charges.pdf")
         let renderer = UIGraphicsPDFRenderer(bounds: page, format: {
             let f = UIGraphicsPDFRendererFormat()
-            f.documentInfo = [kCGPDFContextTitle as String: book.title, kCGPDFContextCreator as String: "MotoTrip"]
+            f.documentInfo = [kCGPDFContextTitle as String: book.title, kCGPDFContextCreator as String: "Moto Road"]
             return f
         }())
         try? renderer.writePDF(to: url) { ctx in
@@ -81,7 +81,7 @@ enum RoadBookPDF {
     }
 
     private static func footer(_ number: Int, title: String) {
-        let text = styled("\(title) · MotoTrip · page \(number)", .systemFont(ofSize: 9), color: .gray)
+        let text = styled("\(title) · Moto Road · page \(number)", .systemFont(ofSize: 9), color: .gray)
         text.draw(at: CGPoint(x: margin, y: page.height - margin + 8))
     }
 
