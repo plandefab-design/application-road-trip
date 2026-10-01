@@ -44,3 +44,13 @@ def test_prompt_omits_geometry():
     prompt = build_prompt("Salut", trip)
     assert "track" not in prompt and "instructions" not in prompt and "Col" in prompt
     assert "track" in trip["days"][0]   # original untouched
+
+
+def test_types_outside_the_schema_are_mapped():
+    from app.trip_schema import sanitize_trip
+
+    trip = {"days": [{"highlights": [{"name": "A", "type": "depart"}, {"name": "B", "type": "col"}, {"name": "C"}]}],
+            "pois": [{"id": "p", "type": "hotel", "name": "H"}]}
+    sanitize_trip(trip)
+    assert [h["type"] for h in trip["days"][0]["highlights"]] == ["viewpoint", "pass", "viewpoint"]
+    assert trip["pois"][0]["type"] == "lodging" and trip["pois"][0]["verification"] == "unverified"

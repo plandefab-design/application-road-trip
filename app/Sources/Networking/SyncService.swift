@@ -17,36 +17,42 @@ final class SyncService: ObservableObject {
             let remoteDates = Dictionary(remote.map { ($0.id, $0.updatedAt) }, uniquingKeysWith: { a, _ in a })
             let plan = TripSync.plan(local: Dictionary(store.trips.map { ($0.id, $0.updatedAt) }, uniquingKeysWith: { a, _ in a }),
                                      remote: remoteDates, deleted: store.deletedIds)
-            var failures = 0
+            // What failed, in the rider's words (shown under « Synchroniser avec le PC »).
+            var failures: [String] = []
+            let names = Dictionary(remote.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+            func label(_ id: String) -> String {
+                "« \(store.trips.first { $0.id == id }?.name ?? names[id] ?? String(id.prefix(8))) »"
+            }
             // Deleted on the iPhone: deleted on the PC too; forgotten once the PC no longer has it.
             store.deletedIds = store.deletedIds.filter { remoteDates.keys.contains($0) }
             for id in plan.delete {
                 do {
                     try await client.deleteTrip(id)
                     store.deletedIds.remove(id)
-                } catch { failures += 1 }
+                } catch { failures.append("suppression de \(label(id))") }
             }
             for id in plan.push {
                 guard let trip = store.trips.first(where: { $0.id == id }) else { continue }
-                do { try await client.putTrip(trip) } catch { failures += 1 }
+                do { try await client.putTrip(trip) } catch { failures.append("envoi de \(label(id))") }
             }
             for id in plan.pull {
-                do { store.save(try await client.getTrip(id), touch: false) } catch { failures += 1 }
+                do { store.save(try await client.getTrip(id), touch: false) } catch { failures.append("\(label(id)) illisible") }
             }
             for var ride in rides.rides where !ride.uploaded {
                 do {
                     try await client.putRide(id: ride.id, body: try JSONEncoder().encode(ride))
                     ride.uploaded = true
                     rides.save(ride)
-                } catch { failures += 1 }
+                } catch { failures.append("sauvegarde d'une sortie") }
             }
             var packNote = ""
             do {
                 if try await AlertPackStore.shared.refresh(using: client) { packNote = " · radars à jour" }
-            } catch { failures += 1 }
+            } catch { failures.append("base radars") }
             let deletions = plan.delete.isEmpty ? "" : " · 🗑 \(plan.delete.count)"
             let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(deletions)\(packNote)"
-            status = failures == 0 ? "Synchronisé \(Format.time(Date())) (\(what))" : "Synchro partielle (\(failures) erreur(s))"
+            status = failures.isEmpty ? "Synchronisé \(Format.time(Date())) (\(what))"
+                : "Synchro partielle : \(failures.prefix(3).joined(separator: ", "))\(failures.count > 3 ? "…" : "")"
         } catch {
             status = "PC injoignable : synchro reportée"
         }

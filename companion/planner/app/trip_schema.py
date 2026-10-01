@@ -13,9 +13,29 @@ STATUSES = {"draft", "proposed", "validated", "ready", "active", "done"}
 _JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
+def closest_poi_type(value: Any) -> str:
+    """A type outside the schema (« col », « hotel », « road », « ville »…) → the closest one (mirror of TripCore)."""
+    s = str(value or "").lower()
+    if s in POI_TYPES:
+        return s
+    if any(k in s for k in ("col", "pass", "summit", "sommet")):
+        return "pass"
+    if any(k in s for k in ("restau", "repas", "food", "cafe", "café", "lunch", "diner", "dîner")):
+        return "meal"
+    if any(k in s for k in ("hotel", "hôtel", "lodg", "gite", "gîte", "heberg", "héberg", "camping", "nuit")):
+        return "lodging"
+    if any(k in s for k in ("fuel", "essence", "station", "carbur")):
+        return "fuel"
+    return "viewpoint"
+
+
 def sanitize_trip(trip: dict[str, Any]) -> dict[str, Any]:
-    """Never-invent rule: a POI without a source is forced to 'unverified'."""
+    """Never-invent rule: a POI without a source is forced to 'unverified'. Types outside the schema are mapped."""
+    for day in trip.get("days", []) or []:
+        for highlight in day.get("highlights", []) or []:
+            highlight["type"] = closest_poi_type(highlight.get("type"))
     for poi in trip.get("pois", []) or []:
+        poi["type"] = closest_poi_type(poi.get("type"))
         source = (poi.get("source") or "").strip()
         if not source:
             poi["verification"] = "unverified"

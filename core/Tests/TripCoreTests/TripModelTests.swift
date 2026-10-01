@@ -143,4 +143,20 @@ final class LenientDecodingTests: XCTestCase {
         XCTAssertEqual(trip.days[0].fuelStops, [])
         XCTAssertEqual(trip.offlinePack.integrity, .unknown)
     }
+
+    /// Types written by the planner outside the schema (seen in real trips) must not make the trip unreadable.
+    func testPlannerTypesOutsideTheSchemaAreTolerated() throws {
+        let json = """
+        {"schemaVersion": 6, "id": "t1", "name": "Mini", "status": "en cours",
+         "params": {"start": {"name": "A"}, "dateStart": "2027-06-01", "dateEnd": "2027-06-01"},
+         "days": [{"index": 1, "highlights": [{"name": "Départ", "type": "depart"}, {"name": "D5", "type": "road"},
+                                              {"name": "Col fictif", "type": "col"}, {"name": "Sans type"}]}],
+         "pois": [{"id": "p1", "type": "hotel", "name": "Hôtel test", "verification": "à vérifier"}]}
+        """
+        let trip = try TripCodec.decode(Data(json.utf8))
+        XCTAssertEqual(trip.status, .proposed)
+        XCTAssertEqual(trip.days[0].highlights.map(\.type), [.viewpoint, .viewpoint, .pass, .viewpoint])
+        XCTAssertEqual(trip.pois[0].type, .lodging)
+        XCTAssertEqual(trip.pois[0].verification, .unverified)
+    }
 }

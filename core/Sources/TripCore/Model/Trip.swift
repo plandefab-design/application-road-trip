@@ -5,14 +5,40 @@ import Foundation
 
 public enum TripStatus: String, Codable, CaseIterable, Sendable {
     case draft, proposed, validated, ready, active, done
+
+    /// Tolerant: an unknown status reads as `proposed` instead of making the whole trip unreadable.
+    public init(from decoder: Decoder) throws {
+        self = TripStatus(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .proposed
+    }
 }
 
 public enum Verification: String, Codable, Sendable {
     case verified, unverified
+
+    /// Tolerant: anything but « verified » is unverified (never-invent rule).
+    public init(from decoder: Decoder) throws {
+        self = Verification(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unverified
+    }
 }
 
 public enum POIType: String, Codable, CaseIterable, Sendable {
     case meal, lodging, fuel, pass, viewpoint
+
+    /// Tolerant: a type written by the planner outside the schema (« col », « hotel », « road », « ville »…) maps to
+    /// the closest one, instead of making the whole trip unreadable on the iPhone.
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = POIType(rawValue: raw) ?? POIType.closest(to: raw)
+    }
+
+    static func closest(to raw: String) -> POIType {
+        let s = raw.lowercased()
+        if ["col", "pass", "summit", "sommet"].contains(where: s.contains) { return .pass }
+        if ["restau", "repas", "food", "cafe", "café", "lunch", "diner", "dîner"].contains(where: s.contains) { return .meal }
+        if ["hotel", "hôtel", "lodg", "gite", "gîte", "heberg", "héberg", "camping", "nuit"].contains(where: s.contains) { return .lodging }
+        if ["fuel", "essence", "station", "carbur"].contains(where: s.contains) { return .fuel }
+        return .viewpoint
+    }
 }
 
 public struct Place: Codable, Hashable, Sendable {
@@ -226,6 +252,16 @@ public struct Highlight: Codable, Hashable, Sendable {
         self.name = name
         self.type = type
         self.point = point
+    }
+
+    enum CodingKeys: String, CodingKey { case name, type, point }
+
+    /// Tolerant: a highlight without a type is a place to see.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        type = try c.decodeIfPresent(POIType.self, forKey: .type) ?? .viewpoint
+        point = try c.decodeIfPresent(GeoPoint.self, forKey: .point)
     }
 }
 
