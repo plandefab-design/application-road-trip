@@ -61,4 +61,25 @@ final class MaintenanceBookTests: XCTestCase {
         let road = MaintenanceBook.starter(bikeId: "b", category: .sport, today: "2027-06-01")
         XCTAssertFalse(road.items.contains { $0.id == "spokes" })
     }
+
+    func testLibertyRiderItemsAreAllThere() {
+        let ids = Set(MaintenanceBook.starter(bikeId: "b", category: .roadster, today: "2027-06-01").items.map(\.id))
+        XCTAssertTrue(ids.isSuperset(of: ["tyre-pressure", "tyres", "chain-lube", "chain-check", "chain-kit", "brake-pads",
+                                          "oil", "brake-fluid", "coolant", "service"]))
+    }
+
+    func testExistingBookIsCompletedWithoutLosingTheRidersSettings() {
+        let old = MaintenanceBook(bikeId: "b", odometerKm: 15_000, items: [
+            MaintenanceItem(id: "tyres", label: "Pneus : usure et pression", intervalKm: 800, lastDoneKm: 14_000),
+            MaintenanceItem(id: "mine", label: "Ma vérif", intervalKm: 300),
+        ])
+        let book = old.completed(category: .roadster, today: "2027-06-01")
+        let tyres = book.items.first { $0.id == "tyres" }
+        XCTAssertEqual(tyres?.label, "Usure des pneus")
+        XCTAssertEqual(tyres?.intervalKm, 800)                     // the rider's interval
+        XCTAssertEqual(tyres?.lastDoneKm, 14_000)                  // and history kept
+        XCTAssertTrue(book.items.contains { $0.id == "mine" })
+        XCTAssertEqual(book.items.first { $0.id == "tyre-pressure" }?.lastDoneKm, 15_000)   // new item counted from now
+        XCTAssertEqual(book.completed(category: .roadster, today: "2027-07-01"), book)    // idempotent
+    }
 }

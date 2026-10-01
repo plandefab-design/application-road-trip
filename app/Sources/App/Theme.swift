@@ -1,48 +1,73 @@
 import SwiftUI
 import UIKit
 
-/// MotoTrip look, one product everywhere: carbon black, racing orange, smoked-glass panels, heavy rounded type.
+/// MotoTrip look, one product everywhere: racing orange, glass panels, heavy rounded type. Dark by default
+/// (carbon), light on request (pearl grey); the riding screens always stay dark.
 enum Theme {
     static let accent = Color(red: 1.00, green: 0.37, blue: 0.10)      // racing orange #FF5E1A
     static let accentHot = Color(red: 1.00, green: 0.16, blue: 0.33)   // hot red #FF2954
-    static let carbon = Color(red: 0.047, green: 0.051, blue: 0.063)   // #0C0D10
-    static let graphite = Color(red: 0.105, green: 0.113, blue: 0.137) // #1B1D23
-    static let muted = Color.white.opacity(0.62)
     static let camera = Color(red: 0.96, green: 0.17, blue: 0.24)
     static let hazard = Color(red: 1.00, green: 0.64, blue: 0.00)
     static let info = Color(red: 0.26, green: 0.56, blue: 1.00)
     static let ok = Color(red: 0.19, green: 0.84, blue: 0.52)
 
+    /// A colour per theme: dark (carbon) / light (pearl grey).
+    static func adaptive(dark: UIColor, light: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+
+    private static func rgb(_ hex: UInt32) -> UIColor {
+        UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+    }
+
+    /// Top and bottom of the screen background.
+    static let backgroundTop = adaptive(dark: rgb(0x1B1D23), light: rgb(0xF6F7F9))
+    static let backgroundBottom = adaptive(dark: rgb(0x0C0D10), light: rgb(0xE8EAEF))
+    /// Bars (tab bar, bottom action bar, navigation bar on the creation screens).
+    static let bar = adaptive(dark: rgb(0x0C0D10), light: rgb(0xFFFFFF))
+    /// Rows of the lists drawn by the app itself.
+    static let row = adaptive(dark: rgb(0x1B1D23), light: rgb(0xFFFFFF))
+    /// Secondary text.
+    static let muted = Color(UIColor.secondaryLabel)
+    /// Hairlines and inactive bars.
+    static let faint = Color.primary.opacity(0.12)
+
     static let uiAccent = UIColor(red: 1.00, green: 0.37, blue: 0.10, alpha: 1)
 
     static let rideGradient = LinearGradient(colors: [accent, accentHot], startPoint: .topLeading, endPoint: .bottomTrailing)
-    static let background = LinearGradient(colors: [graphite, carbon], startPoint: .top, endPoint: .bottom)
+    static let background = LinearGradient(colors: [backgroundTop, backgroundBottom], startPoint: .top, endPoint: .bottom)
 
     /// « MOTO TRIP » wordmark: heavy italic, TRIP in orange.
     static func wordmark(size: CGFloat = 30) -> some View {
-        (Text("MOTO").foregroundColor(.white) + Text("TRIP").foregroundColor(accent))
+        (Text("MOTO").foregroundColor(.primary) + Text("TRIP").foregroundColor(accent))
             .font(.system(size: size, weight: .black, design: .rounded).italic())
             .tracking(1)
     }
 }
 
-/// Smoked-glass panel used over the map and on the home screen (always dark, readable in the sun).
+/// Glass panel: smoked glass in the dark theme (and always over the riding map), frosted white in the light theme.
+/// A tinted panel (selected choice, camera, hazard) keeps white text in both.
 struct GlassPanel: ViewModifier {
     var radius: CGFloat
     var tint: Color?
+    @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
+        let dark = scheme == .dark
         content
-            .foregroundStyle(.white)
+            .foregroundStyle(tint != nil || dark ? Color.white : Color.primary)
             .background {
                 let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
                 ZStack {
-                    shape.fill(.ultraThinMaterial)
-                    shape.fill((tint ?? .black).opacity(tint == nil ? 0.45 : 0.82))
-                    shape.strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                    shape.fill(dark ? .ultraThinMaterial : .regularMaterial)
+                    if let tint {
+                        shape.fill(tint.opacity(0.82))
+                    } else {
+                        shape.fill(dark ? Color.black.opacity(0.45) : Color.white.opacity(0.7))
+                    }
+                    shape.strokeBorder(dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06), lineWidth: 1)
                 }
-                .environment(\.colorScheme, .dark)
-                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+                .shadow(color: .black.opacity(dark ? 0.35 : 0.08), radius: dark ? 14 : 10, y: dark ? 6 : 3)
             }
     }
 }

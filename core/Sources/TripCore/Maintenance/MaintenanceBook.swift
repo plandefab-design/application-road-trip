@@ -38,23 +38,48 @@ public struct MaintenanceBook: Codable, Hashable, Sendable {
     /// Starting items. Intervals are only STARTING VALUES shown as such in the app: the rider sets them from
     /// the bike's service book (they depend on the model).
     public static func starter(bikeId: String, category: BikeCategory?, odometerKm: Double = 0, today: String) -> MaintenanceBook {
+        MaintenanceBook(bikeId: bikeId, odometerKm: odometerKm,
+                        items: standardItems(category: category).map { s in
+                            MaintenanceItem(id: s.id, label: s.label, intervalKm: s.km, intervalMonths: s.months,
+                                            lastDoneKm: odometerKm, lastDoneDate: today)
+                        })
+    }
+
+    /// The maintenance a rider follows, as in Liberty Rider's maintenance book (tyre pressure, tyre wear, chain
+    /// greasing and tension, chain kit, pads and discs, oil change, brake fluid, coolant, yearly service), plus the
+    /// air filter (and spokes for enduro). Intervals are starting values, to set from the bike's service book.
+    public static func standardItems(category: BikeCategory?) -> [(id: String, label: String, km: Double?, months: Int?)] {
         let offroad = (category?.offroadLevel ?? 0) > 0
-        func item(_ id: String, _ label: String, km: Double?, months: Int?) -> MaintenanceItem {
-            MaintenanceItem(id: id, label: label, intervalKm: km, intervalMonths: months, lastDoneKm: odometerKm, lastDoneDate: today)
-        }
-        var items = [
-            item("oil", "Vidange + filtre à huile", km: 6_000, months: 12),
-            item("chain-lube", "Graissage chaîne", km: offroad ? 300 : 500, months: nil),
-            item("chain-check", "Tension et état de la chaîne", km: 1_000, months: nil),
-            item("tyres", "Pneus : usure et pression", km: 1_000, months: 1),
-            item("brake-pads", "Plaquettes de frein : contrôle", km: 5_000, months: 12),
-            item("brake-fluid", "Liquide de frein", km: nil, months: 24),
-            item("air-filter", "Filtre à air", km: offroad ? 6_000 : 12_000, months: nil),
-            item("coolant", "Liquide de refroidissement", km: nil, months: 24),
-            item("service", "Révision générale", km: 12_000, months: 12),
+        var items: [(id: String, label: String, km: Double?, months: Int?)] = [
+            ("tyre-pressure", "Pression des pneus", 500, 1),
+            ("tyres", "Usure des pneus", 1_000, nil),
+            ("chain-lube", "Graissage de la chaîne", offroad ? 300 : 500, nil),
+            ("chain-check", "Tension de la chaîne", 1_000, nil),
+            ("chain-kit", "Kit chaîne (remplacement)", offroad ? 15_000 : 20_000, nil),
+            ("brake-pads", "Plaquettes et disques de frein", 5_000, 12),
+            ("oil", "Vidange (huile + filtre)", 6_000, 12),
+            ("brake-fluid", "Purge du liquide de frein", nil, 24),
+            ("coolant", "Purge du liquide de refroidissement", nil, 24),
+            ("service", "Entretien annuel", 12_000, 12),
+            ("air-filter", "Filtre à air", offroad ? 6_000 : 12_000, nil),
         ]
-        if category == .enduro { items.append(item("spokes", "Rayons et roulements de roues", km: 1_500, months: nil)) }
-        return MaintenanceBook(bikeId: bikeId, odometerKm: odometerKm, items: items)
+        if category == .enduro { items.append(("spokes", "Rayons et roulements de roues", 1_500, nil)) }
+        return items
+    }
+
+    /// An existing book brought up to date: standard items it lacks are added (counted from today), standard labels
+    /// are renamed; the rider's intervals, history and own items are kept.
+    public func completed(category: BikeCategory?, today: String) -> MaintenanceBook {
+        var book = self
+        for s in Self.standardItems(category: category) {
+            if let i = book.items.firstIndex(where: { $0.id == s.id }) {
+                book.items[i].label = s.label
+            } else {
+                book.items.append(MaintenanceItem(id: s.id, label: s.label, intervalKm: s.km, intervalMonths: s.months,
+                                                  lastDoneKm: odometerKm, lastDoneDate: today))
+            }
+        }
+        return book
     }
 
     public enum Level: Int, Comparable, Sendable {

@@ -21,13 +21,17 @@ final class MaintenanceStore: ObservableObject {
         try? data.write(to: file, options: .atomic)
     }
 
-    /// Book of a bike, created with starting items the first time.
+    /// Book of a bike, created with the standard items the first time, and completed with the standard items added
+    /// since (the rider's intervals, history and own items are kept).
     func book(for bike: Bike) -> MaintenanceBook {
-        if let b = books[bike.id] { return b }
-        let b = MaintenanceBook.starter(bikeId: bike.id, category: bike.category, today: ISODate.format(Date()))
-        books[bike.id] = b
-        persist()
-        return b
+        let today = ISODate.format(Date())
+        let current = books[bike.id] ?? MaintenanceBook.starter(bikeId: bike.id, category: bike.category, today: today)
+        let completed = current.completed(category: bike.category, today: today)
+        if books[bike.id] != completed {
+            books[bike.id] = completed
+            persist()
+        }
+        return completed
     }
 
     func update(_ book: MaintenanceBook) {

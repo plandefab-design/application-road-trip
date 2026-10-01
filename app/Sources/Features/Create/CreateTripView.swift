@@ -83,12 +83,11 @@ struct CreateTripView: View {
                 .scrollDismissesKeyboard(.interactively)
                 bottomBar
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(.primary)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle(editing == nil ? "Nouveau trip" : "Modifier le trip")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Theme.carbon, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Theme.bar, for: .navigationBar)
             .keyboardDoneButton()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
@@ -118,7 +117,7 @@ struct CreateTripView: View {
         HStack(spacing: 6) {
             ForEach(Self.steps.indices, id: \.self) { i in
                 Capsule()
-                    .fill(i <= step ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Color.white.opacity(0.15)))
+                    .fill(i <= step ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Theme.faint))
                     .frame(height: 5)
                     .onTapGesture { if editing != nil || i < step { step = i } }
             }
@@ -160,7 +159,7 @@ struct CreateTripView: View {
             }
         }
         .padding(16)
-        .background(Theme.carbon.opacity(0.95).ignoresSafeArea(edges: .bottom))
+        .background(Theme.bar.ignoresSafeArea(edges: .bottom))
     }
 
     private var canContinue: Bool {
@@ -239,7 +238,7 @@ struct CreateTripView: View {
                            in: (editing == nil ? Calendar.current.startOfDay(for: Date()) : .distantPast)...,
                            displayedComponents: .date)
                     .padding(.vertical, 8)
-                Divider().overlay(Color.white.opacity(0.1))
+                Divider().overlay(Theme.faint)
                 DatePicker("Retour", selection: $dateEnd, in: dateStart..., displayedComponents: .date)
                     .padding(.vertical, 8)
             }
@@ -279,7 +278,7 @@ struct CreateTripView: View {
                 } label: {
                     HStack(spacing: 12) {
                         MotoGlyphView(size: 18).frame(width: 44, height: 44)
-                            .background(on ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Color.white.opacity(0.1)),
+                            .background(on ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Color.gray.opacity(0.45)),
                                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(bike.model).font(.headline)
@@ -344,7 +343,7 @@ struct CreateTripView: View {
             sectionTitle("Routes")
             VStack(spacing: 0) {
                 Toggle("Sans autoroute", isOn: $roads.avoidMotorway).padding(.vertical, 6)
-                Divider().overlay(Color.white.opacity(0.1))
+                Divider().overlay(Theme.faint)
                 Toggle("Sans voie rapide ni nationale rectiligne", isOn: $roads.avoidTrunk).padding(.vertical, 6)
             }
             .tint(Theme.accent)
@@ -361,7 +360,7 @@ struct CreateTripView: View {
                     ForEach(1...5, id: \.self) { n in
                         Button { roads.curvinessLevel = n } label: {
                             RoundedRectangle(cornerRadius: 4)
-                                .fill(n <= roads.curvinessLevel ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Color.white.opacity(0.15)))
+                                .fill(n <= roads.curvinessLevel ? AnyShapeStyle(Theme.rideGradient) : AnyShapeStyle(Theme.faint))
                                 .frame(height: 12 + CGFloat(n) * 6)
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .bottom)
                         }
@@ -475,7 +474,7 @@ struct CreateTripView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.caption.bold()).foregroundStyle(Theme.muted)
                     Text(place?.name ?? "Choisir une adresse ou un point").font(.headline)
-                        .foregroundStyle(place == nil ? Theme.accent : .white).lineLimit(2)
+                        .foregroundStyle(place == nil ? Theme.accent : .primary).lineLimit(2)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundStyle(Theme.muted)

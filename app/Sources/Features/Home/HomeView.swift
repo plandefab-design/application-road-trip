@@ -54,9 +54,8 @@ struct HomeView: View {
             .scrollIndicators(.hidden)
             .background(Theme.background.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
-            .toolbarBackground(Theme.carbon, for: .tabBar)
+            .toolbarBackground(Theme.bar, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
-            .toolbarColorScheme(.dark, for: .tabBar)
             .navigationDestination(for: String.self) { TripDetailView(tripId: $0) }
             .navigationDestination(isPresented: $showRides) { RidesListView() }
             .onAppear {
@@ -107,7 +106,7 @@ struct HomeView: View {
     }
 
     @ViewBuilder private var bikeCard: some View {
-        Button { tab = .settings } label: {
+        Button { tab = .garage } label: {
             HStack(spacing: 14) {
                 MotoGlyphView(size: 24)
                     .frame(width: 54, height: 54)
@@ -277,7 +276,7 @@ struct HomeView: View {
         }
         if !settings.garage.isEmpty, settings.garage.contains(where: { $0.category == nil }) {
             warning("Complète ton garage", detail: "Type de moto et autonomie réelle : routes et pleins en dépendent.",
-                    icon: "wrench.and.screwdriver.fill", color: Theme.info) { tab = .settings }
+                    icon: "wrench.and.screwdriver.fill", color: Theme.info) { tab = .garage }
         }
     }
 

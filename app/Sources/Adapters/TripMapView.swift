@@ -140,8 +140,22 @@ struct TripMapView: UIViewRepresentable {
             onCenterChange?(GeoPoint(lat: c.latitude, lon: c.longitude))
         }
 
+        /// true while the map should follow the rider, oriented along the direction of travel.
+        private var following = false
+
+        /// Only a gesture of the rider stops the following; camera changes made by the app do not.
+        func mapView(_ mapView: MLNMapView, regionWillChangeWith reason: MLNCameraChangeReason, animated: Bool) {
+            let gestures: MLNCameraChangeReason = [.gesturePan, .gesturePinch, .gestureRotate, .gestureZoomIn,
+                                                    .gestureZoomOut, .gestureOneFingerZoom, .gestureTilt]
+            if following, !reason.isDisjoint(with: gestures) { userMovedMap = true }
+        }
+
+        /// MapLibre drops the course tracking on some camera updates: put it back unless the rider moved the map.
         func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
-            if mode == .none { userMovedMap = true }
+            guard following, !userMovedMap, mode != .followWithCourse else { return }
+            DispatchQueue.main.async {
+                mapView.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
+            }
         }
 
         func styleWillChange() {
@@ -244,21 +258,23 @@ struct TripMapView: UIViewRepresentable {
             }
 
             // Camera
+            following = content.followUser
             if content.followUser {
                 let recentre = content.recenter != lastRecenter
                 lastRecenter = content.recenter
+                if recentre { userMovedMap = false }
                 if !tilted || recentre {
                     tilted = true
-                    // Street-level zoom and a light tilt: readable at a glance, names stay flat enough to read.
-                    map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
-                    map.setZoomLevel(16, animated: true)
+                    // Street-level zoom and a light tilt first (a camera change cancels the tracking), then follow
+                    // the rider with the map turned to the direction of travel, like a GPS.
                     let camera = map.camera
-                    camera.pitch = 30
-                    map.setCamera(camera, animated: true)
-                } else if map.userTrackingMode == .none && !userMovedMap {
+                    camera.pitch = 35
+                    map.setCamera(camera, animated: false)
+                    map.zoomLevel = 16
+                    map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
+                } else if map.userTrackingMode != .followWithCourse && !userMovedMap {
                     map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
                 }
-                if recentre { userMovedMap = false }
             } else if focusChanged, let f = content.focus {
                 map.setCenter(CLLocationCoordinate2D(latitude: f.lat, longitude: f.lon), zoomLevel: 13, animated: false)
             } else if geometryChanged {

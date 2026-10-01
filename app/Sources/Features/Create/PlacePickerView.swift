@@ -15,6 +15,8 @@ struct PlacePickerView: View {
     @State private var here: GeoPoint?
     @State private var onMap = false
     @State private var mapCenter: GeoPoint?
+    /// Where the map opens (set once: the map must stay free to move under the pin).
+    @State private var mapStart: GeoPoint?
     @State private var mapName: String?
     @State private var naming: Task<Void, Never>?
     @State private var busy = false
@@ -72,7 +74,8 @@ struct PlacePickerView: View {
                         .disabled(here == nil)
                         row("Choisir sur la carte", subtitle: "Place le repère sur le point voulu", icon: "map.fill", tint: Theme.accent) {
                             typing = false
-                            mapCenter = here
+                            mapStart = here ?? GeoPoint(lat: 43.64, lon: 5.10)
+                            mapCenter = mapStart
                             onMap = true
                         }
                     }
@@ -122,14 +125,14 @@ struct PlacePickerView: View {
             }
             .frame(minHeight: 44)
         }
-        .listRowBackground(Theme.graphite)
+        .listRowBackground(Theme.row)
     }
 
     // MARK: Map with a centre pin
 
     private var mapPicker: some View {
         ZStack {
-            TripMapView(content: MapContent(focus: mapCenter ?? here ?? GeoPoint(lat: 43.64, lon: 5.10))) { center in
+            TripMapView(content: MapContent(focus: mapStart)) { center in
                 mapCenter = center
                 naming?.cancel()
                 naming = Task {

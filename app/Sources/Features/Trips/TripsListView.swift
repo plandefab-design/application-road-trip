@@ -7,6 +7,8 @@ struct TripsListView: View {
     @EnvironmentObject private var settings: AppSettings
     @State private var importing = false
     @State private var creating = false
+    @State private var exporting: String?
+    @State private var sharing: SharedFile?
     @ObservedObject private var favorites = FavoritePlaces.shared
 
     private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
@@ -26,7 +28,12 @@ struct TripsListView: View {
                 } else {
                     List {
                         ForEach(store.trips) { trip in
-                            NavigationLink(value: trip.id) { TripRow(trip: trip) }
+                            NavigationLink(value: trip.id) {
+                                TripRow(trip: trip)
+                                    .overlay(alignment: .trailing) {
+                                        if exporting == trip.id { ProgressView() }
+                                    }
+                            }
                                 .swipeActions(edge: .leading) {
                                     Button { favorites.toggleTrip(trip.id) } label: {
                                         Label(favorites.isFavoriteTrip(trip.id) ? "Retirer" : "Favori",
@@ -34,8 +41,21 @@ struct TripsListView: View {
                                     }
                                     .tint(.yellow)
                                 }
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) { store.delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
+                                    Button { Task { await exportPDF(trip) } } label: { Label("PDF", systemImage: "doc.richtext") }
+                                        .tint(Theme.accent)
+                                }
+                                .contextMenu {
+                                    Button { Task { await exportPDF(trip) } } label: {
+                                        Label("Fiche de route (PDF)", systemImage: "doc.richtext")
+                                    }
+                                    Button { favorites.toggleTrip(trip.id) } label: {
+                                        Label(favorites.isFavoriteTrip(trip.id) ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: "star")
+                                    }
+                                    Button(role: .destructive) { store.delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
+                                }
                         }
-                        .onDelete { idx in idx.map { store.trips[$0] }.forEach(store.delete) }
                     }
                 }
             }
@@ -55,6 +75,7 @@ struct TripsListView: View {
                 }
             }
             .sheet(isPresented: $creating) { CreateTripView().environmentObject(store).environmentObject(settings) }
+            .sheet(item: $sharing) { ShareSheet(items: [$0.url]).ignoresSafeArea() }
             .sheet(isPresented: $importing) {
                 DocumentPicker(types: [Self.gpxType, .json],
                                onPick: { urls in urls.forEach(store.importFile) },
@@ -67,6 +88,16 @@ struct TripsListView: View {
                 Text(store.lastError ?? "")
             }
         }
+    }
+
+    /// Road book PDF of any trip (« validé » when its road book is validated, else marked as a draft), then share.
+    private func exportPDF(_ trip: Trip) async {
+        guard exporting == nil else { return }
+        exporting = trip.id
+        let book = RoadBook.build(trip, pace: settings.pace, validatedAt: RoadBookValidation.shared.validatedAt(trip))
+        let url = await RoadBookPDF.render(book, trip: trip)
+        exporting = nil
+        sharing = SharedFile(url: url)
     }
 }
 

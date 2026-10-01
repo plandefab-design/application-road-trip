@@ -85,7 +85,7 @@ struct MaintenanceView: View {
 
     private func row(_ item: MaintenanceItem, _ status: MaintenanceBook.Status) -> some View {
         HStack(spacing: 12) {
-            Circle().fill(Self.color(status.level)).frame(width: 12, height: 12)
+            IconBadge(icon: Self.icon(item.id), tint: Self.color(status.level))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.label).font(.subheadline.bold())
                 Text(status.text + interval(item)).font(.caption).foregroundStyle(.secondary)
@@ -98,6 +98,25 @@ struct MaintenanceView: View {
     private func interval(_ item: MaintenanceItem) -> String {
         let parts = [item.intervalKm.map { "\(Int($0)) km" }, item.intervalMonths.map { "\($0) mois" }].compactMap { $0 }
         return parts.isEmpty ? "" : " · tous les " + parts.joined(separator: " / ")
+    }
+
+    /// Icon of a standard maintenance item (the rider's own items get a wrench).
+    static func icon(_ id: String) -> String {
+        switch id {
+        case "tyre-pressure": "gauge.with.dots.needle.33percent"
+        case "tyres": "circle.circle.fill"
+        case "chain-lube": "drop.fill"
+        case "chain-check": "link"
+        case "chain-kit": "link.circle.fill"
+        case "brake-pads": "exclamationmark.brakesignal"
+        case "oil": "drop.circle.fill"
+        case "brake-fluid": "drop.triangle.fill"
+        case "coolant": "thermometer.medium"
+        case "service": "wrench.and.screwdriver.fill"
+        case "air-filter": "wind"
+        case "spokes": "gearshape.2.fill"
+        default: "wrench.adjustable.fill"
+        }
     }
 
     static func color(_ level: MaintenanceBook.Level) -> Color {

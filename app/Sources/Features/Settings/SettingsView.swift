@@ -1,69 +1,19 @@
 import SwiftUI
 import TripCore
 
-/// Réglages: your bike first (odometer, maintenance), then the garage, safety, riding, connections and data.
+/// Réglages: safety, riding, connections and data (the bikes and their maintenance have their own tab, Garage).
 /// Coloured icons, carbon background, the PC's address in its own screen: clear at a glance.
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var sync: SyncService
-    @EnvironmentObject private var maintenance: MaintenanceStore
     @ObservedObject private var alertPack = AlertPackStore.shared
     @AppStorage("mapDarkAtNight") private var mapDarkAtNight = false
-    @State private var bikeSheet: BikeSheet?
-
-    enum BikeSheet: Identifiable {
-        case add
-        case edit(Bike)
-        var id: String {
-            switch self {
-            case .add: "add"
-            case .edit(let bike): bike.id
-            }
-        }
-    }
 
     var body: some View {
         NavigationStack {
             List {
-                if let bike = settings.primaryBike {
-                    Section { bikeHero(bike) }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                }
-
-                Section {
-                    ForEach(settings.garage) { bike in
-                        Button { bikeSheet = .edit(bike) } label: { garageRow(bike) }
-                            .buttonStyle(.plain)
-                    }
-                    .onDelete {
-                        settings.garage.remove(atOffsets: $0)
-                        maintenance.removeBooks(notIn: Set(settings.garage.map(\.id)))
-                    }
-                    Button { bikeSheet = .add } label: { row("Ajouter une moto", icon: "plus", tint: Theme.ok) }
-                    if settings.garage.count > 1 {
-                        Picker(selection: Binding(get: { settings.primaryBike?.id ?? "" }, set: { settings.primaryBikeId = $0 })) {
-                            ForEach(settings.garage) { Text($0.model).tag($0.id) }
-                        } label: {
-                            row("Ma moto (km comptés)", icon: "gauge.with.needle", tint: Theme.accent)
-                        }
-                    }
-                } header: {
-                    Text("Garage")
-                } footer: {
-                    Text("Touche une moto pour la modifier, glisse pour la supprimer.")
-                }
-
-                if !settings.garage.isEmpty {
-                    Section("Entretien") {
-                        ForEach(settings.garage) { bike in
-                            NavigationLink { MaintenanceView(bike: bike) } label: { maintenanceRow(bike) }
-                        }
-                    }
-                }
-
                 Section {
                     HStack(spacing: 12) {
                         IconBadge(icon: "sos", tint: Theme.camera)
@@ -146,16 +96,6 @@ struct SettingsView: View {
             .motoList()
             .navigationTitle("Réglages")
             .keyboardDoneButton()
-            .sheet(item: $bikeSheet) { sheet in
-                switch sheet {
-                case .add:
-                    BikeEditorView(bike: nil) { settings.garage.append($0) }
-                case .edit(let bike):
-                    BikeEditorView(bike: bike) { updated in
-                        if let i = settings.garage.firstIndex(where: { $0.id == updated.id }) { settings.garage[i] = updated }
-                    }
-                }
-            }
         }
     }
 
@@ -174,64 +114,6 @@ struct SettingsView: View {
         .contentShape(Rectangle())
     }
 
-    private func bikeHero(_ bike: Bike) -> some View {
-        let book = maintenance.books[bike.id]
-        let urgent = book?.attention().first
-        return NavigationLink { MaintenanceView(bike: bike) } label: {
-            HStack(spacing: 14) {
-                MotoGlyphView(size: 28)
-                    .frame(width: 64, height: 64)
-                    .background(Theme.rideGradient, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("MA MOTO").font(.caption.weight(.heavy)).foregroundStyle(Theme.accent)
-                    Text(bike.model).font(.title3.bold()).lineLimit(1)
-                    Text([book.map { "\(Int($0.odometerKm).formatted(.number.locale(Locale(identifier: "fr_FR")))) km" },
-                          urgent.map { "\($0.item.label) \($0.status.text)" } ?? "entretien à jour"]
-                            .compactMap { $0 }.joined(separator: " · "))
-                        .font(.caption).foregroundStyle(urgent.map { MaintenanceView.color($0.status.level) } ?? Theme.ok)
-                        .lineLimit(2)
-                }
-                Spacer()
-            }
-            .padding(16)
-            .glass(radius: 22)
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 4)
-    }
-
-    private func garageRow(_ bike: Bike) -> some View {
-        HStack(spacing: 12) {
-            MotoGlyphView(size: 14).frame(width: 32, height: 32)
-                .background((bike.category == nil ? Theme.hazard : Theme.accent).gradient, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(bike.model).font(.headline)
-                Text("\(bike.category?.label ?? "Type à renseigner") · \(Int(bike.usableRangeMeters / 1000)) km utiles"
-                     + (maintenance.books[bike.id].map { " · \(Int($0.odometerKm)) km" } ?? ""))
-                    .font(.caption).foregroundStyle(bike.category == nil ? Theme.hazard : .secondary)
-            }
-            Spacer()
-            if settings.primaryBike?.id == bike.id {
-                Text("Ma moto").font(.caption2.bold()).padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Theme.accent.opacity(0.2), in: Capsule()).foregroundStyle(Theme.accent)
-            }
-        }
-        .contentShape(Rectangle())
-    }
-
-    private func maintenanceRow(_ bike: Bike) -> some View {
-        let book = maintenance.books[bike.id]
-        let urgent = book?.attention().first
-        return HStack(spacing: 12) {
-            IconBadge(icon: "wrench.adjustable.fill", tint: urgent.map { MaintenanceView.color($0.status.level) } ?? Theme.ok)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(bike.model).font(.subheadline.bold())
-                Text(book.map { "\(Int($0.odometerKm)) km" + (urgent.map { " · \($0.item.label) \($0.status.text)" } ?? " · à jour") }
-                     ?? "Carnet à ouvrir une première fois")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
-            }
-        }
-    }
 }
 
 /// The PC (companion) address and access token, with a connection test.
