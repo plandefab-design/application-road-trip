@@ -51,6 +51,11 @@ extension View {
     func glass(radius: CGFloat = 22, tint: Color? = nil) -> some View {
         modifier(GlassPanel(radius: radius, tint: tint))
     }
+
+    /// Lists and forms in the app's look: carbon background behind the rows.
+    func motoList() -> some View {
+        scrollContentBackground(.hidden).background(Theme.background.ignoresSafeArea())
+    }
 }
 
 /// Round glass button over the map (big target for gloves).

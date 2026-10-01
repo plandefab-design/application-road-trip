@@ -58,6 +58,7 @@ struct RideSummaryView: View {
                 }
                 .padding()
             }
+            .motoList()
             .navigationTitle("\(ride.tripName) · jour \(ride.day)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("OK") { dismiss() } }

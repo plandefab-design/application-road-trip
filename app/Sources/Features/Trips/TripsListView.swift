@@ -39,6 +39,7 @@ struct TripsListView: View {
                     }
                 }
             }
+            .motoList()
             .navigationTitle("Mes trips")
             .navigationDestination(for: String.self) { id in
                 TripDetailView(tripId: id)

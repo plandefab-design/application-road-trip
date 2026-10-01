@@ -42,6 +42,7 @@ struct TomTomKeyView: View {
                 }
             }
         }
+        .motoList()
         .navigationTitle("Trafic TomTom")
         .keyboardDoneButton()
         .onAppear { key = settings.tomtomKey }

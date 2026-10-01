@@ -221,6 +221,7 @@ struct NearbySheet: View {
                     .listStyle(.plain)
                 }
             }
+            .motoList()
             .navigationTitle(center.point == nil ? "Autour de moi" : "Autour de \(center.name)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { Button("Fermer") { dismiss() } }

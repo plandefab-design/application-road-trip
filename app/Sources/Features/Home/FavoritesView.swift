@@ -76,6 +76,7 @@ struct FavoritesView: View {
                     }
                 }
             }
+            .motoList()
             .navigationTitle("Favoris")
             .onAppear {
                 location.requestPermissions()

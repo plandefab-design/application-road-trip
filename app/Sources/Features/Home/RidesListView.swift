@@ -43,6 +43,7 @@ struct RidesListView: View {
                 }
             }
         }
+        .motoList()
         .navigationTitle("Mes sorties")
         .sheet(item: $shown) { RideSummaryView(ride: $0) }
     }

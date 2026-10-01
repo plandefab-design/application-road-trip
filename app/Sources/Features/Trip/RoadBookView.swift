@@ -26,6 +26,7 @@ struct RoadBookView: View {
                 content(book, trip: trip)
                 if validatedAt == nil { checksSection(trip) }
             }
+            .motoList()
             .navigationTitle("Cahier des charges")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { actionBar(trip, book: book, validatedAt: validatedAt) }

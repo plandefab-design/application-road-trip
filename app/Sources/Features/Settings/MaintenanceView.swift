@@ -53,6 +53,7 @@ struct MaintenanceView: View {
                 }
             }
         }
+        .motoList()
         .navigationTitle(bike.model)
         .keyboardDoneButton()
         .onAppear {
@@ -138,6 +139,7 @@ struct MaintenanceItemEditor: View {
                 Text("Laisse vide ce qui ne s'applique pas. Le premier des deux atteint déclenche l'alerte.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
+            .motoList()
             .navigationTitle("Opération")
             .keyboardDoneButton()
             .onAppear {

@@ -67,6 +67,7 @@ struct TripDetailContent: View {
             tracedSections
         }
         .task(id: trip.id) { await offlineMaps.refresh(tripId: trip.id) }
+        .motoList()
         .navigationTitle(trip.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
