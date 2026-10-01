@@ -1,14 +1,33 @@
 import Foundation
 
-/// The trip's « cahier des charges » and road book, validated by the rider then exported as PDF: the brief
-/// (13 parameters), then every stage with its times, stops and addresses. Pure content: the app lays it out.
+/// The trip's road book (« feuille de route »), laid out like a rider's own: kicker, title, recap of the stages,
+/// points to check, then each stage with its timetable, lunch and lodging cards, the fuel stops, the plan B and the
+/// trip's brief. Pure content (blocks): the app draws it on screen and as an A4 PDF.
 public struct RoadBook: Equatable, Sendable {
+    public enum Tone: String, Equatable, Sendable {
+        case warning, ok, caution, danger
+    }
+
     public enum Block: Equatable, Sendable {
+        case kicker(String)
+        case title(String)
+        case subtitle(String)
+        /// Section title (orange rule underneath).
         case heading(String)
-        /// Label / value lines (« Distance » · « 212 km »).
-        case facts([Fact])
-        case bullets([String])
+        /// Stage title « Jour 1 — Cadenet → Puget-Théniers (~355 km) ».
+        case dayHeading(String)
         case paragraph(String)
+        /// Centred recap lines (« Jour 1 — … »).
+        case recap([String])
+        /// Coloured box: title and lines (bullets when `bullets`).
+        case callout(tone: Tone, title: String?, lines: [String], bullets: Bool)
+        case table(columns: [String], rows: [[String]])
+        /// Address card: label (« Déjeuner jour 1 — Sisteron »), title (« Restaurant — Le Cours »), lines.
+        case card(label: String, title: String, lines: [String])
+        case numbered([String])
+        case bullets([String])
+        /// Label / value lines (the brief).
+        case facts([Fact])
         /// Map of the whole trip (nil) or of one stage (its index).
         case map(day: Int?)
         case pageBreak
@@ -25,41 +44,141 @@ public struct RoadBook: Equatable, Sendable {
 
     public let title: String
     public let subtitle: String
+    /// Page header (« Boucle Col de la Bonnette — feuille de route »).
+    public let header: String
     public let blocks: [Block]
+
+    public static let timetableColumns = ["Heure indicative", "Étape", "Distance", "Notes"]
 
     // MARK: Build
 
     public static func build(_ trip: Trip, pace: PaceEstimator = PaceEstimator(), timeZone: TimeZone = .current,
                              validatedAt: Date? = nil) -> RoadBook {
-        var blocks: [Block] = [.map(day: nil)]
+        let nights = max(0, trip.days.count - 1)
+        let subtitle = "Feuille de route — \(trip.days.count) jour\(trip.days.count > 1 ? "s" : "") / \(nights) nuit\(nights > 1 ? "s" : "")"
+        var blocks: [Block] = [.kicker("ROAD TRIP MOTO"), .title(trip.name), .subtitle(subtitle)]
+
+        blocks.append(.heading("RECAP ROAD TRIP"))
+        blocks.append(.recap(trip.days.map(dayTitle(in: trip))))
+        if trip.days.contains(where: { $0.track != nil }) { blocks.append(.map(day: nil)) }
+
+        blocks.append(.heading("Vérifier avant le départ"))
+        blocks.append(.callout(tone: .warning, title: "⚠ Points impératifs", lines: mustCheck(trip), bullets: true))
+
+        for day in trip.days {
+            blocks += stage(day, trip: trip, pace: pace, timeZone: timeZone)
+        }
+
+        let fuel = fuelList(trip)
+        if !fuel.isEmpty {
+            blocks.append(.heading("Ravitaillements prévus"))
+            blocks.append(.paragraph("Au moins tous les \(Int(trip.params.fuelIntervalMeters / 1000)) km, conformément à l'autonomie réservoir :"))
+            blocks.append(.numbered(fuel))
+        }
+
+        if let plan = trip.planB {
+            blocks.append(.heading(plan.title))
+            if let intro = plan.intro, !intro.isEmpty { blocks.append(.paragraph(intro)) }
+            let tones: [Tone] = [.ok, .caution, .danger]
+            for (i, c) in plan.cases.enumerated() {
+                blocks.append(.callout(tone: tones[min(i, tones.count - 1)], title: c.title, lines: [c.text] + (c.lines ?? []), bullets: false))
+            }
+            if let rule = plan.rule, !rule.isEmpty {
+                blocks.append(.callout(tone: .danger, title: "Règle absolue", lines: [rule], bullets: false))
+            }
+        }
+
+        blocks.append(.pageBreak)
         blocks.append(.heading("Cahier des charges"))
         blocks.append(.facts(brief(trip.params)))
         let constraints = trip.params.constraints.trimmingCharacters(in: .whitespacesAndNewlines)
         if !constraints.isEmpty { blocks.append(.paragraph("Contraintes : \(constraints)")) }
-
-        let timings = trip.days.map { StageTimer.estimate($0, in: trip, pace: pace) }
-        blocks.append(.heading("Résumé"))
-        blocks.append(.facts(summary(trip, timings: timings)))
-
-        for (day, timing) in zip(trip.days, timings) {
-            blocks.append(.pageBreak)
-            blocks += stage(day, timing: timing, trip: trip, timeZone: timeZone)
-        }
-
         let checklist = TripChecklist.merged(trip)
         if !checklist.isEmpty {
-            blocks.append(.pageBreak)
             blocks.append(.heading("Avant de partir"))
             blocks.append(.bullets(checklist.map { "\($0.done ? "☑" : "☐") \($0.label) (\($0.due))" }))
         }
-        blocks.append(.paragraph(validatedAt.map { "Cahier des charges validé le \(dayMonthYear($0, timeZone: timeZone))." }
-                                 ?? "Brouillon : cahier des charges non validé."))
-        blocks.append(.paragraph("Les adresses « à vérifier » n'ont pas de source confirmée : appelle avant d'y aller."))
+        blocks.append(.paragraph(validatedAt.map { "Feuille de route validée le \(dayMonthYear($0, timeZone: timeZone))." }
+                                 ?? "Brouillon : feuille de route non validée."))
 
-        let km = trip.days.compactMap(\.distanceKm).reduce(0, +)
-        return RoadBook(title: trip.name,
-                        subtitle: "\(period(trip.params)) · \(trip.days.count) étape\(trip.days.count > 1 ? "s" : "") · \(Int(km.rounded())) km",
-                        blocks: blocks)
+        return RoadBook(title: trip.name, subtitle: subtitle, header: "\(trip.name) — feuille de route", blocks: blocks)
+    }
+
+    /// « Jour 1 — Cadenet → Puget-Théniers  (~355 km) ».
+    static func dayTitle(in trip: Trip) -> (TripDay) -> String {
+        { day in
+            let km = day.distanceKm.map { "  (~\(Int($0.rounded())) km)" } ?? ""
+            return "Jour \(day.index) — \(StageTimetable.from(day, in: trip)) → \(StageTimetable.to(day, in: trip))\(km)"
+        }
+    }
+
+    /// The planner's points, then the reminders every road book needs.
+    static func mustCheck(_ trip: Trip) -> [String] {
+        var lines = trip.mustCheck
+        if trip.days.contains(where: { $0.track != nil }) {
+            lines.append("Tracé calculé sur les routes réelles (profil moto) ; horaires indicatifs à ton allure, arrêts compris.")
+        }
+        if !trip.pois.filter({ $0.type == .lodging || $0.type == .meal }).isEmpty {
+            lines.append("Réservations : à confirmer directement auprès des établissements — tarifs non garantis par cette feuille de route.")
+        }
+        if trip.pois.contains(where: { $0.verification != .verified }) {
+            lines.append("Adresses « à vérifier » : pas de source confirmée, appelle avant d'y aller.")
+        }
+        return lines
+    }
+
+    static func stage(_ day: TripDay, trip: Trip, pace: PaceEstimator, timeZone: TimeZone) -> [Block] {
+        var blocks: [Block] = [.dayHeading(dayTitle(in: trip)(day))]
+        var intro: [String] = []
+        if let date = stageDate(day.date) { intro.append(sentenceCase(date) + ".") }
+        if let s = day.summary, !s.isEmpty { intro.append(s) }
+        if let leave = StageTimetable.departure(day, timeZone: timeZone) {
+            intro.append("Départ recommandé : \(StageTimetable.time(leave, timeZone: timeZone, approx: false)) depuis \(StageTimetable.from(day, in: trip)).")
+        }
+        if !intro.isEmpty { blocks.append(.paragraph(intro.joined(separator: " "))) }
+        if day.track != nil { blocks.append(.map(day: day.index)) }
+        let rows = StageTimetable.rows(day, in: trip, pace: pace, timeZone: timeZone)
+        blocks.append(.table(columns: timetableColumns, rows: rows.map { [$0.time, $0.step, $0.distance, $0.notes] }))
+
+        let groups: [(label: String, choices: [POIChoice], kind: String)] = [
+            ("Déjeuner", day.meals, "Restaurant"), ("Hébergement", day.lodging, "Hôtel"),
+        ]
+        for group in groups {
+            let chosen = group.choices.filter(\.selected)
+            let shown = chosen.isEmpty ? group.choices : chosen
+            for choice in shown {
+                guard let poi = trip.poi(id: choice.poiId) else { continue }
+                let suffix = chosen.isEmpty && shown.count > 1 ? " (proposition)" : ""
+                blocks.append(.card(label: "\(group.label) jour \(day.index) — \(StageTimetable.town(of: poi))\(suffix)",
+                                    title: "\(group.kind) — \(poi.name)", lines: cardLines(poi)))
+            }
+        }
+        return blocks
+    }
+
+    /// Address, phone and e-mail, the planner's sourced details, website and verification status.
+    static func cardLines(_ poi: POI) -> [String] {
+        var lines: [String] = []
+        if let a = poi.address, !a.isEmpty { lines.append(a) }
+        let contact = [poi.phone, poi.email].compactMap { $0 }.filter { !$0.isEmpty }
+        if !contact.isEmpty { lines.append("☎  " + contact.joined(separator: "  ·  ")) }
+        lines += poi.details ?? []
+        if let note = poi.note, !note.isEmpty { lines.append(note) }
+        if let w = poi.website, !w.isEmpty { lines.append(w) }
+        lines.append(poi.verification == .verified ? "Source vérifiée" : "À vérifier")
+        return lines
+    }
+
+    /// « Peipin — jour 1, km ~105 », in order over the whole trip.
+    static func fuelList(_ trip: Trip) -> [String] {
+        trip.days.flatMap { day in
+            day.fuelStops.map { "\(StageTimetable.short($0.name)) — jour \(day.index), km ~\(Int($0.kmFromStart.rounded()))" }
+        }
+    }
+
+    static func sentenceCase(_ s: String) -> String {
+        guard let first = s.first else { return s }
+        return first.uppercased() + s.dropFirst()
     }
 
     static func brief(_ p: TripParams) -> [Fact] {
@@ -90,71 +209,6 @@ public struct RoadBook: Equatable, Sendable {
         f.append(Fact("Routes", roads.joined(separator: ", ")))
         f.append(Fact("Pleins", "tous les \(Int(p.fuelIntervalMeters / 1000)) km maximum"))
         return f
-    }
-
-    static func summary(_ trip: Trip, timings: [StageTiming?]) -> [Fact] {
-        let known = timings.compactMap { $0 }
-        var f = [Fact("Distance", "\(Int(trip.days.compactMap(\.distanceKm).reduce(0, +).rounded())) km")]
-        if !known.isEmpty {
-            f.append(Fact("Temps de conduite", duration(known.reduce(0) { $0 + $1.riding })))
-            f.append(Fact("Avec les arrêts", duration(known.reduce(0) { $0 + $1.total })))
-        }
-        let cameras = trip.days.reduce(0) { $0 + $1.alerts.filter(\.kind.isCamera).count }
-        let hazards = trip.days.reduce(0) { $0 + $1.alerts.filter { !$0.kind.isCamera }.count }
-        if cameras + hazards > 0 { f.append(Fact("Radars · dangers", "\(cameras) · \(hazards)")) }
-        return f
-    }
-
-    static func stage(_ day: TripDay, timing: StageTiming?, trip: Trip, timeZone: TimeZone) -> [Block] {
-        var title = "Étape \(day.index)"
-        if let date = day.date.flatMap(ISODate.parse) { title += " · \(weekdayDayMonth(date))" }
-        var blocks: [Block] = [.heading(title)]
-        if day.track != nil { blocks.append(.map(day: day.index)) }
-
-        var f: [Fact] = []
-        if let km = day.distanceKm { f.append(Fact("Distance", "\(Int(km.rounded())) km")) }
-        if let t = timing {
-            f.append(Fact("Conduite", duration(t.riding)))
-            var stops: [String] = []
-            if t.fuelStops > 0 { stops.append("\(t.fuelStops) plein\(t.fuelStops > 1 ? "s" : "")") }
-            if t.breaks > 0 { stops.append("\(t.breaks) pause\(t.breaks > 1 ? "s" : "")") }
-            if t.meals > 0 { stops.append("\(t.meals) repas") }
-            if !stops.isEmpty { f.append(Fact("Arrêts", "\(stops.joined(separator: ", ")) · \(duration(t.stopsDuration))")) }
-            f.append(Fact("Total", duration(t.total)))
-            if let departure = StageTimer.defaultDeparture(for: day, timeZone: timeZone) {
-                let arrival = departure.addingTimeInterval(t.total)
-                f.append(Fact("Horaires", "départ \(clock(departure, timeZone: timeZone)) → arrivée vers \(clock(arrival, timeZone: timeZone))"))
-            }
-        }
-        if let c = day.curvinessScore { f.append(Fact("Sinuosité", "\(Int(c.rounded()))/100")) }
-        if let a = day.ascentM, a > 0 { f.append(Fact("Dénivelé", "+\(Int(a.rounded())) m")) }
-        let cameras = day.alerts.filter(\.kind.isCamera).count, hazards = day.alerts.count - cameras
-        if cameras + hazards > 0 { f.append(Fact("Radars · dangers", "\(cameras) · \(hazards)")) }
-        blocks.append(.facts(f))
-
-        if !day.highlights.isEmpty {
-            blocks.append(.heading("À ne pas manquer"))
-            blocks.append(.bullets(day.highlights.map(\.name)))
-        }
-        if !day.fuelStops.isEmpty {
-            blocks.append(.heading("Pleins"))
-            blocks.append(.bullets(day.fuelStops.map { "km \(Int($0.kmFromStart.rounded())) — \($0.name)" }))
-        }
-        for (label, choices) in [("Repas", day.meals), ("Hébergement", day.lodging)] where !choices.isEmpty {
-            blocks.append(.heading(label))
-            blocks.append(.bullets(choices.compactMap { choice in
-                trip.poi(id: choice.poiId).map { poiLine($0, chosen: choice.selected) }
-            }))
-        }
-        return blocks
-    }
-
-    static func poiLine(_ poi: POI, chosen: Bool) -> String {
-        var parts = ["\(chosen ? "✔︎ " : "")\(poi.name)"]
-        if let a = poi.address, !a.isEmpty { parts.append(a) }
-        if let p = poi.phone, !p.isEmpty { parts.append(p) }
-        parts.append(poi.verification == .verified ? "vérifié" : "à vérifier")
-        return parts.joined(separator: " · ")
     }
 
     // MARK: Formatting (French, locale-independent)

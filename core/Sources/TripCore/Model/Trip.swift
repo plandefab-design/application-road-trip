@@ -208,10 +208,17 @@ public struct POI: Codable, Hashable, Identifiable, Sendable {
     public var verification: Verification
     public var verifiedAt: String?
     public var note: String?
+    /// Road book (schema v8): e-mail, and short sourced lines such as « Spécialité : … », « Ouvert du … au … »,
+    /// « Chambres à partir de … · abri à motos ».
+    public var email: String?
+    public var details: [String]?
 
     public init(id: String = UUID().uuidString, type: POIType, name: String, address: String? = nil,
                 phone: String? = nil, website: String? = nil, point: GeoPoint? = nil, source: String? = nil,
-                verification: Verification = .unverified, verifiedAt: String? = nil, note: String? = nil) {
+                verification: Verification = .unverified, verifiedAt: String? = nil, note: String? = nil,
+                email: String? = nil, details: [String]? = nil) {
+        self.email = email
+        self.details = details
         self.id = id
         self.type = type
         self.name = name
@@ -412,6 +419,12 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     public var speedLimits: [SpeedLimitRange]
     /// Cafés, viewpoints and drinking water near `track` (schema v6).
     public var pauses: [PauseSpot]
+    /// Road book (schema v8, written by the planner): start and end towns of the stage, recommended departure time
+    /// (« 07:30 ») and a one-line note on the stage.
+    public var from: String?
+    public var to: String?
+    public var departure: String?
+    public var summary: String?
 
     public var id: Int { index }
 
@@ -444,6 +457,7 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case index, date, distanceKm, drivingTimeMin, curvinessScore, ascentM, highlights, routeRef, track
         case planBRefs, fuelStops, meals, lodging, instructions, alerts, stations, speedLimits, pauses
+        case from, to, departure, summary
     }
 
     /// Lenient: missing lists default to empty (planner output robustness).
@@ -467,6 +481,10 @@ public struct TripDay: Codable, Hashable, Identifiable, Sendable {
         stations = try c.decodeIfPresent([FuelStation].self, forKey: .stations) ?? []
         speedLimits = try c.decodeIfPresent([SpeedLimitRange].self, forKey: .speedLimits) ?? []
         pauses = try c.decodeIfPresent([PauseSpot].self, forKey: .pauses) ?? []
+        from = try c.decodeIfPresent(String.self, forKey: .from)
+        to = try c.decodeIfPresent(String.self, forKey: .to)
+        departure = try c.decodeIfPresent(String.self, forKey: .departure)
+        summary = try c.decodeIfPresent(String.self, forKey: .summary)
     }
 }
 
@@ -504,10 +522,48 @@ public struct OfflinePack: Codable, Hashable, Sendable {
     }
 }
 
+/// Plan B of a road book (schema v8): what to do depending on the situation at a key point (« arrivée à Jausiers
+/// avant 16 h 30 »…), and the rule that always applies.
+public struct TripPlanB: Codable, Hashable, Sendable {
+    public struct Case: Codable, Hashable, Sendable {
+        public var title: String
+        public var text: String
+        public var lines: [String]?
+        public init(title: String, text: String, lines: [String]? = nil) {
+            self.title = title
+            self.text = text
+            self.lines = lines
+        }
+    }
+
+    public var title: String
+    public var intro: String?
+    public var cases: [Case]
+    public var rule: String?
+
+    public init(title: String, intro: String? = nil, cases: [Case] = [], rule: String? = nil) {
+        self.title = title
+        self.intro = intro
+        self.cases = cases
+        self.rule = rule
+    }
+
+    enum CodingKeys: String, CodingKey { case title, intro, cases, rule }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Plan B"
+        intro = try c.decodeIfPresent(String.self, forKey: .intro)
+        cases = try c.decodeIfPresent([Case].self, forKey: .cases) ?? []
+        rule = try c.decodeIfPresent(String.self, forKey: .rule)
+    }
+}
+
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
     /// v2 instructions, v3 alerts, v4 stations, v5 bike category + trip style + level, v6 speed limits + pauses
-    /// + updatedAt (all additive). Older files are migrated on decode.
-    public static let currentSchemaVersion = 7
+    /// + updatedAt, v7 instruction ref + toward, v8 road book (stage from/to/departure/summary, POI e-mail and
+    /// details, mustCheck, planB) — all additive. Older files are migrated on decode.
+    public static let currentSchemaVersion = 8
 
     public var schemaVersion: Int
     public var id: String
@@ -520,11 +576,17 @@ public struct Trip: Codable, Hashable, Identifiable, Sendable {
     public var offlinePack: OfflinePack
     /// Last modification, ISO 8601 UTC « yyyy-MM-dd'T'HH:mm:ss'Z' » (schema v6): most recent wins in the sync.
     public var updatedAt: String?
+    /// Road book (schema v8): points to check before leaving (« État du col de la Bonnette : … »), and plan B.
+    public var mustCheck: [String]
+    public var planB: TripPlanB?
 
     public init(id: String = UUID().uuidString, name: String, status: TripStatus = .draft, params: TripParams,
                 days: [TripDay] = [], pois: [POI] = [], checklist: [ChecklistItem] = [],
-                offlinePack: OfflinePack = OfflinePack(), updatedAt: String? = nil) {
+                offlinePack: OfflinePack = OfflinePack(), updatedAt: String? = nil,
+                mustCheck: [String] = [], planB: TripPlanB? = nil) {
         self.updatedAt = updatedAt
+        self.mustCheck = mustCheck
+        self.planB = planB
         self.schemaVersion = Trip.currentSchemaVersion
         self.id = id
         self.name = name
@@ -537,7 +599,7 @@ public struct Trip: Codable, Hashable, Identifiable, Sendable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case schemaVersion, id, name, status, params, days, pois, checklist, offlinePack, updatedAt
+        case schemaVersion, id, name, status, params, days, pois, checklist, offlinePack, updatedAt, mustCheck, planB
     }
 
     /// Lenient: missing lists / pack default to empty (planner output robustness).
@@ -553,6 +615,8 @@ public struct Trip: Codable, Hashable, Identifiable, Sendable {
         checklist = try c.decodeIfPresent([ChecklistItem].self, forKey: .checklist) ?? []
         offlinePack = try c.decodeIfPresent(OfflinePack.self, forKey: .offlinePack) ?? OfflinePack()
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
+        mustCheck = try c.decodeIfPresent([String].self, forKey: .mustCheck) ?? []
+        planB = try c.decodeIfPresent(TripPlanB.self, forKey: .planB)
     }
 
     public func poi(id: String) -> POI? { pois.first { $0.id == id } }
@@ -572,7 +636,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v6 → v7: only optional fields were added
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v7 → v8: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

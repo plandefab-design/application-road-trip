@@ -142,8 +142,8 @@ def test_schema_v1_is_upgraded():
     from app.trip_schema import validate_trip
     t = {"schemaVersion": 1, "id": "t", "name": "n", "status": "draft", "params": {}}
     assert validate_trip(t) == []
-    assert t["schemaVersion"] == 7
-    assert validate_trip({"schemaVersion": 8, "id": "t", "name": "n", "status": "draft", "params": {}})
+    assert t["schemaVersion"] == 8
+    assert validate_trip({"schemaVersion": 9, "id": "t", "name": "n", "status": "draft", "params": {}})
 
 
 def test_route_profile_mirrors_tripcore():
