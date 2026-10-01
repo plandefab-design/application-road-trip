@@ -98,11 +98,15 @@ final class ConsistencyTests: XCTestCase {
         XCTAssertTrue(ConsistencyChecker.check(p).contains { $0.code == "distance.capacity" })
     }
 
-    func testMissingZoneAndBikes() {
+    func testMissingDestinationAndBikes() {
         var p = Fixtures.params(bikes: [])
         p.zone = []
+        XCTAssertFalse(ConsistencyChecker.check(p).contains { $0.code == "destination.empty" })   // drop-off point set
+        p.end = nil
         let codes = Set(ConsistencyChecker.check(p).map(\.code))
-        XCTAssertTrue(codes.isSuperset(of: ["zone.empty", "bikes.empty"]))
+        XCTAssertTrue(codes.isSuperset(of: ["destination.empty", "bikes.empty"]))
+        p.mandatoryStops = [MandatoryStop(place: Place(name: "Col fictif", point: GeoPoint(lat: 44.5, lon: 6.5)))]
+        XCTAssertFalse(ConsistencyChecker.check(p).contains { $0.code == "destination.empty" })
     }
 
     func testShortRangeBikeQuestion() {

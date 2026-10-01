@@ -34,6 +34,8 @@ struct MapContent: Equatable {
     var recenter = 0
     /// Optional detour route (« Autour de moi »), drawn in blue.
     var detour: [GeoPoint] = []
+    /// Centre the map here (town zoom) whenever it changes: place picking, starting point.
+    var focus: GeoPoint? = nil
 }
 
 extension MapContent {
@@ -90,6 +92,8 @@ struct TripMapView: UIViewRepresentable {
     static var allStyleURLs: [URL] { [lightStyleURL, darkStyleURL] }
 
     var content: MapContent
+    /// Called with the map centre when the rider stops moving the map (place picking with a centre pin).
+    var onCenterChange: ((GeoPoint) -> Void)? = nil
     /// Rider option (Réglages › Navigation), off by default: the dark style has far fewer names and details.
     @AppStorage("mapDarkAtNight") private var darkAtNight = false
 
@@ -115,6 +119,7 @@ struct TripMapView: UIViewRepresentable {
             context.coordinator.styleWillChange()
             map.styleURL = url
         }
+        context.coordinator.onCenterChange = onCenterChange
         context.coordinator.apply(content, to: map)
     }
 
@@ -128,6 +133,12 @@ struct TripMapView: UIViewRepresentable {
         private var lastRecenter = 0
         /// The rider moved the map by hand: stop following until « recentrer » is pressed.
         private var userMovedMap = false
+        var onCenterChange: ((GeoPoint) -> Void)?
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            let c = mapView.centerCoordinate
+            onCenterChange?(GeoPoint(lat: c.latitude, lon: c.longitude))
+        }
 
         func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
             if mode == .none { userMovedMap = true }
@@ -147,7 +158,8 @@ struct TripMapView: UIViewRepresentable {
         func apply(_ content: MapContent, to map: MLNMapView) {
             guard styleLoaded, let style = map.style else { pending = content; return }
             guard content != applied else { return }
-            let geometryChanged = content.lines != applied?.lines
+            let geometryChanged = content.lines != applied?.lines || content.markers != applied?.markers
+            let focusChanged = content.focus != nil && content.focus != applied?.focus
             applied = content
             pending = nil
 
@@ -247,6 +259,8 @@ struct TripMapView: UIViewRepresentable {
                     map.setUserTrackingMode(.followWithCourse, animated: true, completionHandler: nil)
                 }
                 if recentre { userMovedMap = false }
+            } else if focusChanged, let f = content.focus {
+                map.setCenter(CLLocationCoordinate2D(latitude: f.lat, longitude: f.lon), zoomLevel: 13, animated: false)
             } else if geometryChanged {
                 let all = content.lines.flatMap(\.points) + content.markers.map(\.point)
                 fit(map, all)
@@ -260,6 +274,9 @@ struct TripMapView: UIViewRepresentable {
                 minLat = min(minLat, p.lat); maxLat = max(maxLat, p.lat)
                 minLon = min(minLon, p.lon); maxLon = max(maxLon, p.lon)
             }
+            // A single place: show its surroundings (≈ 10 km) rather than the maximum zoom.
+            let pad = max(0, 0.05 - (maxLat - minLat)) / 2, padLon = max(0, 0.07 - (maxLon - minLon)) / 2
+            minLat -= pad; maxLat += pad; minLon -= padLon; maxLon += padLon
             let bounds = MLNCoordinateBounds(sw: CLLocationCoordinate2D(latitude: minLat, longitude: minLon),
                                              ne: CLLocationCoordinate2D(latitude: maxLat, longitude: maxLon))
             map.setVisibleCoordinateBounds(bounds, edgePadding: UIEdgeInsets(top: 40, left: 30, bottom: 40, right: 30),

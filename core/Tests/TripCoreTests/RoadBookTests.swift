@@ -30,7 +30,7 @@ final class RoadBookTests: XCTestCase {
         let book = RoadBook.build(sampleTrip(), timeZone: utc)
         XCTAssertEqual(book.subtitle, "du 12 au 13 juin 2027 · 2 étapes · 302 km")
         let f = facts(book)
-        XCTAssertEqual(f["Arrivée"], "Boucle (retour au départ)")
+        XCTAssertEqual(f["Point de chute"], "Boucle (retour au départ)")
         XCTAssertEqual(f["Moto"], "Moto test (Roadster) · 250 km d'autonomie")
         XCTAssertEqual(f["Style"], "Kiff (virages) · niveau confirmé")
         XCTAssertEqual(f["Budget"], "120 € par jour")

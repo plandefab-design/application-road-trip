@@ -34,9 +34,6 @@ public struct RoadBook: Equatable, Sendable {
         var blocks: [Block] = [.map(day: nil)]
         blocks.append(.heading("Cahier des charges"))
         blocks.append(.facts(brief(trip.params)))
-        if !trip.params.mandatoryStops.isEmpty {
-            blocks.append(.bullets(trip.params.mandatoryStops.map { s in s.place.name + (s.at.map { " (\($0))" } ?? "") }))
-        }
         let constraints = trip.params.constraints.trimmingCharacters(in: .whitespacesAndNewlines)
         if !constraints.isEmpty { blocks.append(.paragraph("Contraintes : \(constraints)")) }
 
@@ -67,7 +64,11 @@ public struct RoadBook: Equatable, Sendable {
 
     static func brief(_ p: TripParams) -> [Fact] {
         var f: [Fact] = [Fact("Départ", p.start.name)]
-        f.append(Fact("Arrivée", p.end.map(\.name) ?? "Boucle (retour au départ)"))
+        f.append(Fact("Point de chute", p.end.map(\.name) ?? "Boucle (retour au départ)"))
+        if !p.mandatoryStops.isEmpty {
+            f.append(Fact("Passages obligatoires",
+                          p.mandatoryStops.map { s in s.place.name + (s.at.map { " (\($0))" } ?? "") }.joined(separator: " · ")))
+        }
         f.append(Fact("Période", period(p)))
         if !p.zone.isEmpty {
             let names = Dictionary(Catalog.regions().map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })

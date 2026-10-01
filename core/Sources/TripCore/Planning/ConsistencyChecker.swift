@@ -45,8 +45,10 @@ public enum ConsistencyChecker {
         }
         let days = max(1, ISODate.days(from: start, to: end) + 1)
 
-        if p.zone.isEmpty {
-            q.append(.init(code: "zone.empty", message: "Quelle zone veux-tu rouler ? (région, massif ou pays)"))
+        // Where to go: a drop-off point, mandatory stops (addresses or map points) or, for older trips, a zone.
+        if p.end == nil && p.mandatoryStops.isEmpty && p.zone.isEmpty {
+            q.append(.init(code: "destination.empty",
+                           message: "Où veux-tu aller ? Ajoute un point de chute ou des passages obligatoires (sinon Claude propose une boucle autour du départ)."))
         }
         if p.bikes.isEmpty {
             q.append(.init(code: "bikes.empty", message: "Quelle(s) moto(s) pour ce trip ? L'autonomie est nécessaire pour placer les pleins."))
