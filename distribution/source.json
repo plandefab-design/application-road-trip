@@ -1,17 +1,26 @@
 {
-  "name": "MotoTrip (FAB)",
+  "name": "Moto Road (FAB)",
   "identifier": "fr.plandefab.mototrip.source",
   "sourceURL": "https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/source.json",
   "apps": [
     {
-      "name": "MotoTrip",
+      "name": "Moto Road",
       "bundleIdentifier": "fr.plandefab.mototrip",
       "developerName": "FAB",
-      "subtitle": "Road trips moto sur routes sinueuses",
-      "localizedDescription": "Création de road trips assistée par Claude et navigation 100 % locale.",
-      "iconURL": "https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/icon.png",
-      "tintColor": "FF6B00",
+      "subtitle": "Road trips moto, guidage vocal, radars et dangers",
+      "localizedDescription": "Road trips moto préparés avec Claude, guidage vocal façon GPS, radars, dangers et trafic en direct, carnet d'entretien. Navigation 100 % locale.",
+      "iconURL": "https://raw.githubusercontent.com/plandefab-design/application-road-trip/main/distribution/moto-road-icon.png",
+      "tintColor": "FF5E1A",
       "versions": [
+        {
+          "version": "1.0.51",
+          "buildVersion": "51",
+          "date": "2026-10-01T19:55:32Z",
+          "localizedDescription": "Build 51",
+          "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.51/MotoRoad-1.0.51.ipa",
+          "size": 5018006,
+          "minOSVersion": "17.0"
+        },
         {
           "version": "1.0.50",
           "buildVersion": "50",
@@ -46,15 +55,6 @@
           "localizedDescription": "Build 46",
           "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.46/MotoTrip-1.0.46.ipa",
           "size": 4499144,
-          "minOSVersion": "17.0"
-        },
-        {
-          "version": "1.0.45",
-          "buildVersion": "45",
-          "date": "2026-09-28T17:22:26Z",
-          "localizedDescription": "Build 45",
-          "downloadURL": "https://github.com/plandefab-design/application-road-trip/releases/download/v1.0.45/MotoTrip-1.0.45.ipa",
-          "size": 4473312,
           "minOSVersion": "17.0"
         }
       ],
