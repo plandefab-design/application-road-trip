@@ -12,8 +12,10 @@ final class AppSettings: ObservableObject {
     @Published var sosPhone: String { didSet { defaults.set(sosPhone, forKey: "sosPhone") } }
     @Published var defaultKmPerDay: Double { didSet { defaults.set(defaultKmPerDay, forKey: "defaultKmPerDay") } }
     @Published var companionURL: String { didSet { defaults.set(companionURL, forKey: "companionURL") } }
+    /// Spoken directions by default when riding a route (off = « alertes uniquement »; switchable on the map).
     @Published var voiceEnabled: Bool { didSet { defaults.set(voiceEnabled, forKey: "voiceEnabled") } }
-    @Published var radarAnnouncements: Bool { didSet { defaults.set(radarAnnouncements, forKey: "radarAnnouncements") } }
+    /// Camera, hazard and incident warnings are always spoken, in every mode (rider's choice).
+    let radarAnnouncements = true
     /// MotoTrip is dark (carbon + racing orange) unless the rider prefers the light theme.
     @Published var lightTheme: Bool { didSet { defaults.set(lightTheme, forKey: "lightTheme") } }
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }
@@ -28,7 +30,6 @@ final class AppSettings: ObservableObject {
         defaultKmPerDay = (d.object(forKey: "defaultKmPerDay") as? Double) ?? 300
         companionURL = d.string(forKey: "companionURL") ?? ""
         voiceEnabled = (d.object(forKey: "voiceEnabled") as? Bool) ?? true
-        radarAnnouncements = (d.object(forKey: "radarAnnouncements") as? Bool) ?? true   // on by default (rider's choice)
         lightTheme = d.bool(forKey: "lightTheme")
         pace = Self.load(PaceEstimator.self, "pace") ?? PaceEstimator()
         primaryBikeId = d.string(forKey: "primaryBikeId") ?? ""

@@ -99,8 +99,7 @@ struct SettingsView: View {
                 }
 
                 Section("Navigation") {
-                    Toggle("Guidage vocal", isOn: $settings.voiceEnabled)
-                    Toggle("Annonces radar (à 500 m)", isOn: $settings.radarAnnouncements)
+                    Toggle("Directions vocales (sinon : alertes uniquement)", isOn: $settings.voiceEnabled)
                     Toggle("Carte sombre la nuit (moins détaillée)", isOn: $mapDarkAtNight)
                     Toggle("Thème clair (l'app est sombre par défaut)", isOn: $settings.lightTheme)
                     NavigationLink {

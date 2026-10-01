@@ -35,7 +35,19 @@ final class FreeRideSession: ObservableObject {
     private var lastTrafficFetch: Date?
     private var trafficTask: Task<Void, Never>?
 
-    init(guide: FreeRideGuide?, camerasEnabled: Bool, traffic: TrafficClient?, location: LocationService, voice: VoiceService) {
+    /// false = « alertes uniquement » on a route to a place: directions silent, alerts still spoken.
+    @Published private(set) var directionsSpoken: Bool
+
+    func setDirections(_ on: Bool) {
+        guard on != directionsSpoken else { return }
+        directionsSpoken = on
+        voice.say(on ? "Directions vocales activées." : "Alertes uniquement. Radars, dangers et accidents restent annoncés.",
+                  key: "mode-\(on)", cooldown: 2)
+    }
+
+    init(guide: FreeRideGuide?, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+         location: LocationService, voice: VoiceService) {
+        self.directionsSpoken = directions
         self.guide = guide
         self.hasPack = guide != nil
         self.camerasEnabled = camerasEnabled
@@ -108,7 +120,7 @@ final class FreeRideSession: ObservableObject {
             let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
             detour = d
             detourUpdate = u
-            for a in u.announcements {
+            for a in u.announcements where directionsSpoken || !TurnGuide.isDirection(a) {
                 voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600, priority: a.urgent ? .urgent : .normal)
             }
         }

@@ -115,7 +115,7 @@ struct TripDetailContent: View {
             }
         }) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                           camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
+                           camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
                            onFinished: { ride in
                                guard let ride else { return }
                                // The km go to « Ma moto »: odometer + maintenance alerts.
@@ -211,7 +211,6 @@ struct TripDetailContent: View {
     }
 
     private func startNavigation(_ day: TripDay) {
-        voice.enabled = settings.voiceEnabled
         var t = trip
         t.status = .active
         store.save(t)

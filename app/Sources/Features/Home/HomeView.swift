@@ -45,6 +45,7 @@ struct HomeView: View {
                     whereButton
                     if !saved.favorites.isEmpty { favoritesStrip }
                     warnings
+                    sosRow
                     bottomRow
                 }
                 .padding(.horizontal, 16)
@@ -66,13 +67,13 @@ struct HomeView: View {
                 switch ride {
                 case .free, .address:
                     FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
-                                 traffic: LiveTraffic.client(settings), startWithAddress: ride.id == "address", onFinished: record)
+                                 traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, startWithAddress: ride.id == "address", onFinished: record)
                 case .place(let place):
                     FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
-                                 traffic: LiveTraffic.client(settings), destination: place, onFinished: record)
+                                 traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, destination: place, onFinished: record)
                 case .trip(let trip, let day):
                     NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                                   camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings),
+                                   camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
                                    onFinished: record) { settings.pace = $0 }
                 }
             }
@@ -248,7 +249,6 @@ struct HomeView: View {
     }
 
     private func go(_ r: Ride) {
-        voice.enabled = settings.voiceEnabled
         if case .trip(var trip, _) = r {
             trip.status = .active
             store.save(trip)
@@ -303,13 +303,36 @@ struct HomeView: View {
 
     private var bottomRow: some View {
         HStack(spacing: 10) {
-            if !settings.sosPhone.isEmpty {
-                tile("Petit point", "hand.thumbsup.fill", Theme.ok) {
-                    Task { await Messaging.sendCheckpoint(to: settings.sosPhone, location: location) }
-                }
-            }
             tile("Mes sorties", "point.bottomleft.forward.to.point.topright.scurvepath", Theme.accent) { showRides = true }
             tile("Mes trips", "map.fill", Theme.info) { tab = .trips }
+        }
+    }
+
+    /// Same SOS as on the riding screens: hold SOS 1.5 s = call, message = SMS with the exact position,
+    /// thumb = « petit point » (all is well + town). Without a contact, one tap to set it.
+    @ViewBuilder private var sosRow: some View {
+        if settings.sosPhone.isEmpty {
+            Button { tab = .settings } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "sos.circle.fill").font(.title).foregroundStyle(Theme.camera)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ajoute ton contact SOS").font(.subheadline.bold())
+                        Text("Appel en un geste, SMS avec ta position exacte").font(.caption).foregroundStyle(Theme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(Theme.muted)
+                }
+                .padding(14)
+                .glass(radius: 20)
+            }
+            .buttonStyle(.plain)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                SOSButton(name: settings.sosName, phone: settings.sosPhone, location: location)
+                Text("Maintiens SOS pour appeler · ✉︎ position par SMS · 👍 petit point")
+                    .font(.caption2).foregroundStyle(Theme.muted)
+                    .padding(.leading, 4)
+            }
         }
     }
 

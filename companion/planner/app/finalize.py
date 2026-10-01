@@ -212,6 +212,10 @@ def instructions_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
             item["street"] = ins["street_name"]
         if ins.get("exit_number"):
             item["exit"] = ins["exit_number"]
+        if ins.get("street_ref"):                       # schema v7: « D 543 », spoken « la D543 »
+            item["ref"] = ins["street_ref"]
+        if ins.get("street_destination"):               # schema v7: signposted direction, « Cadenet »
+            item["toward"] = ins["street_destination"]
         out.append(item)
     return out
 

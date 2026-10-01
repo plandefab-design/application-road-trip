@@ -11,7 +11,7 @@ struct DetourBanner: View {
             Image(systemName: NavigationView.symbol(for: turn.instruction.maneuver)).font(.system(size: 44, weight: .bold))
             VStack(alignment: .leading) {
                 Text(Format.distance(turn.distance)).font(.title.bold())
-                Text(turn.instruction.text).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
+                Text(TurnGuide.banner(turn.instruction)).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
                 Text("Vers \(name)").font(.caption).foregroundStyle(.cyan)
             }
         } else {

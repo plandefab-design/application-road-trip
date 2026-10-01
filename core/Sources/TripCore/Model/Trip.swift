@@ -333,13 +333,20 @@ public struct TurnInstruction: Codable, Hashable, Sendable {
     public var street: String?
     /// Roundabout exit number.
     public var exit: Int?
+    /// Road number when known, e.g. « D 543 » (schema v7).
+    public var ref: String?
+    /// Signposted direction, e.g. « Cadenet » (schema v7).
+    public var toward: String?
 
-    public init(along: Double, maneuver: Maneuver, text: String, street: String? = nil, exit: Int? = nil) {
+    public init(along: Double, maneuver: Maneuver, text: String, street: String? = nil, exit: Int? = nil,
+                ref: String? = nil, toward: String? = nil) {
         self.along = along
         self.maneuver = maneuver
         self.text = text
         self.street = street
         self.exit = exit
+        self.ref = ref
+        self.toward = toward
     }
 }
 
@@ -464,7 +471,7 @@ public struct OfflinePack: Codable, Hashable, Sendable {
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
     /// v2 instructions, v3 alerts, v4 stations, v5 bike category + trip style + level, v6 speed limits + pauses
     /// + updatedAt (all additive). Older files are migrated on decode.
-    public static let currentSchemaVersion = 6
+    public static let currentSchemaVersion = 7
 
     public var schemaVersion: Int
     public var id: String
@@ -529,7 +536,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v5 → v6: only optional fields were added
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v6 → v7: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

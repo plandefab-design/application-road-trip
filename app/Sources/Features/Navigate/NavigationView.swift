@@ -15,13 +15,14 @@ struct NavigationView: View {
     private let onFinished: (RideLog?) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         camerasEnabled: Bool, traffic: TrafficClient?, onFinished: @escaping (RideLog?) -> Void = { _ in },
+         camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+         onFinished: @escaping (RideLog?) -> Void = { _ in },
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         self.location = location
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
                                                                pace: pace, camerasEnabled: camerasEnabled, traffic: traffic,
-                                                               onPaceUpdate: onPaceUpdate))
+                                                               directions: directions, onPaceUpdate: onPaceUpdate))
     }
 
     var body: some View {
@@ -36,6 +37,7 @@ struct NavigationView: View {
                     VStack(spacing: 10) {
                         MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
                         MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
+                        VoiceModeButton(directions: session.directionsSpoken) { session.setDirections(!session.directionsSpoken) }
                     }
                 }
                 Spacer()
@@ -111,7 +113,7 @@ struct NavigationView: View {
                 Image(systemName: Self.symbol(for: turn.instruction.maneuver)).font(.system(size: 44, weight: .bold))
                 VStack(alignment: .leading) {
                     Text(Format.distance(turn.distance)).font(.title.bold())
-                    Text(turn.instruction.text).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
+                    Text(TurnGuide.banner(turn.instruction)).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
                 }
             } else {
                 Image(systemName: "arrow.up").font(.system(size: 44, weight: .bold))

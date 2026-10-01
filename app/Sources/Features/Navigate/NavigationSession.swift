@@ -72,9 +72,10 @@ final class NavigationSession: ObservableObject {
     private let onPaceUpdate: (PaceEstimator) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService,
-         pace: PaceEstimator, camerasEnabled: Bool, traffic: TrafficClient?,
+         pace: PaceEstimator, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         self.camerasEnabled = camerasEnabled
+        self.directionsSpoken = directions
         self.traffic = traffic
         let r = day.track ?? Polyline([])
         self.trip = trip
@@ -107,7 +108,8 @@ final class NavigationSession: ObservableObject {
         cancellable = location.$lastFix.compactMap { $0 }.sink { [weak self] fix in
             self?.handle(fix)
         }
-        voice.say("Navigation démarrée. Étape \(day.index), \(Int(route.length / 1000)) kilomètres.", key: "start")
+        voice.say(directionsSpoken ? "Navigation démarrée. Étape \(day.index), \(Int(route.length / 1000)) kilomètres."
+                  : "Alertes uniquement : radars, dangers et accidents annoncés, sans les directions.", key: "start")
         ActiveRide.shared.start(tripId: trip.id, day: day.index)
     }
 
@@ -141,8 +143,10 @@ final class NavigationSession: ObservableObject {
             guard let road, self.offRoute else { return }        // offline: the arrow toward the point stays
             self.rejoinId = String(UUID().uuidString.prefix(6))
             self.rejoin = DetourRoute.Guidance(route: NearbySearch.withAlerts(road))
-            self.voice.say("Itinéraire de retour calculé : \(TurnGuide.spokenDistance(road.track.length).replacingOccurrences(of: "Dans ", with: "")).",
-                           key: "\(self.rejoinId)-start", cooldown: 5)
+            if self.directionsSpoken {
+                self.voice.say("Itinéraire de retour calculé : \(TurnGuide.spokenLength(road.track.length)).",
+                               key: "\(self.rejoinId)-start", cooldown: 5)
+            }
         }
     }
 
@@ -151,7 +155,7 @@ final class NavigationSession: ObservableObject {
         detour = DetourRoute.Guidance(route: route)
         detourUpdate = nil
         voice.say(route.isRoad
-                  ? "Itinéraire vers \(route.name), \(TurnGuide.spokenDistance(route.track.length).replacingOccurrences(of: "Dans ", with: ""))."
+                  ? "Itinéraire vers \(route.name), \(TurnGuide.spokenLength(route.track.length))."
                   : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
                   key: "\(detourId)-start", cooldown: 5)
     }
@@ -163,8 +167,20 @@ final class NavigationSession: ObservableObject {
         voice.say("Reprise de l'itinéraire.", key: "\(detourId)-end", cooldown: 5)
     }
 
+    /// false = « alertes uniquement »: the route is followed silently (banner kept), cameras, hazards, incidents,
+    /// fuel and weather are still spoken.
+    @Published private(set) var directionsSpoken: Bool
+
+    func setDirections(_ on: Bool) {
+        guard on != directionsSpoken else { return }
+        directionsSpoken = on
+        voice.say(on ? "Directions vocales activées." : "Alertes uniquement. Radars, dangers et accidents restent annoncés.",
+                  key: "mode-\(on)", cooldown: 2)
+    }
+
     /// Camera, hazard or turn from TripCore: urgent ones cut traffic or weather messages.
     private func say(_ a: TurnGuide.Announcement, key: String? = nil, cooldown: TimeInterval = 3_600) {
+        if !directionsSpoken, TurnGuide.isDirection(a) { return }     // « alertes uniquement »: alerts only
         voice.say(a.text, key: key ?? a.key, cooldown: cooldown, priority: a.urgent ? .urgent : .normal)
     }
 
@@ -220,7 +236,7 @@ final class NavigationSession: ObservableObject {
                 rejoinBearing = Geo.bearing(fix.point, target.point)
                 planRejoinIfNeeded(from: fix.point, to: target.point)
             }
-            if !wasOff { voice.say("Hors tracé. Je cherche le meilleur chemin pour rejoindre l'itinéraire.", key: "offroute", cooldown: 30) }
+            if !wasOff, directionsSpoken { voice.say("Hors tracé. Je cherche le meilleur chemin pour rejoindre l'itinéraire.", key: "offroute", cooldown: 30) }
             if var r = rejoin {
                 let u = r.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
                 rejoin = r
@@ -238,7 +254,7 @@ final class NavigationSession: ObservableObject {
             rejoinBearing = nil
             rejoin = nil
             rejoinUpdate = nil
-            if wasOff { voice.say("Retour sur l'itinéraire.", key: "onroute", cooldown: 30) }
+            if wasOff, directionsSpoken { voice.say("Retour sur l'itinéraire.", key: "onroute", cooldown: 30) }
         }
 
         if !offRoute, !day.instructions.isEmpty {

@@ -19,14 +19,14 @@ struct FreeRideView: View {
     /// Favourite destination to be guided to right away (Favoris tab).
     private let destination: FavoritePlaces.Place?
 
-    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, traffic: TrafficClient?, startWithAddress: Bool = false,
-         destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
+    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+         startWithAddress: Bool = false, destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
         self.startWithAddress = startWithAddress
         self.destination = destination
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled, traffic: traffic,
-                                                             location: location, voice: voice))
+                                                             directions: directions, location: location, voice: voice))
     }
 
     var body: some View {
@@ -55,6 +55,9 @@ struct FreeRideView: View {
                     VStack(spacing: 10) {
                         MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
                         MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
+                        if session.detour?.route.isRoad == true {
+                            VoiceModeButton(directions: session.directionsSpoken) { session.setDirections(!session.directionsSpoken) }
+                        }
                     }
                 }
                 Spacer()

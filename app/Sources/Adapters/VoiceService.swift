@@ -35,7 +35,6 @@ final class VoiceService: NSObject, AVSpeechSynthesizerDelegate {
     private var lastSpoken: [String: Date] = [:]
     private var queue: [Item] = []
     private var current: Priority?
-    var enabled = true
 
     override init() {
         super.init()
@@ -46,7 +45,6 @@ final class VoiceService: NSObject, AVSpeechSynthesizerDelegate {
 
     /// - Parameter key: de-duplication key; the same key is not repeated within `cooldown` seconds.
     func say(_ text: String, key: String? = nil, cooldown: TimeInterval = 60, priority: Priority = .normal) {
-        guard enabled else { return }
         let k = key ?? text
         if let last = lastSpoken[k], Date().timeIntervalSince(last) < cooldown { return }
         lastSpoken[k] = Date()

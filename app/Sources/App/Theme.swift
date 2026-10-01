@@ -71,6 +71,28 @@ struct MapRoundButton: View {
     }
 }
 
+/// Voice mode switch over the map: « Guidage » (directions + alerts) or « Alertes » (alerts only, the route is
+/// followed silently). Cameras, hazards and incidents are spoken in both modes.
+struct VoiceModeButton: View {
+    let directions: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Image(systemName: directions ? "arrow.triangle.turn.up.right.diamond.fill" : "exclamationmark.triangle.fill")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(directions ? .white : Theme.hazard)
+                Text(directions ? "Guidage" : "Alertes").font(.system(size: 10, weight: .heavy))
+            }
+            .frame(width: 56, height: 56)
+            .glass(radius: 18, tint: directions ? nil : Theme.hazard.opacity(0.35))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(directions ? "Guidage vocal actif. Passer en alertes uniquement" : "Alertes uniquement. Réactiver les directions")
+    }
+}
+
 /// Mini motorbike: the SF Symbol when the system has it, else a drawn silhouette (same look in UIKit and SwiftUI).
 enum MotoGlyph {
     static func image(pointSize: CGFloat, color: UIColor = .white) -> UIImage {
