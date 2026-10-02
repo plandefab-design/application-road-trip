@@ -144,7 +144,10 @@ enum NearbySearch {
     }
 
     static func route(to target: GeoPoint, name: String, from here: GeoPoint) async -> DetourRoute {
-        await roadRoute(to: target, name: name, from: here) ?? DetourRoute.straight(name: name, from: here, to: target)
+        guard let leg = await AppleDirections.leg(from: here, to: target, timeout: timeout) else {
+            return .straight(name: name, from: here, to: target)
+        }
+        return AppleDirections.route(leg, name: name, destination: target)
     }
 
     /// Attaches the cameras and hazards of the iPhone's latest pack lying on the route (announced along it).
@@ -155,22 +158,6 @@ enum NearbySearch {
         return r
     }
 
-    /// nil when no road route could be obtained (offline, timeout).
-    static func roadRoute(to target: GeoPoint, name: String, from here: GeoPoint) async -> DetourRoute? {
-        await withTimeout { () -> DetourRoute in
-            let request = MKDirections.Request()
-            request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: here.lat, longitude: here.lon)))
-            request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: target.lat, longitude: target.lon)))
-            request.transportType = .automobile
-            let response = try await MKDirections(request: request).calculate()
-            guard let r = response.routes.first else { throw URLError(.cannotFindHost) }
-            var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: r.polyline.pointCount)
-            r.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: r.polyline.pointCount))
-            return DetourRoute.road(name: name, destination: target,
-                                    points: coords.map { GeoPoint(lat: $0.latitude, lon: $0.longitude) },
-                                    steps: r.steps.map { (text: $0.instructions, distance: $0.distance) })
-        }
-    }
 
     /// Runs `work`, giving up after `timeout` seconds (really: see Deadline) or on error (nil).
     private static func withTimeout<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async -> T? {
