@@ -172,17 +172,8 @@ enum NearbySearch {
         }
     }
 
-    /// Runs `work`, giving up after `timeout` seconds or on error (nil).
+    /// Runs `work`, giving up after `timeout` seconds (really: see Deadline) or on error (nil).
     private static func withTimeout<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async -> T? {
-        await withTaskGroup(of: T?.self) { group in
-            group.addTask { try? await work() }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(timeout))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
+        await Deadline.run(timeout, work)
     }
 }

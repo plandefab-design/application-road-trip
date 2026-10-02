@@ -27,22 +27,14 @@ enum Messaging {
 
     /// « Sault (Vaucluse) » from the position; nil offline or after 5 s.
     static func placeName(_ p: GeoPoint) async -> String? {
-        await withTaskGroup(of: String?.self) { group in
-            group.addTask {
-                let marks = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: p.lat, longitude: p.lon))
-                guard let m = marks?.first else { return nil }
-                let town = m.locality ?? m.subLocality ?? m.name
-                let area = m.subAdministrativeArea ?? m.administrativeArea
-                return [town, area.map { "(\($0))" }].compactMap { $0 }.joined(separator: " ")
-            }
-            group.addTask {
-                try? await Task.sleep(for: .seconds(5))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
+        // A real 5 s limit: the SOS message never waits longer for the town's name.
+        await Deadline.run(5) { () -> String? in
+            let marks = try await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: p.lat, longitude: p.lon))
+            guard let m = marks.first else { return nil }
+            let town = m.locality ?? m.subLocality ?? m.name
+            let area = m.subAdministrativeArea ?? m.administrativeArea
+            return [town, area.map { "(\($0))" }].compactMap { $0 }.joined(separator: " ")
+        } ?? nil
     }
 
     static func sosBody(position: GeoPoint?, place: String?) -> String {
