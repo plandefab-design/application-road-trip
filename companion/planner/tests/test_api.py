@@ -179,3 +179,38 @@ def test_delete_trip_sets_it_aside(client):
     assert client.get("/trips/t1", headers=AUTH).status_code == 404
     assert [t["id"] for t in client.get("/trips", headers=AUTH).json()] == []
     assert client.delete("/trips/t1", headers=AUTH).status_code == 404
+
+
+def test_ride_route_modes_and_stops(client, monkeypatch):
+    from app import main
+
+    seen = {}
+
+    def fake_router(base_url, profile, avoid):
+        async def route(points):
+            seen.update(profile=profile, avoid=avoid, points=points)
+            return {"distance": 12_345, "time": 900_000,
+                    "points": {"coordinates": [[5.0, 43.0], [5.0, 43.05], [5.0, 43.1]]},
+                    "instructions": [{"sign": 0, "interval": [0, 1], "text": "Continuez"},
+                                     {"sign": 5, "interval": [1, 2], "text": "Étape"},
+                                     {"sign": 4, "interval": [2, 2], "text": "Arrivée"}]}
+        return route
+
+    monkeypatch.setattr(main, "graphhopper_router", fake_router)
+    body = {"points": [[43.0, 5.0], [43.05, 5.0], [43.1, 5.0]], "mode": "nomotorway"}
+    r = client.post("/ride-route", headers=AUTH, json=body)
+    assert r.status_code == 200
+    data = r.json()
+    assert seen["profile"] == "moto_fast" and seen["avoid"] is True and len(seen["points"]) == 3
+    assert data["distanceKm"] == 12.3 and data["timeMin"] == 15 and len(data["track"]) == 3
+    assert len(data["via"]) == 1 and 5_000 < data["via"][0] < 6_000
+    assert client.post("/ride-route", headers=AUTH, json={**body, "mode": "teleport"}).status_code == 422
+
+
+def test_validated_stops_become_waypoints():
+    from app.finalize import insert_stops
+
+    a, b = {"lat": 43.0, "lon": 5.0}, {"lat": 44.0, "lon": 5.0}
+    meal, fuel = {"lat": 43.6, "lon": 5.02}, {"lat": 43.3, "lon": 4.98}
+    out = insert_stops([a, b], [meal, fuel, {"lat": 43.0001, "lon": 5.0}])
+    assert out == [a, fuel, meal, b]          # in route order, the stop on the start not added twice

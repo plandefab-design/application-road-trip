@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 
 from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
 from . import live_events
-from .finalize import PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router, route_profile
+from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router,
+                       instructions_from_path, route_profile)
 from .planner import Planner, is_configured
 from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
 from .trip_schema import sanitize_trip, validate_trip
@@ -356,3 +357,40 @@ def get_live_events(bbox: str) -> dict[str, Any]:
 @app.get("/live-events/status", dependencies=[Depends(require_token)])
 def get_live_events_status() -> dict[str, Any]:
     return live_events.status()
+
+
+# ---------------------------------------------------------------- free ride with several stops
+
+# Route choice of the free ride: curvy (no motorway, no straight trunk roads), fastest without motorway, fastest.
+RIDE_MODES = {"curvy": ("moto_curvy", True), "nomotorway": ("moto_fast", True), "fast": ("moto_fast", False)}
+
+
+class RideRouteRequest(BaseModel):
+    points: list[tuple[float, float]] = Field(min_length=2, max_length=12, description="[[lat, lon], ...] start, stops, end")
+    mode: str = Field(default="curvy", pattern="^(curvy|nomotorway|fast)$")
+
+
+@app.post("/ride-route", dependencies=[Depends(require_token)])
+async def ride_route(req: RideRouteRequest) -> dict[str, Any]:
+    """Road route through the rider's stops in the trip format: track, turn-by-turn, distance, time and the position
+    of each intermediate stop along it (the iPhone adds cameras and hazards from its pack)."""
+    for lat, lon in req.points:
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise HTTPException(422, "coordonnées invalides")
+    profile, avoid = RIDE_MODES[req.mode]
+    route = graphhopper_router(GRAPHHOPPER_URL, profile, avoid)
+    try:
+        path = await route([{"lat": lat, "lon": lon} for lat, lon in req.points])
+    except RuntimeError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(503, f"GraphHopper injoignable : {exc}") from exc
+    coords = (path.get("points") or {}).get("coordinates", [])
+    instructions = instructions_from_path(path)
+    return {
+        "track": [{"lat": round(c[1], 6), "lon": round(c[0], 6)} for c in coords],
+        "instructions": instructions,
+        "distanceKm": round(path.get("distance", 0) / 1000, 1),
+        "timeMin": round(path.get("time", 0) / 60_000),
+        "via": [i["along"] for i in instructions if i["maneuver"] == "via"],
+    }

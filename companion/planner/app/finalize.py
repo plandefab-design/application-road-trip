@@ -220,6 +220,21 @@ def instructions_from_path(path: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def insert_stops(waypoints: list[Point], stops: list[Point], same_km: float = 0.3) -> list[Point]:
+    """Adds each stop between the two consecutive waypoints where it adds the least distance (never before the start
+    nor after the end). A stop already on a waypoint (< 300 m) is not added twice."""
+    out = list(waypoints)
+    if len(out) < 2:
+        return out
+    for stop in stops:
+        if any(distance_km(stop, w) < same_km for w in out):
+            continue
+        best = min(range(len(out) - 1),
+                   key=lambda i: distance_km(out[i], stop) + distance_km(stop, out[i + 1]) - distance_km(out[i], out[i + 1]))
+        out.insert(best + 1, stop)
+    return out
+
+
 def _valid(point: Any) -> bool:
     return isinstance(point, dict) and isinstance(point.get("lat"), (int, float)) and isinstance(point.get("lon"), (int, float))
 
@@ -283,6 +298,23 @@ async def finalize_trip(trip: dict[str, Any], locate: Locate, route: Route,
                 warnings.append(f"Jour {day.get('index')} : pas d'hébergement localisé, l'étape s'arrête au dernier point.")
         if end:
             waypoints.append(end)
+
+        # The validated stops are stages of the route: the chosen restaurants and the fuel stops placed by the iPhone
+        # on real stations (from the previous computation), each inserted where it lengthens the trip the least.
+        stops: list[Point] = []
+        for ref in day.get("meals", []) or []:
+            poi = pois.get(ref.get("poiId")) if ref.get("selected") else None
+            if poi is None:
+                continue
+            if not _valid(poi.get("point")):
+                progress(f"Localisation : {poi.get('name', '?')}")
+                found = await locate(poi.get("address") or poi.get("name", ""), waypoints[-1])
+                if found:
+                    poi["point"] = found
+            if _valid(poi.get("point")):
+                stops.append(poi["point"])
+        stops += [f["point"] for f in day.get("fuelStops", []) or [] if _valid(f.get("point"))]
+        waypoints = insert_stops(waypoints, stops)
 
         if len(waypoints) < 2:
             warnings.append(f"Jour {day.get('index')} : pas assez de points pour tracer l'étape.")
