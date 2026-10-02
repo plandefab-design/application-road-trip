@@ -243,6 +243,28 @@ enum RoadBookPDF {
         trip.days.filter { day == nil || $0.index == day }.compactMap { $0.track?.resampled(every: 300).points }
     }
 
+    /// One snapshot, or nil after `timeout` seconds: the wait always ends (a cancelled snapshotter may never call
+    /// back), so the PDF is never stuck on a map.
+    @MainActor
+    private static func shoot(_ options: MKMapSnapshotter.Options, timeout: TimeInterval) async -> MKMapSnapshotter.Snapshot? {
+        final class Once { var done = false }
+        let once = Once()
+        let snapshotter = MKMapSnapshotter(options: options)
+        return await withCheckedContinuation { continuation in
+            func finish(_ shot: MKMapSnapshotter.Snapshot?) {
+                guard !once.done else { return }
+                once.done = true
+                continuation.resume(returning: shot)
+            }
+            snapshotter.start(with: .main) { shot, _ in finish(shot) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
+                guard !once.done else { return }
+                snapshotter.cancel()
+                finish(nil)
+            }
+        }
+    }
+
     /// Apple Maps snapshot fitted to the lines, route drawn in orange. nil offline or without a track.
     @MainActor
     private static func snapshot(lines: [[GeoPoint]], size: CGSize) async -> UIImage? {
@@ -257,13 +279,7 @@ enum RoadBookPDF {
         options.size = size
         options.scale = 2
         options.pointOfInterestFilter = .excludingAll
-        let snapshotter = MKMapSnapshotter(options: options)
-        let timeout = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(10))
-            if !Task.isCancelled { snapshotter.cancel() }
-        }
-        defer { timeout.cancel() }
-        guard let shot = try? await snapshotter.start() else { return nil }
+        guard let shot = await shoot(options, timeout: 10) else { return nil }
         return UIGraphicsImageRenderer(size: size).image { _ in
             shot.image.draw(at: .zero)
             for line in lines {

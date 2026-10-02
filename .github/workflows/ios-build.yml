@@ -70,6 +70,7 @@ jobs:
       # simulator before anything is released (screenshots kept as an artifact).
       - name: App tests (iPhone simulator)
         working-directory: app
+        timeout-minutes: 20
         run: |
           set -o pipefail
           DEVICE=$(xcrun simctl list devices available -j | python3 -c "
@@ -83,8 +84,9 @@ jobs:
             -scheme MotoTrip \
             -destination "id=$DEVICE" \
             -clonedSourcePackagesDirPath .spm \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 120 \
             CODE_SIGNING_ALLOWED=NO \
-            | tail -n 80
+            2>&1 | grep -E --line-buffered "Test (Case|Suite)|error:|Executed|TEST (SUCCEEDED|FAILED)|Failing tests|BUILD FAILED|exceeded"
 
       - name: Keep test screenshots
         if: always()
