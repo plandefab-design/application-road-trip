@@ -66,6 +66,39 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             | tail -n 200
 
+      # What UIKit draws cannot be tested on Windows: the road book PDF and its viewer are checked on an iPhone
+      # simulator before anything is released (screenshots kept as an artifact).
+      - name: App tests (iPhone simulator)
+        working-directory: app
+        run: |
+          set -o pipefail
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          devices = json.load(sys.stdin)['devices']
+          print(next(d['udid'] for runtime in sorted(devices, reverse=True) if 'iOS' in runtime
+                     for d in devices[runtime] if d['name'].startswith('iPhone')))")
+          echo "Simulator: $DEVICE"
+          xcodebuild test \
+            -project MotoTrip.xcodeproj \
+            -scheme MotoTrip \
+            -destination "id=$DEVICE" \
+            -clonedSourcePackagesDirPath .spm \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -n 80
+
+      - name: Keep test screenshots
+        if: always()
+        run: |
+          mkdir -p test-shots
+          find ~/Library/Developer/CoreSimulator/Devices -path '*MotoRoadTestShots/*.png' -exec cp {} test-shots/ \; 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-test-shots
+          path: test-shots
+          if-no-files-found: ignore
+
       - name: Package IPA
         run: |
           mkdir -p dist/Payload

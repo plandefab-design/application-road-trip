@@ -12,7 +12,6 @@ struct RoadBookView: View {
     @State private var routeOK = false
     @State private var stagesOK = false
     @State private var placesOK = false
-    @State private var pdf: URL?
     @State private var rendering = false
     @State private var viewing: PDFToShow?
 
@@ -31,7 +30,6 @@ struct RoadBookView: View {
             .navigationTitle("Cahier des charges")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { actionBar(trip, book: book, validatedAt: validatedAt) }
-            .onChange(of: RoadBook.fingerprint(trip)) { _, _ in pdf = nil }
             .sheet(item: $viewing) { PDFViewer(url: $0.url, title: $0.title) }
         } else {
             ContentUnavailableView("Trip introuvable", systemImage: "questionmark.folder")
@@ -162,12 +160,10 @@ struct RoadBookView: View {
             if validatedAt != nil {
                 Button {
                     Task {
-                        if pdf == nil {
-                            rendering = true
-                            pdf = await RoadBookPDF.render(book, trip: trip)
-                            rendering = false
-                        }
-                        viewing = pdf.map { PDFToShow(url: $0, title: "Feuille de route") }
+                        rendering = true
+                        let url = await RoadBookPDF.render(book, trip: trip)     // always fresh (temporary file)
+                        rendering = false
+                        viewing = PDFToShow(url: url, title: "Feuille de route")
                     }
                 } label: {
                     bigLabel(rendering ? "Préparation du PDF…" : "Voir la feuille de route (PDF)", icon: "doc.richtext.fill")
@@ -175,7 +171,6 @@ struct RoadBookView: View {
                 .buttonStyle(.borderedProminent).tint(Theme.accent).disabled(rendering)
                 Button("Annuler la validation", role: .destructive) {
                     validation.revoke(trip.id)
-                    pdf = nil
                     routeOK = false; stagesOK = false; placesOK = false
                 }
                 .font(.footnote)

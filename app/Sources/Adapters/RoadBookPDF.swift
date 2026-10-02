@@ -28,22 +28,38 @@ enum RoadBookPDF {
         }
     }
 
-    /// Writes the PDF to a temporary file named after the trip.
+    /// Writes the PDF to a temporary file named after the trip. Drawn on the main thread (UIKit text and shapes);
+    /// a map that does not come within 10 s is left out (offline).
+    @MainActor
     static func render(_ book: RoadBook, trip: Trip) async -> URL {
         var maps: [Int?: UIImage] = [:]
         for case .map(let day) in book.blocks {
             maps[day] = await snapshot(lines: lines(for: trip, day: day), size: CGSize(width: width, height: day == nil ? 250 : 170))
         }
+        let data = pdfData(book, maps: maps)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("FeuillesDeRoute", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(fileName(trip.name))
+        try? data.write(to: url, options: .atomic)
+        return url
+    }
+
+    /// The whole document. Two passes: the first counts the pages for « Page X / Y ».
+    @MainActor
+    static func pdfData(_ book: RoadBook, maps: [Int?: UIImage] = [:]) -> Data {
         let format = UIGraphicsPDFRendererFormat()
         format.documentInfo = [kCGPDFContextTitle as String: book.title, kCGPDFContextCreator as String: "Moto Road"]
         let renderer = UIGraphicsPDFRenderer(bounds: page, format: format)
-        // Two passes: the first counts the pages for « Page X / Y ».
         var total = 0
         _ = renderer.pdfData { ctx in total = layout(book, maps: maps, ctx: ctx, total: nil) }
-        let safeName = trip.name.components(separatedBy: CharacterSet(charactersIn: "/\\:?*\"<>|")).joined(separator: "-")
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName) — feuille de route.pdf")
-        try? renderer.writePDF(to: url) { ctx in _ = layout(book, maps: maps, ctx: ctx, total: total) }
-        return url
+        return renderer.pdfData { ctx in _ = layout(book, maps: maps, ctx: ctx, total: total) }
+    }
+
+    /// « Feuille de route - Alpes 2027.pdf »: only letters, digits, spaces and dashes (any app opens it).
+    static func fileName(_ tripName: String) -> String {
+        let cleaned = String(tripName.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) || $0 == " " || $0 == "-" ? Character($0) : " " })
+            .split(separator: " ").joined(separator: " ")
+        return "Feuille de route - \(cleaned.isEmpty ? "trip" : String(cleaned.prefix(60))).pdf"
     }
 
     // MARK: Layout
@@ -228,6 +244,7 @@ enum RoadBookPDF {
     }
 
     /// Apple Maps snapshot fitted to the lines, route drawn in orange. nil offline or without a track.
+    @MainActor
     private static func snapshot(lines: [[GeoPoint]], size: CGSize) async -> UIImage? {
         let all = lines.flatMap { $0 }
         guard all.count >= 2 else { return nil }
@@ -240,7 +257,13 @@ enum RoadBookPDF {
         options.size = size
         options.scale = 2
         options.pointOfInterestFilter = .excludingAll
-        guard let shot = try? await MKMapSnapshotter(options: options).start() else { return nil }
+        let snapshotter = MKMapSnapshotter(options: options)
+        let timeout = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            if !Task.isCancelled { snapshotter.cancel() }
+        }
+        defer { timeout.cancel() }
+        guard let shot = try? await snapshotter.start() else { return nil }
         return UIGraphicsImageRenderer(size: size).image { _ in
             shot.image.draw(at: .zero)
             for line in lines {
