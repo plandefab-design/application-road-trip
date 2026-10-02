@@ -153,8 +153,69 @@ def graphhopper_router(base_url: str, profile: str = "moto_curvy", avoid_motorwa
             r = await client.post(f"{base_url}/route", json=payload)
         if r.status_code != 200:
             raise RuntimeError(routing_error(r.status_code, r.text))
-        return r.json()["paths"][0]
+        return simplify_path(r.json()["paths"][0])
     return route
+
+
+def _douglas_peucker(coords: list[list[float]], anchors: list[int], tolerance_m: float) -> list[int]:
+    """Indices kept by Douglas-Peucker between each pair of consecutive anchors (always kept), in a flat metric
+    projection (exact enough at the scale of a road)."""
+    k = 6_371_008.8 * math.pi / 180
+    kx = k * math.cos(math.radians(coords[0][1]))
+    xy = [(c[0] * kx, c[1] * k) for c in coords]
+    keep = set(anchors)
+    for a, b in zip(anchors, anchors[1:]):
+        stack = [(a, b)]
+        while stack:
+            s, e = stack.pop()
+            if e - s < 2:
+                continue
+            (ax, ay), (bx, by) = xy[s], xy[e]
+            dx, dy = bx - ax, by - ay
+            length2 = dx * dx + dy * dy
+            far, far_i = 0.0, -1
+            for i in range(s + 1, e):
+                px, py = xy[i]
+                t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length2))
+                d = math.hypot(px - ax - t * dx, py - ay - t * dy)
+                if d > far:
+                    far, far_i = d, i
+            if far > tolerance_m:
+                keep.add(far_i)
+                stack += [(s, far_i), (far_i, e)]
+    return sorted(keep)
+
+
+def simplify_path(path: dict[str, Any], tolerance_m: float = 2.0) -> dict[str, Any]:
+    """Drops the points that move the line by less than `tolerance_m` (GraphHopper keeps many on straight roads:
+    about 45 % fewer, so smaller trips and less work per GPS fix on the iPhone) and rounds them to 6 decimals.
+    The points instructions and path details start or end on are kept and re-indexed: distances along the route
+    are computed on the very points the iPhone stores."""
+    coords = (path.get("points") or {}).get("coordinates") or []
+    if len(coords) < 3:
+        return path
+    n = len(coords)
+    anchors = {0, n - 1}
+    for ins in path.get("instructions") or []:
+        anchors.update(i for i in ins.get("interval") or [] if isinstance(i, int) and 0 <= i < n)
+    for rows in (path.get("details") or {}).values():
+        for row in rows or []:
+            anchors.update(i for i in row[:2] if isinstance(i, int) and 0 <= i < n)
+    keep = _douglas_peucker(coords, sorted(anchors), tolerance_m)
+    position = {old: new for new, old in enumerate(keep)}
+
+    def remap(i: Any) -> Any:
+        if not isinstance(i, int):
+            return i
+        return position.get(i, max(0, min(len(keep) - 1, sum(1 for k in keep if k <= i) - 1)))
+
+    out = dict(path)
+    out["points"] = {**path["points"], "coordinates": [[round(v, 6) for v in coords[i]] for i in keep]}
+    out["instructions"] = [{**ins, "interval": [remap(i) for i in ins["interval"]]} if ins.get("interval") else ins
+                           for ins in path.get("instructions") or []]
+    out["details"] = {key: [[remap(row[0]), remap(row[1]), *row[2:]] for row in rows or []]
+                      for key, rows in (path.get("details") or {}).items()}
+    return out
 
 
 # GraphHopper instruction sign → trip.json maneuver (schema v2). Leaving a roundabout is silent.

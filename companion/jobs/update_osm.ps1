@@ -92,4 +92,10 @@ try {
 } finally {
     Pop-Location
 }
+
+# 5. Free the disk: the merged map (≈ 16 GB) only served this import (the next update downloads fresh copies), and
+# data\graph-cache is the graph of the first versions, before it moved to the Docker volume.
+Step "Nettoyage du disque"
+Remove-Item -Force (Join-Path $osmDir "region.osm.pbf") -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force (Join-Path $data "graph-cache") -ErrorAction SilentlyContinue
 Step "OK — nouvelle carte en service (GraphHopper redémarre en 1 à 2 minutes). Cartes : $($Extracts -join ', ')"

@@ -59,6 +59,9 @@ def _representative_point(geom: dict[str, Any]) -> tuple[float, float] | None:
     return sum(c[0] for c in ring) / len(ring), sum(c[1] for c in ring) / len(ring)
 
 
+USED_TAGS = ("name", "brand", "operator", "amenity", "tourism", "hazard", "maxspeed", "enforcement", "type")
+
+
 def load_features(path: Path) -> list[dict[str, Any]]:
     """GeoJSON sequence → [{"lat", "lon", "props"}] (areas reduced to a point), cached until the file changes."""
     if not path.exists():
@@ -78,7 +81,9 @@ def load_features(path: Path) -> list[dict[str, Any]]:
             if point is None:
                 continue
             lon, lat = point
-            features.append({"lat": lat, "lon": lon, "props": feat.get("properties") or {}})
+            props = feat.get("properties") or {}
+            # Only the tags read by the planner: the rest of OSM's tags would cost hundreds of MB for 7 countries.
+            features.append({"lat": lat, "lon": lon, "props": {k: props[k] for k in USED_TAGS if k in props}})
     _cache[path] = (mtime, features)
     return features
 

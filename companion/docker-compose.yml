@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       JAVA_OPTS: "-Xmx${GH_HEAP:-6g} -Xms1g"
-      GH_PBF: "/data/osm/region.osm.pbf"   # merged extracts of maps.txt (jobs/update_osm.ps1)
+      GH_PBF: "/data/osm/region.osm.pbf"   # read only to build a missing graph; jobs/update_osm.ps1 downloads it, imports, then deletes it
     volumes:
       - ./data:/data              # OSM extracts (read once per import)
       - graphs:/graphs            # routing graph: /graphs/current in service, /graphs/new while updating

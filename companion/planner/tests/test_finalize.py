@@ -181,3 +181,45 @@ def test_routing_error_explains_places_outside_the_maps():
     assert "hors des cartes" in out and "maps.txt" in out
     assert "pas de route" in routing_error(400, '{"message":"Connection between locations not found"}')
     assert routing_error(500, "boom") == "GraphHopper 500 : boom"
+
+
+def test_simplified_route_keeps_instructions_and_limits_in_place():
+    """Straight stretches lose their extra points; instruction and speed-limit points stay, re-indexed."""
+    from app.finalize import instructions_from_path, simplify_path, speed_limits_from_path
+    # 2 km north in 201 points (10 m apart), then 1 km east: a single real corner.
+    coords = [[5.0, 43.0 + i * 0.00009] for i in range(201)] + [[5.0 + j * 0.000123, 43.018] for j in range(1, 101)]
+    path = {"points": {"coordinates": coords},
+            "instructions": [{"interval": [0, 200], "sign": 0, "text": "Continuez"},
+                             {"interval": [200, 300], "sign": 2, "text": "Tournez à droite"},
+                             {"interval": [300, 300], "sign": 4, "text": "Arrivée"}],
+            "details": {"max_speed": [[0, 120, 80], [120, 300, 50]]}}
+    simple = simplify_path(path)
+    kept = simple["points"]["coordinates"]
+    assert len(kept) <= 6                                          # ends, corner, limit change
+    turn = simple["instructions"][1]["interval"][0]
+    assert kept[turn] == coords[200]
+    limit = simple["details"]["max_speed"][1][0]
+    assert kept[limit] == coords[120]
+    before, after = instructions_from_path(path), instructions_from_path(simple)
+    assert [i["maneuver"] for i in after] == [i["maneuver"] for i in before]
+    assert abs(after[1]["along"] - before[1]["along"]) < 1         # straight line: same distance
+    assert [(r["kmh"], round(r["from"])) for r in speed_limits_from_path(simple)] == \
+           [(r["kmh"], round(r["from"])) for r in speed_limits_from_path(path)]
+
+
+def test_simplification_never_moves_the_line_more_than_the_tolerance():
+    import math
+    from app.finalize import simplify_path
+    # A winding road: 1 km sine wave, one point every 5 m.
+    coords = [[5.0 + i * 0.0000615, 43.0 + 0.0003 * math.sin(i / 15)] for i in range(200)]
+    kept = simplify_path({"points": {"coordinates": coords}, "instructions": [], "details": {}}, tolerance_m=2.0)["points"]["coordinates"]
+    assert len(kept) < len(coords)
+    k = 6_371_008.8 * math.pi / 180
+    kx = k * math.cos(math.radians(43.0))
+    def to_segment(c, a, b):
+        ax, ay, bx, by, px, py = a[0] * kx, a[1] * k, b[0] * kx, b[1] * k, c[0] * kx, c[1] * k
+        dx, dy = bx - ax, by - ay
+        t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1)))
+        return math.hypot(ax + t * dx - px, ay + t * dy - py)
+    for c in coords:                                               # every original point within 2 m of the kept line
+        assert min(to_segment(c, a, b) for a, b in zip(kept, kept[1:])) <= 2.0 + 0.2   # + rounding to 6 decimals

@@ -87,7 +87,7 @@ def store_trip(trip_id: str, trip: dict[str, Any], touch: bool = True) -> dict[s
     """Writes a trip; `updatedAt` (schema v6) drives the iPhone ↔ PC sync (most recent wins)."""
     if touch or not trip.get("updatedAt"):
         trip["updatedAt"] = now_iso()
-    trip_path(trip_id).write_text(json.dumps(trip, ensure_ascii=False, indent=2), encoding="utf-8")
+    trip_path(trip_id).write_text(json.dumps(trip, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return trip
 
 
