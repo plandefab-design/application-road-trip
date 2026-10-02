@@ -11,6 +11,8 @@ public struct DetourRoute: Equatable, Sendable {
     public let isRoad: Bool
     /// Cameras and hazards on this route (from the iPhone's latest pack), announced along it.
     public var alerts: [RoadAlert] = []
+    /// Intermediate stops of a route with several destinations (« Étape atteinte : … »).
+    public var stops: [RouteStop] = []
 
     public init(name: String, destination: GeoPoint, track: Polyline, instructions: [TurnInstruction], isRoad: Bool) {
         self.name = name
@@ -52,6 +54,8 @@ public struct DetourRoute: Equatable, Sendable {
             /// Direction to the place when there is no road route (offline), degrees.
             public let bearing: Double?
             public let announcements: [TurnGuide.Announcement]
+            /// Next intermediate stop and its distance (routes with several destinations).
+            public var nextStop: (stop: RouteStop, distance: Double)? = nil
         }
 
         public init(route: DetourRoute) { self.route = route }
@@ -70,14 +74,18 @@ public struct DetourRoute: Equatable, Sendable {
             if route.isRoad {
                 announcements += AlertGuide.announcements(route.alerts, progress: progress, cameras: cameras)
                     .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text, urgent: $0.urgent) }
+                announcements += StopGuide.announcements(route.stops, progress: progress)
+                    .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text) }
             }
             if !arrived && (direct < 50 || (route.isRoad && remaining < 30)) {
                 arrived = true
                 announcements.append(.init(key: "detour-arrived", text: "Vous êtes arrivé : \(route.name)."))
             }
             let next = TurnGuide.next(route.instructions, progress: progress).map { (instruction: $0.instruction, distance: $0.distance) }
-            return Update(remaining: remaining, nextTurn: next,
-                          bearing: route.isRoad ? nil : Geo.bearing(position, route.destination), announcements: announcements)
+            var update = Update(remaining: remaining, nextTurn: next,
+                                bearing: route.isRoad ? nil : Geo.bearing(position, route.destination), announcements: announcements)
+            update.nextStop = StopGuide.next(route.stops, progress: progress)
+            return update
         }
     }
 
