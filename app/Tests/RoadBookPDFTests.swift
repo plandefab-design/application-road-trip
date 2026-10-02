@@ -43,11 +43,36 @@ final class RoadBookPDFTests: XCTestCase {
     func testPDFHasNumberedPages() async throws {
         let (url, _) = try await render()
         XCTAssertEqual(url.pathExtension, "pdf")
-        let doc = try XCTUnwrap(PDFDocument(url: url), "unreadable PDF at \(url.path)")
+        let written = (try? Data(contentsOf: url)) ?? Data()
+        let doc = try XCTUnwrap(PDFDocument(url: url), "unreadable PDF file: \(Self.describe(written))")
         XCTAssertGreaterThan(doc.pageCount, 1)
         let text = doc.string ?? ""
         XCTAssertTrue(text.contains("Trip de test"), "title missing")
         XCTAssertTrue(text.contains("Page 1 / \(doc.pageCount)"), "page numbers missing")
+    }
+
+    /// Every kind of block drawn alone, then the whole book without maps, gives a readable PDF.
+    func testEachBlockAloneGivesAReadablePDF() throws {
+        let book = RoadBook.build(try Self.trip(), pace: PaceEstimator(), validatedAt: Date())
+        func alone(_ blocks: [RoadBook.Block]) -> Data {
+            RoadBookPDF.pdfData(RoadBook(title: book.title, subtitle: book.subtitle, header: book.header, blocks: blocks))
+        }
+        let empty = alone([])
+        XCTAssertNotNil(PDFDocument(data: empty), "empty book: \(Self.describe(empty))")
+        for block in book.blocks {
+            let data = alone([block])
+            if PDFDocument(data: data) == nil {
+                XCTFail("unreadable with \(String(String(describing: block).prefix(70))): \(Self.describe(data))")
+            }
+        }
+        let whole = RoadBookPDF.pdfData(book)
+        XCTAssertNotNil(PDFDocument(data: whole), "whole book without maps: \(Self.describe(whole))")
+    }
+
+    static func describe(_ data: Data) -> String {
+        let head = String(decoding: data.prefix(10), as: UTF8.self)
+        let tail = String(decoding: data.suffix(7), as: UTF8.self)
+        return "\(data.count) bytes, starts \(head.debugDescription), ends \(tail.debugDescription)"
     }
 
     func testFileNameIsPlain() {

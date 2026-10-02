@@ -92,6 +92,13 @@ final class RoadBookTests: XCTestCase {
         XCTAssertTrue(book.blocks.contains(.paragraph("Feuille de route validée le 2 mai 2027.")))
     }
 
+    /// A book made of chosen blocks (the app's PDF checks draw each kind of block alone).
+    func testBookFromBlocks() {
+        let book = RoadBook(title: "T", subtitle: "S", header: "H", blocks: [.paragraph("p"), .pageBreak])
+        XCTAssertEqual(book.blocks, [.paragraph("p"), .pageBreak])
+        XCTAssertEqual(book.header, "H")
+    }
+
     func testDepartureTimeFromThePlanner() {
         var day = TripDay(index: 1, date: "2027-06-12")
         XCTAssertEqual(StageTimetable.departure(day, timeZone: utc)?.timeIntervalSince(ISODate.parse("2027-06-12")!), 9 * 3600)

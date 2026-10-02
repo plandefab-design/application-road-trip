@@ -48,6 +48,13 @@ public struct RoadBook: Equatable, Sendable {
     public let header: String
     public let blocks: [Block]
 
+    public init(title: String, subtitle: String, header: String, blocks: [Block]) {
+        self.title = title
+        self.subtitle = subtitle
+        self.header = header
+        self.blocks = blocks
+    }
+
     public static let timetableColumns = ["Heure indicative", "Étape", "Distance", "Notes"]
 
     // MARK: Build
