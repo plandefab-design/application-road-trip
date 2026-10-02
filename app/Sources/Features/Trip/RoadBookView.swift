@@ -14,6 +14,7 @@ struct RoadBookView: View {
     @State private var placesOK = false
     @State private var pdf: URL?
     @State private var rendering = false
+    @State private var viewing: PDFToShow?
 
     private var trip: Trip? { store.trips.first { $0.id == tripId } }
 
@@ -31,6 +32,7 @@ struct RoadBookView: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) { actionBar(trip, book: book, validatedAt: validatedAt) }
             .onChange(of: RoadBook.fingerprint(trip)) { _, _ in pdf = nil }
+            .sheet(item: $viewing) { PDFViewer(url: $0.url, title: $0.title) }
         } else {
             ContentUnavailableView("Trip introuvable", systemImage: "questionmark.folder")
         }
@@ -158,23 +160,19 @@ struct RoadBookView: View {
     @ViewBuilder private func actionBar(_ trip: Trip, book: RoadBook, validatedAt: Date?) -> some View {
         VStack(spacing: 8) {
             if validatedAt != nil {
-                if let pdf {
-                    ShareLink(item: pdf, preview: SharePreview("\(trip.name) — feuille de route.pdf")) {
-                        bigLabel("Envoyer / enregistrer le PDF", icon: "square.and.arrow.up")
-                    }
-                    .buttonStyle(.borderedProminent).tint(.orange)
-                } else {
-                    Button {
-                        Task {
+                Button {
+                    Task {
+                        if pdf == nil {
                             rendering = true
                             pdf = await RoadBookPDF.render(book, trip: trip)
                             rendering = false
                         }
-                    } label: {
-                        bigLabel(rendering ? "Préparation du PDF…" : "Créer le PDF", icon: "doc.richtext.fill")
+                        viewing = pdf.map { PDFToShow(url: $0, title: "Feuille de route") }
                     }
-                    .buttonStyle(.borderedProminent).tint(.orange).disabled(rendering)
+                } label: {
+                    bigLabel(rendering ? "Préparation du PDF…" : "Voir la feuille de route (PDF)", icon: "doc.richtext.fill")
                 }
+                .buttonStyle(.borderedProminent).tint(Theme.accent).disabled(rendering)
                 Button("Annuler la validation", role: .destructive) {
                     validation.revoke(trip.id)
                     pdf = nil

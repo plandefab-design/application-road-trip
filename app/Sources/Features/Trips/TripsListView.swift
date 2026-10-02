@@ -8,7 +8,7 @@ struct TripsListView: View {
     @State private var importing = false
     @State private var creating = false
     @State private var exporting: String?
-    @State private var sharing: SharedFile?
+    @State private var viewing: PDFToShow?
     @ObservedObject private var favorites = FavoritePlaces.shared
 
     private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
@@ -75,7 +75,7 @@ struct TripsListView: View {
                 }
             }
             .sheet(isPresented: $creating) { CreateTripView().environmentObject(store).environmentObject(settings) }
-            .sheet(item: $sharing) { ShareSheet(items: [$0.url]).ignoresSafeArea() }
+            .sheet(item: $viewing) { PDFViewer(url: $0.url, title: $0.title) }
             .sheet(isPresented: $importing) {
                 DocumentPicker(types: [Self.gpxType, .json],
                                onPick: { urls in urls.forEach(store.importFile) },
@@ -97,7 +97,7 @@ struct TripsListView: View {
         let book = RoadBook.build(trip, pace: settings.pace, validatedAt: RoadBookValidation.shared.validatedAt(trip))
         let url = await RoadBookPDF.render(book, trip: trip)
         exporting = nil
-        sharing = SharedFile(url: url)
+        viewing = PDFToShow(url: url, title: "Feuille de route")
     }
 }
 
