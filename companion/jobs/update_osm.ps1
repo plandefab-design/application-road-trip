@@ -52,7 +52,8 @@ foreach ($extract in $Extracts) {
     Move-Item -Force $tmp $dst
 }
 
-# 2. Merge (overlapping extracts are fine) + extract speed cameras, hazards, fuel stations and pause spots.
+# 2. Merge (overlapping extracts are fine) + extract speed cameras, hazards, fuel stations, pause spots, seasonal
+#    road closures and mountain passes.
 Step "Fusion et extraction des points (radars, dangers, stations, pauses)"
 $sh = @"
 set -e
@@ -64,6 +65,9 @@ osmium tags-filter /tmp/poi.pbf n/highway=speed_camera -o /tmp/c.pbf --overwrite
 osmium tags-filter /tmp/poi.pbf n/hazard -o /tmp/h.pbf --overwrite && osmium export /tmp/h.pbf -f geojsonseq -o hazards.new --overwrite
 osmium tags-filter /tmp/poi.pbf nwr/amenity=fuel -o /tmp/f.pbf --overwrite && osmium export /tmp/f.pbf -f geojsonseq -o fuel_stations.new --overwrite
 osmium tags-filter /tmp/poi.pbf nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/p.pbf --overwrite && osmium export /tmp/p.pbf -f geojsonseq -o pauses.new --overwrite
+osmium tags-filter region.new.osm.pbf w/access:conditional w/motor_vehicle:conditional w/vehicle:conditional w/motorcar:conditional w/motorcycle:conditional n/mountain_pass=yes -o /tmp/s.pbf --overwrite
+osmium tags-filter /tmp/s.pbf w/highway -o /tmp/closed.pbf --overwrite && osmium export /tmp/closed.pbf -f geojsonseq -o closures.new --overwrite
+osmium tags-filter /tmp/s.pbf n/mountain_pass=yes -o /tmp/passes.pbf --overwrite && osmium export /tmp/passes.pbf -f geojsonseq -o passes.new --overwrite
 "@
 Run "Échec de la fusion / extraction osmium" { docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c $sh }
 Move-Item -Force (Join-Path $osmDir "region.new.osm.pbf") (Join-Path $osmDir "region.osm.pbf")
@@ -84,7 +88,7 @@ try {
     Run "Échec de la bascule (volume mototrip-graphs)" {
         docker compose run --rm --no-deps graphhopper sh -c "rm -rf /graphs/old; if [ -d /graphs/current ]; then mv /graphs/current /graphs/old; fi; mv /graphs/new /graphs/current"
     }
-    foreach ($kind in "speed_cameras", "hazards", "fuel_stations", "pauses") {
+    foreach ($kind in "speed_cameras", "hazards", "fuel_stations", "pauses", "closures", "passes") {
         Move-Item -Force (Join-Path $osmDir "$kind.new") (Join-Path $osmDir "$kind.geojsonseq")
     }
     Run "Redémarrage du routeur impossible" { docker compose up -d graphhopper }

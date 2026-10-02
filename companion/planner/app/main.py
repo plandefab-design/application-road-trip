@@ -21,6 +21,7 @@ from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payl
                        instructions_from_path, route_profile)
 from .planner import Planner, is_configured
 from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
+from .seasonal import cached, load_closures, load_passes, seasonal_checks
 from .trip_schema import sanitize_trip, validate_trip
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "./data"))
@@ -245,7 +246,11 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
         warnings.append("Base radars absente sur le PC : lance jobs/update_osm.ps1.")
     if not fuel:
         warnings.append("Base des stations absente sur le PC : lance jobs/update_osm.ps1.")
-    return "\n\n".join([summary] + warnings)
+    # Seasonal closures and weather of the season, checked from sourced data (no planner turn needed).
+    on_progress("Fermetures saisonnières et météo de saison…")
+    checks = await seasonal_checks(trip, cached(osm / "closures.geojsonseq", load_closures),
+                                   cached(osm / "passes.geojsonseq", load_passes))
+    return "\n\n".join([summary] + warnings + checks)
 
 
 def start_job(trip_id: str, background: BackgroundTasks, work) -> ChatJob:

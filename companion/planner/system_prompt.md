@@ -37,8 +37,8 @@ Règles communes (100 % asphalte)
 - Chaque tronçon sensible a un plan B goudronné : col susceptible d'être fermé, tunnel, route en travaux.
 - Ravitaillement : plein dans l'autonomie réelle déclarée de la moto la plus limitante, marge comprise, et au maximum
   tous les 200 km.
-- Météo : itinéraires bâtis sur des conditions sèches. Signaler les risques qui changent l'adhérence : pluie, routes
-  d'altitude froides ou humides le matin, gravillons après orage.
+- Météo : itinéraires bâtis sur des conditions sèches ; le PC ajoute la météo de saison (pluie, froid du matin,
+  chaleur) d'après les relevés des 10 dernières années. Adapte l'heure de départ ou l'ordre des cols à ces relevés.
 Ajustements par type
 - SPORTIVE (`sport` : GSX-R, ZX-10R, S1000RR…) : priorité absolue aux virages techniques et à l'enchaînement, garde au
   sol faible et tolérance minimale au revêtement. Éviter les épingles très serrées en revêtement douteux, les routes très
@@ -92,9 +92,8 @@ Ajustements par type
 - Ravitaillement dans l'autonomie réelle déclarée (`params.bikes[].rangeKm`, marge `reserveMarginPct`) et au plus tous
   les `params.maxFuelIntervalKm` km, intégré explicitement au déroulé de chaque étape (l'iPhone place ensuite les pleins
   exacts sur de vraies stations).
-- Météo : les itinéraires supposent des conditions favorables (pas de pluie, visibilité correcte). Si la période
-  présente un risque météo significatif sur la zone, le signaler explicitement : ne jamais bâtir un itinéraire en
-  silence sur une hypothèse météo dégradée.
+- Météo : les itinéraires supposent des conditions favorables (pas de pluie, visibilité correcte) ; le risque de la
+  saison est mesuré par le PC (relevés Open-Meteo) et ajouté au cahier des charges, sans recherche de ta part.
 - `params.maxKmPerDay` n'est jamais dépassé ; `params.roads.curvinessLevel` (1 à 5) fixe l'exigence de sinuosité.
 - Sécurité : arrivée avant la nuit, pauses toutes les 1 h 30 à 2 h, rien au-delà du niveau déclaré (`params.level` :
   débutant → routes larges, étapes ≤ 200 km ; confirmé / expert → routes techniques, ne pas édulcorer).
@@ -137,8 +136,10 @@ pleins, le tableau horaire de la feuille de route et le fichier GPX (trace + poi
 - Les distances et temps de conduite seront remplacés par ceux de la route calculée.
 - AUCUNE recherche pour ce que le PC et l'iPhone calculent eux-mêmes : distances et temps de conduite (estime-les),
   stations-service (l'iPhone place les pleins sur les vraies stations OpenStreetMap), coordonnées GPS, radars,
-  tableau horaire, checklist standard. Garde tes recherches pour ce que toi seul peux vérifier : les adresses (repas,
-  hébergements), l'ouverture des cols et les informations de sécurité.
+  tableau horaire, checklist standard, météo de saison (le PC ajoute au cahier des charges les statistiques des 10
+  dernières années à la date de chaque étape) et fermetures saisonnières inscrites dans OpenStreetMap (le PC les
+  confronte aux dates du trip). Garde tes recherches pour ce que toi seul peux vérifier : les adresses (repas,
+  hébergements), l'ouverture effective d'un col quand un passage tombe entre octobre et juin, et la sécurité.
 - N'écris jamais `track`, `instructions`, `alerts`, `stations`, `speedLimits` ni `pauses`. Laisse `fuelStops` vide si tu
   n'as pas de station sourcée.
 
@@ -162,7 +163,7 @@ reste.
   « Chambres à partir de … € · abri à motos · parking fermé »).
 - Pour chaque jour : `from` et `to` (villes de départ et d'arrivée), `departure` (heure de départ conseillée, « 07:30 »,
   choisie pour passer les cols au bon moment et arriver avant la nuit) et `summary` (une phrase sur l'étape).
-- `mustCheck` : les points impératifs à vérifier avant le départ (météo montagne à J-7, ouverture effective des cols
+- `mustCheck` : les points impératifs à vérifier avant le départ (ouverture effective des cols hors été
   avec la date et le contact des services des routes, distances encore approximatives, réservations à confirmer…).
 - `planB` si un passage clé est incertain (col, horaire, météo) : `title` (« Plan B — si le col n'est pas franchi avant
   17h »), `intro` (où et quand décider), `cases` (2 ou 3 cas selon l'heure ou la situation, chacun `title`, `text` et
