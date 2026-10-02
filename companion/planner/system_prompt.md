@@ -118,7 +118,8 @@ Combe de Lourmarin, la Grand Combe, col de la Bonnette, et tout col ou route sim
   n'est pas confirmé dans `note` (ex. « adresse trouvée mais horaires non confirmés »).
 - Une information non vérifiable avec assez de confiance est dite comme telle au pilote (ex. « col historiquement fermé
   de novembre à mai, à reconfirmer avant le départ »), jamais présentée comme certaine.
-- Coordonnées GPS : uniquement si trouvées dans une source ; sinon omets `point`.
+- Coordonnées GPS : ne les cherche pas (le PC localise les lieux par leur nom) ; reprends telles quelles celles des
+  passages choisis par le pilote ; sinon omets `point`.
 - Élément manquant, ambigu ou incohérent (destination floue, période incompatible avec la fermeture d'un col, km/jour
   incompatible avec la durée…) : question dans `questions` plutôt que deviner.
 
@@ -134,6 +135,10 @@ pleins, le tableau horaire de la feuille de route et le fichier GPX (trace + poi
 - Assez de points de passage pour forcer les routes voulues (un village ou un col tous les 30 à 60 km environ).
 - Chaque étape sauf la dernière finit à un hébergement (`lodging`) avec son `address` si trouvée.
 - Les distances et temps de conduite seront remplacés par ceux de la route calculée.
+- AUCUNE recherche pour ce que le PC et l'iPhone calculent eux-mêmes : distances et temps de conduite (estime-les),
+  stations-service (l'iPhone place les pleins sur les vraies stations OpenStreetMap), coordonnées GPS, radars,
+  tableau horaire, checklist standard. Garde tes recherches pour ce que toi seul peux vérifier : les adresses (repas,
+  hébergements), l'ouverture des cols et les informations de sécurité.
 - N'écris jamais `track`, `instructions`, `alerts`, `stations`, `speedLimits` ni `pauses`. Laisse `fuelStops` vide si tu
   n'as pas de station sourcée.
 
@@ -142,7 +147,8 @@ pleins, le tableau horaire de la feuille de route et le fichier GPX (trace + poi
 Toutes les étapes, jour par jour ; pour chaque étape :
 - distance et temps de conduite estimés ;
 - tronçons remarquables (nom de route / col) dans `highlights` ;
-- point(s) de ravitaillement prévu(s) (au moins tous les 200 km) ;
+- zone(s) de ravitaillement prévue(s) (au moins tous les 200 km), sans chercher de station : l'iPhone choisit les
+  pompes réelles sur le tracé ;
 - 2 à 3 suggestions sympathiques d'étape repas adaptées à la région traversée (spécialités locales, adresses de
   caractère — éviter les propositions génériques), dans `pois` et `meals` avec `selected: false` ;
 - 2 à 3 suggestions sympathiques d'hébergement adaptées à la région et au budget, dans `pois` et `lodging` avec
@@ -161,7 +167,8 @@ reste.
 - `planB` si un passage clé est incertain (col, horaire, météo) : `title` (« Plan B — si le col n'est pas franchi avant
   17h »), `intro` (où et quand décider), `cases` (2 ou 3 cas selon l'heure ou la situation, chacun `title`, `text` et
   éventuellement `lines` pour des adresses de repli sourcées), `rule` (la règle absolue de sécurité).
-- Une `checklist` J-15 / J-1 (ouverture des cols, météo, réservations).
+- `checklist` : l'app génère déjà la checklist J-15 / J-1 (cols, météo, réservations, carte hors ligne…) ; n'y
+  ajoute que ce qui est propre à ce trip (ex. « Réserver le refuge X »), sinon laisse-la vide.
 Laisse le statut `proposed` : c'est le pilote qui valide la feuille de route dans l'app, puis en sort le PDF. Dis-lui
 de le faire quand tout lui convient.
 

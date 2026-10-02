@@ -1,5 +1,5 @@
 from app.planner import build_prompt
-from app.trip_schema import extract_json_block, sanitize_trip, validate_trip
+from app.trip_schema import extract_json_block, repair_trip, sanitize_trip, validate_trip
 
 
 def test_extract_last_json_block():
@@ -54,3 +54,30 @@ def test_types_outside_the_schema_are_mapped():
     sanitize_trip(trip)
     assert [h["type"] for h in trip["days"][0]["highlights"]] == ["viewpoint", "pass", "viewpoint"]
     assert trip["pois"][0]["type"] == "lodging" and trip["pois"][0]["verification"] == "unverified"
+
+
+def test_repair_needs_no_second_claude_turn():
+    """Usual slips of a planner answer are fixed on the PC: the result validates without asking Claude again."""
+    previous = {"id": "t1", "name": "Alpes", "status": "draft", "params": {"start": {"name": "A"}}}
+    proposed = {"schemaVersion": 99, "id": "other", "days": [
+        {"index": 3, "fuelStops": [{"name": "sans position", "kmFromStart": 80}],
+         "meals": [{"poiId": "m1", "selected": True}, {"poiId": "ghost"}]},
+        {"index": 7},
+    ], "pois": [{"id": "m1", "type": "restaurant", "name": "Restaurant test", "verification": "verified"}]}
+    trip = repair_trip(proposed, previous)
+    assert validate_trip(trip) == []
+    assert trip["id"] == "t1" and trip["name"] == "Alpes" and trip["params"] == previous["params"]
+    assert trip["status"] == "proposed" and trip["schemaVersion"] == 8
+    assert [d["index"] for d in trip["days"]] == [1, 2]
+    assert trip["days"][0]["fuelStops"] == []                       # the iPhone places them on real stations
+    assert [r["poiId"] for r in trip["days"][0]["meals"]] == ["m1"]
+    assert trip["pois"][0]["type"] == "meal" and trip["pois"][0]["verification"] == "unverified"   # no source
+
+
+def test_repair_keeps_a_good_answer():
+    previous = {"id": "t1", "name": "Alpes", "status": "proposed", "params": {"start": {"name": "A"}}}
+    proposed = {"schemaVersion": 8, "id": "t1", "name": "Alpes du Sud", "status": "proposed", "params": {"start": {"name": "B"}},
+                "days": [{"index": 1, "highlights": [{"name": "Col test", "type": "pass"}]}], "pois": []}
+    trip = repair_trip(proposed, previous)
+    assert trip["name"] == "Alpes du Sud" and trip["params"] == {"start": {"name": "B"}}
+    assert trip["days"][0]["highlights"] == [{"name": "Col test", "type": "pass"}]

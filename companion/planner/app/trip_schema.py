@@ -44,6 +44,33 @@ def sanitize_trip(trip: dict[str, Any]) -> dict[str, Any]:
     return trip
 
 
+def repair_trip(proposed: dict[str, Any], previous: dict[str, Any]) -> dict[str, Any]:
+    """Fixes on the PC what needs no Claude, instead of a second (costly) planner turn: id, name and params missing
+    (taken from the trip sent), status and schema version, day numbering, incomplete fuel stops (the iPhone places
+    the fuel stops on real stations anyway), meals/lodging pointing at unknown places, types outside the schema."""
+    trip = dict(proposed)
+    trip["id"] = previous.get("id", trip.get("id"))
+    for key in ("name", "params"):
+        if not trip.get(key) and previous.get(key):
+            trip[key] = previous[key]
+    if trip.get("status") not in STATUSES:
+        trip["status"] = "proposed"
+    if trip.get("schemaVersion") not in ACCEPTED_VERSIONS:
+        trip["schemaVersion"] = SCHEMA_VERSION
+    pois = [p for p in trip.get("pois", []) or [] if isinstance(p, dict)]
+    ids = {p.get("id") for p in pois}
+    days = [d for d in trip.get("days", []) or [] if isinstance(d, dict)]
+    for i, day in enumerate(days):
+        day["index"] = i + 1
+        day["fuelStops"] = [f for f in day.get("fuelStops") or []
+                            if isinstance(f, dict) and isinstance(f.get("point"), dict) and "name" in f and "kmFromStart" in f]
+        for key in ("meals", "lodging"):
+            day[key] = [r for r in day.get(key) or [] if isinstance(r, dict) and r.get("poiId") in ids]
+    trip["pois"] = pois
+    trip["days"] = days
+    return sanitize_trip(trip)
+
+
 def validate_trip(trip: dict[str, Any]) -> list[str]:
     """Minimal structural validation (the iPhone runs the full TripValidator)."""
     errors: list[str] = []

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from .trip_schema import extract_json_block, sanitize_trip, validate_trip
+from .trip_schema import extract_json_block, repair_trip, validate_trip
 
 SYSTEM_PROMPT_FILE = Path(__file__).resolve().parent.parent / "system_prompt.md"
 MAX_REPAIR_ATTEMPTS = 1
@@ -120,11 +120,12 @@ class Planner:
             prose, proposed = extract_json_block("\n".join(text_parts))
             if proposed is None:
                 return PlannerReply(text=prose, trip=None, questions=[])
-            proposed["id"] = trip_id
             questions = [str(q) for q in proposed.pop("questions", []) or []]
+            # What the PC can fix itself is fixed here: Claude is asked again only for what it alone can redo.
+            proposed = repair_trip(proposed, {**trip, "id": trip_id})
             errors = validate_trip(proposed)
             if not errors:
-                return PlannerReply(text=prose, trip=sanitize_trip(proposed), questions=questions)
+                return PlannerReply(text=prose, trip=proposed, questions=questions)
             # One repair attempt with the validation errors (SPEC §7: schema-validated output).
             prompt = "Le JSON produit est invalide : " + "; ".join(errors) + ". Renvoie le trip.json v8 complet corrigé."
         return PlannerReply(text=prose, trip=None, questions=["Le planner n'a pas produit de trip valide : " + "; ".join(errors)])
