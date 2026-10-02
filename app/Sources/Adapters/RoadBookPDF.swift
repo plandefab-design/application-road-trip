@@ -168,7 +168,7 @@ enum RoadBookPDF {
                 put(text(s, .systemFont(ofSize: 15, weight: .bold), navy), after: 3)
                 rule(color: accent)
             case .dayHeading(let s):
-                ensure(120)
+                ensure(maps.isEmpty ? 120 : 250)             // the stage title stays with its map
                 y += 12
                 put(text(s, .systemFont(ofSize: 13.5, weight: .bold), navy), after: 3)
                 rule(color: accent)
