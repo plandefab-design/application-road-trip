@@ -14,6 +14,9 @@ struct PlannerChatView: View {
     @State private var progress: String?
     @State private var startedAt: Date?
     @State private var loaded = false
+    @State private var editingRoute = false
+    /// Passages changed on the map, day by day, told to Claude with the next message.
+    @State private var mapEdits: [Int: String] = [:]
     @FocusState private var inputFocused: Bool
 
     /// Job id of a planner turn still running on the PC, so reopening the chat picks it up again.
@@ -25,6 +28,19 @@ struct PlannerChatView: View {
         VStack(spacing: 0) {
             TripMapView(content: MapContent.from(trip: trip))
                 .frame(height: 260)
+                .overlay(alignment: .bottomTrailing) {
+                    if !trip.days.isEmpty {
+                        Button { editingRoute = true } label: {
+                            Label("Modifier sur la carte", systemImage: "hand.tap.fill")
+                                .font(.subheadline.bold())
+                                .padding(.horizontal, 14).frame(minHeight: 44)
+                                .glass(radius: 22, tint: Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(sending)
+                        .padding(10)
+                    }
+                }
 
             if let s = companionStatus {
                 Text(s).font(.caption).padding(6).frame(maxWidth: .infinity).background(Color.orange.opacity(0.2))
@@ -76,6 +92,20 @@ struct PlannerChatView: View {
             Button("Enregistrer") { store.save(trip) }
         }
         .keyboardDoneButton()
+        .fullScreenCover(isPresented: $editingRoute) {
+            // Passages changed on the map: Claude works on that version from the next message.
+            RouteEditorView(trip: trip) { edited in
+                // Compared by names: the PC only adds positions when it recomputes the track.
+                let days = edited.days.filter { d in trip.days.first { $0.index == d.index }?.highlights.map(\.name) != d.highlights.map(\.name) }
+                for d in days { mapEdits[d.index] = d.highlights.map(\.name).joined(separator: " → ") }
+                if !days.isEmpty {
+                    let note = days.map { "jour \($0.index) : \($0.highlights.map(\.name).joined(separator: " → "))" }.joined(separator: " ; ")
+                    messages.append(Message(fromUser: false, text: "🗺 Passages modifiés sur la carte (\(note)). Claude les garde à ton prochain message."))
+                }
+                trip = edited
+            }
+            .environmentObject(store).environmentObject(settings)
+        }
         .onChange(of: messages) { _, all in ChatHistory.save(all, for: trip.id) }
         .task {
             guard !loaded else { return }
@@ -109,8 +139,12 @@ struct PlannerChatView: View {
         sending = true
         startedAt = Date()
         defer { sending = false; progress = nil; startedAt = nil }
+        // Passages chosen on the map since the last message: Claude keeps them.
+        let edits = mapEdits.sorted { $0.key < $1.key }.map { "jour \($0.key) : \($0.value)" }.joined(separator: " ; ")
+        let sent = edits.isEmpty ? text : "[Modifié sur la carte] \(edits)\n\n\(text)"
         do {
-            let job = try await client.startChat(tripId: trip.id, message: text, trip: trip)
+            let job = try await client.startChat(tripId: trip.id, message: sent, trip: trip)
+            mapEdits = [:]
             companionStatus = nil
             UserDefaults.standard.set(job.jobId, forKey: pendingJobKey)
             await follow(jobId: job.jobId, client: client)

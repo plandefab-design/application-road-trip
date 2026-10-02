@@ -60,6 +60,10 @@ final class NavigationSession: ObservableObject {
     let alerts: [RoadAlert]
     /// Pause spots re-positioned on the track (same fix as the alerts).
     private let pauses: [PauseSpot]
+    /// Validated stops of the day on the track (fuel, chosen restaurant, hotel), announced like GPS waypoints.
+    let stops: [RouteStop]
+    /// Next stop within 5 km (or just reached), for the banner.
+    @Published private(set) var nextStop: (stop: RouteStop, distance: Double)?
 
     private let computer: NavigationComputer
     private var pace: PaceEstimator
@@ -83,6 +87,7 @@ final class NavigationSession: ObservableObject {
         self.route = r
         self.alerts = AlertGuide.merge(AlertGuide.relocated(day.alerts, on: r), with: AlertPackStore.shared.guide?.along(r) ?? [])
         self.pauses = PauseAdvisor.relocated(day.pauses, on: r)
+        self.stops = StopGuide.stops(for: day, in: trip)
         self.location = location
         self.voice = voice
         self.pace = pace
@@ -307,10 +312,16 @@ final class NavigationSession: ObservableObject {
             }
         }
 
-        if let fuel = snap.nextFuel, fuel.distance < 5_000 {
-            voice.say("Plein dans \(Int(fuel.distance / 1000)) kilomètre\(fuel.distance >= 2_000 ? "s" : ""), \(fuel.label).", key: "fuel-\(fuel.label)", cooldown: 900)
+        // Validated stops (fuel, restaurant, hotel): 5 km, 500 m, arrival. Said in « alertes uniquement » too.
+        if !offRoute {
+            for a in StopGuide.announcements(stops, progress: snap.progress) { say(a) }
+            nextStop = StopGuide.next(stops, progress: snap.progress).flatMap { $0.distance <= StopGuide.farWarning ? $0 : nil }
+        } else {
+            nextStop = nil
         }
-        if snap.endOfDay.distance < 200 {
+        // The hotel at the end of the track already says « fin de l'étape ».
+        let endsAtHotel = stops.last.map { $0.kind == .lodging && route.length - $0.along < 500 } ?? false
+        if snap.endOfDay.distance < 200, !endsAtHotel {
             voice.say("Fin de l'étape \(day.index).", key: "end", cooldown: 3_600)
         }
         snapshot = snap

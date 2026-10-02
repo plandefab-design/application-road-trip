@@ -42,6 +42,9 @@ struct TripDetailContent: View {
     @State private var prep: [PrepStep] = []
     @State private var checkingWeather = false
     @State private var weatherReport: [String] = []
+    @State private var renderingPDF = false
+    @State private var viewingPDF: PDFToShow?
+    @State private var editingRoute = false
 
     /// Days planned by Claude have no geometry (nor turn-by-turn) until the PC computes it. GPX imports
     /// (no highlights) keep their own track: rerouting them would replace the rider's GPX.
@@ -79,6 +82,7 @@ struct TripDetailContent: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button { editing = true } label: { Label("Modifier les paramètres", systemImage: "slider.horizontal.3") }
+                    Button { editingRoute = true } label: { Label("Modifier le tracé sur la carte", systemImage: "hand.tap") }
                     Button { chatting = true } label: { Label("Continuer avec Claude", systemImage: "bubble.left.and.bubble.right") }
                 } label: {
                     Label("Modifier", systemImage: "pencil.circle")
@@ -126,6 +130,11 @@ struct TripDetailContent: View {
             }
         }
         .sheet(item: $shownRide) { RideSummaryView(ride: $0) }
+        .sheet(item: $viewingPDF) { PDFViewer(url: $0.url, title: $0.title) }
+        .fullScreenCover(isPresented: $editingRoute) {
+            RouteEditorView(trip: store.trips.first { $0.id == trip.id } ?? trip, day: selectedDay)
+                .environmentObject(store).environmentObject(settings)
+        }
     }
 
     // MARK: Checklist (A9)
@@ -224,27 +233,12 @@ struct TripDetailContent: View {
 
     /// Route, guidance, radars, dangers and stations from the PC, then fuel stops on the iPhone.
     private func runFinalize() async -> (ok: Bool, message: String) {
-        guard let client = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) else {
-            return (false, "Companion non configuré (Réglages › Companion).")
-        }
         let current = store.trips.first { $0.id == trip.id } ?? trip
         tracing = true
         defer { tracing = false; traceProgress = nil }
-        do {
-            let job = try await client.startFinalize(tripId: current.id, trip: current)
-            let done = try await client.waitForJob(tripId: current.id, jobId: job.jobId) { traceProgress = $0 }
-            guard done.status == "done", let reply = done.reply else {
-                return (false, "Tracé impossible : \(done.error ?? "erreur inconnue")")
-            }
-            var fuelWarnings: [String] = []
-            if var updated = reply.trip {
-                fuelWarnings = updated.planFuelStops()      // stops placed on real stations (SPEC §5.2)
-                store.save(updated)
-            }
-            return (true, ([reply.text] + fuelWarnings.map { "⛽ \($0)" }).joined(separator: "\n\n"))
-        } catch {
-            return (false, "Companion injoignable : PC allumé ? Tailscale actif ? (\(error.localizedDescription))")
-        }
+        let outcome = await TripRouting.finalize(current, settings: settings) { traceProgress = $0 }
+        if let updated = outcome.trip { store.save(updated) }
+        return (outcome.ok, outcome.message)
     }
 
     // MARK: Departure preparation (one tap)
@@ -353,6 +347,16 @@ struct TripDetailContent: View {
         }
     }
 
+    /// Road book PDF of this trip (validated or draft), shown in the app.
+    private func showRoadBookPDF() async {
+        renderingPDF = true
+        let current = store.trips.first { $0.id == trip.id } ?? trip
+        let book = RoadBook.build(current, pace: settings.pace, validatedAt: validation.validatedAt(current))
+        let url = await RoadBookPDF.render(book, trip: current)
+        renderingPDF = false
+        viewingPDF = PDFToShow(url: url, title: "Feuille de route")
+    }
+
     private func gpxFile() -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(trip.name).gpx")
         try? GPX.write(trip: trip).write(to: url, atomically: true, encoding: .utf8)
@@ -457,6 +461,8 @@ extension TripDetailContent {
                         tileLabel(roadBookTitle, roadBookIcon, roadBookColor)
                     }
                     .buttonStyle(.plain)
+                    actionTile("Modifier le tracé", "hand.tap.fill", .orange) { editingRoute = true }
+                        .disabled(tracing)
                     actionTile("Claude", "bubble.left.and.bubble.right.fill", .purple) { chatting = true }
                 }
             }
@@ -687,6 +693,13 @@ extension TripDetailContent {
                     ShareLink(item: gpxFile(), preview: SharePreview("\(trip.name).gpx")) {
                         Label("Exporter le GPX", systemImage: "square.and.arrow.up")
                     }
+                    Button { Task { await showRoadBookPDF() } } label: {
+                        Label(renderingPDF ? "Préparation de la feuille de route…" : "Feuille de route (PDF)",
+                              systemImage: "doc.richtext")
+                    }
+                    .disabled(renderingPDF)
+                } footer: {
+                    Text("Le PDF s'ouvre dans l'app : lis-le, enregistre-le dans Fichiers ou partage-le.")
                 }
             }
     }

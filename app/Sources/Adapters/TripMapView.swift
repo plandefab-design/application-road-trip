@@ -36,6 +36,8 @@ struct MapContent: Equatable {
     var detour: [GeoPoint] = []
     /// Centre the map here (town zoom) whenever it changes: place picking, starting point.
     var focus: GeoPoint? = nil
+    /// true = the view is fitted to the route once only (route editing: the map stays where the rider put it).
+    var keepCamera = false
 }
 
 extension MapContent {
@@ -94,6 +96,8 @@ struct TripMapView: UIViewRepresentable {
     var content: MapContent
     /// Called with the map centre when the rider stops moving the map (place picking with a centre pin).
     var onCenterChange: ((GeoPoint) -> Void)? = nil
+    /// Called with the touched place on a single tap of the map (not on a marker): route editing.
+    var onTap: ((GeoPoint) -> Void)? = nil
     /// Rider option (Réglages › Navigation), off by default: the dark style has far fewer names and details.
     @AppStorage("mapDarkAtNight") private var darkAtNight = false
 
@@ -110,6 +114,15 @@ struct TripMapView: UIViewRepresentable {
         map.compassViewPosition = .topRight
         map.attributionButtonPosition = .bottomLeft
         map.logoView.isHidden = true
+        if onTap != nil {
+            let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+            // A double tap still zooms: the single tap waits for it to fail.
+            for case let other as UITapGestureRecognizer in map.gestureRecognizers ?? [] where other.numberOfTapsRequired == 2 {
+                tap.require(toFail: other)
+            }
+            tap.delegate = context.coordinator
+            map.addGestureRecognizer(tap)
+        }
         return map
     }
 
@@ -120,20 +133,37 @@ struct TripMapView: UIViewRepresentable {
             map.styleURL = url
         }
         context.coordinator.onCenterChange = onCenterChange
+        context.coordinator.onTap = onTap
         context.coordinator.apply(content, to: map)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject, MLNMapViewDelegate {
+    final class Coordinator: NSObject, MLNMapViewDelegate, UIGestureRecognizerDelegate {
         private var applied: MapContent?
         private var styleLoaded = false
         private var pending: MapContent?
         private var tilted = false
         private var lastRecenter = 0
+        private var fitted = false
         /// The rider moved the map by hand: stop following until « recentrer » is pressed.
         private var userMovedMap = false
         var onCenterChange: ((GeoPoint) -> Void)?
+        var onTap: ((GeoPoint) -> Void)?
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard gesture.state == .ended, let map = gesture.view as? MLNMapView, let onTap else { return }
+            let at = gesture.location(in: map)
+            // A tap on a marker opens its bubble, it does not add a point.
+            let around = CGRect(x: at.x - 22, y: at.y - 22, width: 44, height: 44)
+            if map.visibleAnnotations(in: around)?.contains(where: { !($0 is MLNUserLocation) }) == true { return }
+            let c = map.convert(at, toCoordinateFrom: map)
+            onTap(GeoPoint(lat: c.latitude, lon: c.longitude))
+        }
+
+        /// The map keeps its own taps (bubbles, deselection) alongside the editing tap.
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             let c = mapView.centerCoordinate
@@ -277,9 +307,10 @@ struct TripMapView: UIViewRepresentable {
                 }
             } else if focusChanged, let f = content.focus {
                 map.setCenter(CLLocationCoordinate2D(latitude: f.lat, longitude: f.lon), zoomLevel: 13, animated: false)
-            } else if geometryChanged {
+            } else if geometryChanged, !(content.keepCamera && fitted) {
                 let all = content.lines.flatMap(\.points) + content.markers.map(\.point)
                 fit(map, all)
+                fitted = !all.isEmpty
             }
         }
 

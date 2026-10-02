@@ -21,6 +21,8 @@ final class AppSettings: ObservableObject {
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }
     /// Garage bike whose odometer the rides advance (« Ma moto »).
     @Published var primaryBikeId: String { didSet { defaults.set(primaryBikeId, forKey: "primaryBikeId") } }
+    /// Route choice of the free ride (« route sinueuse » by default), remembered between rides.
+    @Published var rideMode: RideMode { didSet { defaults.set(rideMode.rawValue, forKey: "rideMode") } }
 
     init() {
         let d = UserDefaults.standard   // not self.defaults: self is not fully initialized yet
@@ -33,6 +35,7 @@ final class AppSettings: ObservableObject {
         lightTheme = d.bool(forKey: "lightTheme")
         pace = Self.load(PaceEstimator.self, "pace") ?? PaceEstimator()
         primaryBikeId = d.string(forKey: "primaryBikeId") ?? ""
+        rideMode = RideMode(rawValue: d.string(forKey: "rideMode") ?? "") ?? .curvy
     }
 
     /// « Ma moto », or the first garage bike.

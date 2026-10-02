@@ -223,7 +223,8 @@ struct NavigationView: View {
     }
 
     /// One badge at a time, the most pressing: camera or hazard close by, then a live incident (serious within
-    /// 10 km, roadworks within 1 km), then the weather within 60 km, then the pause suggestion.
+    /// 10 km, roadworks within 1 km), then the validated stop within 5 km (fuel, restaurant, hotel), then the
+    /// weather within 60 km, then the pause suggestion.
     @ViewBuilder private var priorityBadge: some View {
         let progress = session.snapshot?.progress ?? 0
         let incident = session.incidentsAhead.first { i in
@@ -234,6 +235,8 @@ struct NavigationView: View {
             alertBadge(next.alert, distance: next.distance)
         } else if let incident {
             incidentBadge(incident, distance: incident.along - progress)
+        } else if session.detour == nil, let stop = session.nextStop {
+            StopBadge(stop: stop.stop, distance: stop.distance)
         } else if let h = session.weatherAhead, h.along - progress <= 60_000 {
             weatherBadge(h, distance: h.along - progress)
         } else if let pause = session.pauseSuggestion {

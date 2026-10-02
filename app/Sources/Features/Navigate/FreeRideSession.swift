@@ -97,7 +97,9 @@ final class FreeRideSession: ObservableObject {
         detourId = String(UUID().uuidString.prefix(6))
         detour = DetourRoute.Guidance(route: route)
         detourUpdate = nil
-        voice.say(route.isRoad ? "Itinéraire vers \(route.name)." : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
+        let via = route.stops.isEmpty ? "" : ", \(route.stops.count) étape\(route.stops.count > 1 ? "s" : "")"
+        voice.say(route.isRoad ? "Itinéraire vers \(route.name)\(via), \(TurnGuide.spokenLength(route.track.length))."
+                               : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
                   key: "\(detourId)-start", cooldown: 5)
     }
 

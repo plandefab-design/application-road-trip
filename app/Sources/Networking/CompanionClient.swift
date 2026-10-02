@@ -159,6 +159,23 @@ struct CompanionClient {
         guard code == 204 || code == 404 else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
     }
 
+    // MARK: - Free ride route with several stops
+
+    struct RideRoute: Decodable {
+        let track: [GeoPoint]
+        let instructions: [TurnInstruction]
+        let distanceKm: Double
+        let timeMin: Double
+        /// Position of each intermediate stop along the track, metres.
+        let via: [Double]
+    }
+
+    /// Road route through `points` (start, stops, end): « curvy », « nomotorway » or « fast » (10 s max).
+    func rideRoute(points: [GeoPoint], mode: String) async throws -> RideRoute {
+        struct Body: Encodable { let points: [[Double]]; let mode: String }
+        return try await post("ride-route", body: Body(points: points.map { [$0.lat, $0.lon] }, mode: mode), timeout: 10)
+    }
+
     // MARK: - Live events (riding: 5 s max, never waited for)
 
     func liveEvents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
