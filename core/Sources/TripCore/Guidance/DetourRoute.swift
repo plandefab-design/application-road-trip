@@ -30,7 +30,8 @@ public struct DetourRoute: Equatable, Sendable {
             let text = step.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
                 let maneuver: Maneuver = i == 0 ? .depart : (i == steps.count - 1 ? .arrive : maneuver(from: text))
-                instructions.append(TurnInstruction(along: along, maneuver: maneuver, text: text))
+                instructions.append(TurnInstruction(along: along, maneuver: maneuver, text: text,
+                                                    exit: maneuver == .roundabout ? exitNumber(in: text) : nil))
             }
             along += max(0, step.distance)
         }
@@ -56,15 +57,23 @@ public struct DetourRoute: Equatable, Sendable {
             public let announcements: [TurnGuide.Announcement]
             /// Next intermediate stop and its distance (routes with several destinations).
             public var nextStop: (stop: RouteStop, distance: Double)? = nil
+            /// Distance between the rider and the route, metres (nil: straight line); off-route detection.
+            public var lateralOffset: Double? = nil
         }
+
+        /// Beyond this distance from the route the rider is not on it: progress waits (no turn skipped on a road
+        /// running alongside).
+        public static let onRouteOffset = 50.0
 
         public init(route: DetourRoute) { self.route = route }
 
         public mutating func update(position: GeoPoint, speed: Double, cameras: Bool = true) -> Update {
             let direct = Geo.distance(position, route.destination)
             var remaining = direct
+            var offset: Double?
             if route.isRoad, let m = route.track.locate(position, hint: progress, window: 3_000) ?? route.track.locate(position) {
-                progress = max(progress, m.distanceAlong)
+                offset = m.lateralOffset
+                if m.lateralOffset <= Self.onRouteOffset { progress = max(progress, m.distanceAlong) }
                 remaining = max(0, route.track.length - progress)
             }
             // Keys prefixed so they never collide with the trip's own announcements.
@@ -85,8 +94,22 @@ public struct DetourRoute: Equatable, Sendable {
             var update = Update(remaining: remaining, nextTurn: next,
                                 bearing: route.isRoad ? nil : Geo.bearing(position, route.destination), announcements: announcements)
             update.nextStop = StopGuide.next(route.stops, progress: progress)
+            update.lateralOffset = offset
             return update
         }
+    }
+
+    /// Roundabout exit written in a direction: « prenez la 3e sortie », « la deuxième sortie », « take the 2nd exit ».
+    public static func exitNumber(in text: String) -> Int? {
+        let t = text.lowercased()
+        if let r = t.range(of: #"(\d+)\s*(e|re|er|ème|eme|st|nd|rd|th)\b"#, options: .regularExpression),
+           let n = Int(t[r].prefix { $0.isNumber }), (1...12).contains(n) {
+            return n
+        }
+        let words = ["première": 1, "premiere": 1, "deuxième": 2, "deuxieme": 2, "seconde": 2, "troisième": 3, "troisieme": 3,
+                     "quatrième": 4, "quatrieme": 4, "cinquième": 5, "cinquieme": 5, "sixième": 6, "sixieme": 6,
+                     "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6]
+        return words.first { t.contains("\($0.key) sortie") || t.contains("\($0.key) exit") }?.value
     }
 
     /// Maneuver from a written direction (French or English), for the banner arrow and the voice timing.

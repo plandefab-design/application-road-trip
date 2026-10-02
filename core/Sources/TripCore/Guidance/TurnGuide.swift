@@ -112,7 +112,9 @@ public enum TurnGuide {
     public static func phrase(_ ins: TurnInstruction, withRoad: Bool) -> String {
         let road = withRoad ? roadName(ins) : nil
         let toward = withRoad ? ins.toward.map(cleanDirection).flatMap { $0.isEmpty ? nil : $0 } : nil
-        let structured = ins.street?.isEmpty == false || ins.ref?.isEmpty == false || ins.exit != nil || ins.toward != nil
+        // An exit number alone does not replace the engine's text (« … la 2e sortie vers D 943 » says more).
+        let structured = ins.street?.isEmpty == false || ins.ref?.isEmpty == false || ins.toward != nil
+            || (ins.exit != nil && ins.text.isEmpty)
         if !structured, !ins.text.isEmpty {
             return lowercasingFirst(cleanText(ins.text))
         }
