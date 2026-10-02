@@ -5,6 +5,7 @@ import TripCore
 struct RidesListView: View {
     @EnvironmentObject private var rides: RideStore
     @State private var shown: RideLog?
+    @State private var renaming: RideLog?
 
     var body: some View {
         List {
@@ -21,7 +22,11 @@ struct RidesListView: View {
                     Section {
                         ForEach(favorites) { ride in
                             Button { shown = ride } label: { row(ride) }.buttonStyle(.plain)
-                                .swipeActions(edge: .leading) { starAction(ride) }
+                                .swipeActions(edge: .leading) {
+                                    starAction(ride)
+                                    renameAction(ride)
+                                }
+                                .contextMenu { renameAction(ride) }
                         }
                     } header: {
                         Label("Favoris", systemImage: "star.fill")
@@ -33,7 +38,11 @@ struct RidesListView: View {
                     Section(month) {
                         ForEach(rides.rides.filter { monthLabel($0) == month }) { ride in
                             Button { shown = ride } label: { row(ride) }.buttonStyle(.plain)
-                                .swipeActions(edge: .leading) { starAction(ride) }
+                                .swipeActions(edge: .leading) {
+                                    starAction(ride)
+                                    renameAction(ride)
+                                }
+                                .contextMenu { renameAction(ride) }
                         }
                         .onDelete { idx in
                             let inMonth = rides.rides.filter { monthLabel($0) == month }
@@ -46,6 +55,12 @@ struct RidesListView: View {
         .motoList()
         .navigationTitle("Mes sorties")
         .sheet(item: $shown) { RideSummaryView(ride: $0) }
+        .renameRideAlert($renaming, rides: rides)
+    }
+
+    private func renameAction(_ ride: RideLog) -> some View {
+        Button { renaming = ride } label: { Label("Renommer", systemImage: "pencil") }
+            .tint(Theme.info)
     }
 
     private func starAction(_ ride: RideLog) -> some View {
@@ -70,7 +85,7 @@ struct RidesListView: View {
             Image(systemName: ride.tripId == RideStore.freeRideTripId ? "location.north.line.fill" : "map.fill")
                 .foregroundStyle(.orange).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(ride.tripId == RideStore.freeRideTripId ? "Balade libre" : "\(ride.tripName) · jour \(ride.day)")
+                Text(ride.title)
                     .font(.subheadline.bold())
                 Text("\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .shortened) ?? "") · \(Format.distance(ride.summary.distance)) · \(ride.summary.bends) virages")
                     .font(.caption).foregroundStyle(.secondary)
@@ -79,5 +94,33 @@ struct RidesListView: View {
             if ride.isFavorite { Image(systemName: "star.fill").foregroundStyle(.yellow) }
             Image(systemName: ride.uploaded ? "checkmark.icloud" : "icloud.and.arrow.up").foregroundStyle(.secondary)
         }
+    }
+}
+
+extension View {
+    /// « Renommer » for a ride: the rider's own name (empty = back to « Balade libre » or the trip's name).
+    func renameRideAlert(_ ride: Binding<RideLog?>, rides: RideStore) -> some View {
+        modifier(RenameRideAlert(ride: ride, rides: rides))
+    }
+}
+
+private struct RenameRideAlert: ViewModifier {
+    @Binding var ride: RideLog?
+    let rides: RideStore
+    @State private var text = ""
+
+    func body(content: Content) -> some View {
+        content
+            .alert("Nom de la sortie", isPresented: Binding(get: { ride != nil }, set: { if !$0 { ride = nil } })) {
+                TextField("Ex. Tour du Luberon", text: $text)
+                Button("Enregistrer") {
+                    if let ride { rides.rename(ride, to: text) }
+                    ride = nil
+                }
+                Button("Annuler", role: .cancel) { ride = nil }
+            } message: {
+                Text("Laisse vide pour revenir au nom automatique.")
+            }
+            .onChange(of: ride?.id) { _, _ in text = ride?.name ?? "" }
     }
 }

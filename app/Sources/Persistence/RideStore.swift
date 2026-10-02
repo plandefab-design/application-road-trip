@@ -14,15 +14,23 @@ struct RideLog: Codable, Identifiable, Equatable {
     var uploaded: Bool = false
     /// Marked ⭐ by the rider (optional so older ride files still decode).
     var favorite: Bool?
+    /// Name given by the rider (« Tour du Luberon »); nil = the automatic one.
+    var name: String?
 
     var isFavorite: Bool { favorite == true }
+
+    /// What the lists and the summary show: the rider's name, else « Balade libre » or « Trip · jour 2 ».
+    var title: String {
+        if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty { return name }
+        return tripId == RideStore.freeRideTripId ? "Balade libre" : "\(tripName) · jour \(day)"
+    }
 
     /// A trip built from the real recorded track, to ride it again (« Refaire ce trajet »).
     func asTrip() -> Trip {
         let first = track.first, last = track.last
         let loop = first.flatMap { f in last.map { Geo.distance(f, $0) < 1_000 } } ?? true
         let today = ISODate.format(Date())
-        let label = tripId == RideStore.freeRideTripId ? "Balade" : tripName
+        let label = name.flatMap { $0.isEmpty ? nil : $0 } ?? (tripId == RideStore.freeRideTripId ? "Balade" : tripName)
         let date = summary.startedAt?.formatted(.dateTime.day().month(.abbreviated)) ?? ""
         let params = TripParams(start: Place(name: "Départ", point: first),
                                 end: loop ? nil : Place(name: "Arrivée", point: last),
@@ -65,6 +73,15 @@ final class RideStore: ObservableObject {
     func toggleFavorite(_ ride: RideLog) {
         guard var r = rides.first(where: { $0.id == ride.id }) else { return }
         r.favorite = !r.isFavorite
+        save(r)
+    }
+
+    /// Rider's own name (empty = back to the automatic one); saved again on the PC at the next sync.
+    func rename(_ ride: RideLog, to name: String) {
+        guard var r = rides.first(where: { $0.id == ride.id }) else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        r.name = trimmed.isEmpty ? nil : String(trimmed.prefix(60))
+        r.uploaded = false
         save(r)
     }
 

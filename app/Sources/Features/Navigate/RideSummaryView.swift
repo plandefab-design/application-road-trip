@@ -7,9 +7,12 @@ struct RideSummaryView: View {
     @EnvironmentObject private var rides: RideStore
     @EnvironmentObject private var store: TripStore
     @State private var reuseMessage: String?
+    @State private var renaming: RideLog?
     let ride: RideLog
 
-    private var isFavorite: Bool { rides.rides.first { $0.id == ride.id }?.isFavorite ?? ride.isFavorite }
+    /// The stored version (favourite, name changed here).
+    private var current: RideLog { rides.rides.first { $0.id == ride.id } ?? ride }
+    private var isFavorite: Bool { current.isFavorite }
 
     var body: some View {
         NavigationStack {
@@ -59,9 +62,15 @@ struct RideSummaryView: View {
                 .padding()
             }
             .motoList()
-            .navigationTitle("\(ride.tripName) · jour \(ride.day)")
+            .navigationTitle(current.title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("OK") { dismiss() } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { renaming = current } label: { Label("Renommer", systemImage: "pencil") }
+                }
+                ToolbarItem(placement: .topBarTrailing) { Button("OK") { dismiss() } }
+            }
+            .renameRideAlert($renaming, rides: rides)
         }
     }
 
@@ -77,7 +86,7 @@ struct RideSummaryView: View {
 
     private func gpxFile() -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("trace-\(ride.id).gpx")
-        let gpx = GPX.write(name: "\(ride.tripName) — trace réelle jour \(ride.day)",
+        let gpx = GPX.write(name: "\(current.title) — trace réelle",
                             tracks: [(name: "Trace réelle", line: Polyline(ride.track))], waypoints: [])
         try? gpx.write(to: url, atomically: true, encoding: .utf8)
         return url

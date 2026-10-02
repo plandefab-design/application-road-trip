@@ -65,7 +65,7 @@ struct FavoritesView: View {
                 if !favoriteRides.isEmpty {
                     Section("Trajets") {
                         ForEach(favoriteRides) { ride in
-                            row(title: ride.tripId == RideStore.freeRideTripId ? "Balade" : ride.tripName,
+                            row(title: ride.title,
                                 subtitle: "\(ride.summary.startedAt?.formatted(date: .abbreviated, time: .omitted) ?? "") · \(Format.distance(ride.summary.distance)) · \(ride.summary.bends) virages",
                                 icon: "point.bottomleft.forward.to.point.topright.scurvepath", tint: .purple) {
                                 let trip = ride.asTrip()
