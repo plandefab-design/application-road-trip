@@ -57,6 +57,27 @@ final class RoadBookPDFTests: XCTestCase {
         func alone(_ blocks: [RoadBook.Block]) -> Data {
             RoadBookPDF.pdfData(RoadBook(title: book.title, subtitle: book.subtitle, header: book.header, blocks: blocks))
         }
+        // Control: a bare renderer drawing one line, then the book's own single pass.
+        let control = UIGraphicsPDFRenderer(bounds: RoadBookPDF.page).pdfData { ctx in
+            ctx.beginPage()
+            NSAttributedString(string: "Contrôle").draw(at: CGPoint(x: 40, y: 40))
+        }
+        XCTAssertNotNil(PDFDocument(data: control), "bare renderer: \(Self.describe(control))")
+        let format = UIGraphicsPDFRendererFormat()
+        format.documentInfo = [kCGPDFContextTitle as String: book.title, kCGPDFContextCreator as String: "Moto Road"]
+        let reused = UIGraphicsPDFRenderer(bounds: RoadBookPDF.page, format: format)
+        for pass in 1...2 {
+            let data = reused.pdfData { ctx in
+                ctx.beginPage()
+                NSAttributedString(string: "Contrôle \(pass)").draw(at: CGPoint(x: 40, y: 40))
+            }
+            print("DIAG renderer with document info, pass \(pass): \(Self.describe(data))")
+        }
+        let once = RoadBookPDF.draw(RoadBook(title: book.title, subtitle: book.subtitle, header: book.header, blocks: []),
+                                    maps: [:], total: nil)
+        XCTAssertNotNil(PDFDocument(data: once.data), "one pass: \(Self.describe(once.data))")
+        XCTAssertEqual(once.pages, 1)
+
         let empty = alone([])
         XCTAssertNotNil(PDFDocument(data: empty), "empty book: \(Self.describe(empty))")
         for block in book.blocks {

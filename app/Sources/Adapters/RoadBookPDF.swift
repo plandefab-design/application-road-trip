@@ -47,12 +47,22 @@ enum RoadBookPDF {
     /// The whole document. Two passes: the first counts the pages for « Page X / Y ».
     @MainActor
     static func pdfData(_ book: RoadBook, maps: [Int?: UIImage] = [:]) -> Data {
+        let first = draw(book, maps: maps, total: nil)
+        let second = draw(book, maps: maps, total: first.pages)
+        return second.data.isEmpty ? first.data : second.data
+    }
+
+    /// One drawing of the book, each with its own renderer: a renderer used a second time gave an empty (0 byte)
+    /// document, the unreadable road books of 1.0.52 and 1.0.53.
+    @MainActor
+    static func draw(_ book: RoadBook, maps: [Int?: UIImage], total: Int?) -> (data: Data, pages: Int) {
         let format = UIGraphicsPDFRendererFormat()
         format.documentInfo = [kCGPDFContextTitle as String: book.title, kCGPDFContextCreator as String: "Moto Road"]
-        let renderer = UIGraphicsPDFRenderer(bounds: page, format: format)
-        var total = 0
-        _ = renderer.pdfData { ctx in total = layout(book, maps: maps, ctx: ctx, total: nil) }
-        return renderer.pdfData { ctx in _ = layout(book, maps: maps, ctx: ctx, total: total) }
+        var pages = 0
+        let data = UIGraphicsPDFRenderer(bounds: page, format: format).pdfData { ctx in
+            pages = layout(book, maps: maps, ctx: ctx, total: total)
+        }
+        return (data, pages)
     }
 
     /// « Feuille de route - Alpes 2027.pdf »: only letters, digits, spaces and dashes (any app opens it).
