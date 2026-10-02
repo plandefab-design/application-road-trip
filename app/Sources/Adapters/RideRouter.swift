@@ -65,17 +65,6 @@ enum RideRouter {
                       note: "Pas de réseau : direction de \(last.name) à vol d'oiseau.")
     }
 
-    /// One Apple Maps leg, as plain values.
-    private struct Leg: Sendable {
-        let points: [GeoPoint]
-        let steps: [Step]
-        let seconds: Double
-    }
-
-    private struct Step: Sendable {
-        let text: String
-        let distance: Double
-    }
 
     /// Apple Maps leg by leg (MKDirections has no waypoints), legs joined into one route; nil if a leg fails.
     private static func apple(points: [GeoPoint], names: [String], avoidMotorways: Bool) async -> (route: DetourRoute, minutes: Double)? {
@@ -85,7 +74,7 @@ enum RideRouter {
         var seconds = 0.0
         let legs = Array(zip(points, points.dropFirst()))
         for (i, (a, b)) in legs.enumerated() {
-            guard let leg = await withTimeout({ try await appleLeg(from: a, to: b, avoidMotorways: avoidMotorways) }) else { return nil }
+            guard let leg = await AppleDirections.leg(from: a, to: b, avoidMotorways: avoidMotorways, timeout: 8) else { return nil }
             track += leg.points
             // Each leg ends with « arrivée à destination »: on an intermediate leg that arrival is the stop itself,
             // announced by StopGuide (« Étape atteinte »), so its text is dropped (its length is kept).
@@ -100,30 +89,5 @@ enum RideRouter {
         var route = DetourRoute.road(name: names.last ?? "Destination", destination: end, points: track, steps: steps)
         route.stops = stops
         return (route: route, minutes: seconds / 60)
-    }
-
-    private static func appleLeg(from a: GeoPoint, to b: GeoPoint, avoidMotorways: Bool) async throws -> Leg {
-        let request = MKDirections.Request()
-        request.source = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: a.lat, longitude: a.lon)))
-        request.destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: b.lat, longitude: b.lon)))
-        request.transportType = .automobile
-        request.highwayPreference = avoidMotorways ? .avoid : .any
-        guard let r = try await MKDirections(request: request).calculate().routes.first else { throw URLError(.cannotFindHost) }
-        var coords = [CLLocationCoordinate2D](repeating: kCLLocationCoordinate2DInvalid, count: r.polyline.pointCount)
-        r.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: r.polyline.pointCount))
-        return Leg(points: coords.map { GeoPoint(lat: $0.latitude, lon: $0.longitude) },
-                   steps: r.steps.map { Step(text: $0.instructions, distance: $0.distance) },
-                   seconds: r.expectedTravelTime)
-    }
-
-    /// 8 s per leg at most (riding: never waited for longer).
-    private static func withTimeout<T: Sendable>(_ work: @escaping @Sendable () async throws -> T) async -> T? {
-        await withTaskGroup(of: T?.self) { group in
-            group.addTask { try? await work() }
-            group.addTask { try? await Task.sleep(for: .seconds(8)); return nil }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
     }
 }

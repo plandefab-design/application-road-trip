@@ -67,7 +67,6 @@ final class NavigationSession: ObservableObject {
 
     private let computer: NavigationComputer
     private var pace: PaceEstimator
-    private var detector = OffRouteDetector()
     private var lastProgress: Double?
     private var lastFixTime: Date?
     private var cancellable: AnyCancellable?
@@ -130,35 +129,26 @@ final class NavigationSession: ObservableObject {
         if let snap = snapshot, snap.endOfDay.distance < 300 { ActiveRide.shared.finish() }
     }
 
-    /// Road route back to the track while off route (Apple Maps, 5 s, when online); cancelled once back on it.
-    @Published private(set) var rejoin: DetourRoute.Guidance?
+    /// Way back to the track after a wrong turn (Apple Maps, several places asked at once, 4 s max, when online).
+    @Published private(set) var rejoinRoute: DetourRoute?
     @Published private(set) var rejoinUpdate: DetourRoute.Guidance.Update?
-    private var rejoinId = ""
-    private var rejoinTask: Task<Void, Never>?
-    private var rejoinPlannedAt: Date?
+    private let wayBack = RejoinAssistant(name: "Retour au tracé")
+    /// Off the detour (« autour de moi »): its own way back.
+    @Published private(set) var detourBack: RejoinAssistant.Output?
+    private let detourWayBack = RejoinAssistant(name: "Retour vers la destination")
 
-    private func planRejoinIfNeeded(from here: GeoPoint, to target: GeoPoint) {
-        guard rejoin == nil, rejoinTask == nil else { return }
-        if let last = rejoinPlannedAt, Date().timeIntervalSince(last) < 60 { return }
-        rejoinPlannedAt = Date()
-        rejoinTask = Task { [weak self] in
-            let road = await NearbySearch.roadRoute(to: target, name: "Retour au tracé", from: here)
-            guard let self else { return }
-            self.rejoinTask = nil
-            guard let road, self.offRoute else { return }        // offline: the arrow toward the point stays
-            self.rejoinId = String(UUID().uuidString.prefix(6))
-            self.rejoin = DetourRoute.Guidance(route: NearbySearch.withAlerts(road))
-            if self.directionsSpoken {
-                self.voice.say("Itinéraire de retour calculé : \(TurnGuide.spokenLength(road.track.length)).",
-                               key: "\(self.rejoinId)-start", cooldown: 5)
-            }
-        }
+    /// « Hors itinéraire… », « Itinéraire de retour… », « Retour sur l'itinéraire »: said with the directions.
+    private func sayStatus(_ status: String?) {
+        guard let status, directionsSpoken else { return }
+        voice.say(status, key: "status-\(status)", cooldown: 20)
     }
 
     func startDetour(_ route: DetourRoute) {
         detourId = String(UUID().uuidString.prefix(6))
         detour = DetourRoute.Guidance(route: route)
         detourUpdate = nil
+        detourBack = nil
+        detourWayBack.reset()
         voice.say(route.isRoad
                   ? "Itinéraire vers \(route.name), \(TurnGuide.spokenLength(route.track.length))."
                   : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
@@ -168,7 +158,8 @@ final class NavigationSession: ObservableObject {
     func endDetour() {
         detour = nil
         detourUpdate = nil
-        detector = OffRouteDetector()
+        detourBack = nil
+        wayBack.reset()
         voice.say("Reprise de l'itinéraire.", key: "\(detourId)-end", cooldown: 5)
     }
 
@@ -210,10 +201,12 @@ final class NavigationSession: ObservableObject {
         speedKmh = max(0, fix.speed) * 3.6
 
         if var d = detour {
-            let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
+            let step = detourWayBack.follow(&d, fix: fix, routeKey: detourId, cameras: camerasEnabled)
             detour = d
-            detourUpdate = u
-            for a in u.announcements { say(a, key: "\(detourId)-\(a.key)") }
+            detourUpdate = step.update
+            detourBack = step.back
+            sayStatus(step.status)
+            for s in step.spoken { say(s.announcement, key: s.key) }
             // Road detour: its cameras and hazards are announced along it (above). Straight line (offline):
             // the pack's alerts ahead in the direction of travel.
             if !d.route.isRoad { announcePackAhead(fix) }
@@ -229,37 +222,26 @@ final class NavigationSession: ObservableObject {
         }
         lastFixTime = fix.time
 
-        let state = detector.update(lateralOffset: snap.lateralOffset, time: fix.time.timeIntervalSince1970, accuracy: fix.accuracy)
-        let wasOff = offRoute
-        offRoute = state == .offRoute
+        // Wrong turn: the way back to the most logical point of the track (see RejoinAssistant).
+        let back = wayBack.update(position: fix.point, speed: max(0, fix.speed), course: fix.course, accuracy: fix.accuracy,
+                                  time: fix.time, route: route, lateralOffset: snap.lateralOffset, progress: snap.progress,
+                                  lastProgress: lastProgress ?? 0, cameras: camerasEnabled)
+        offRoute = back.offRoute
+        sayStatus(back.status)
         if offRoute {
-            let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
-            // Rejoin point « au plus logique » (ahead, weighing distance vs skipped track, no U-turn).
-            if let target = RejoinGuide.logicalTarget(from: fix.point, heading: heading, route: route,
-                                                      lastProgress: lastProgress ?? 0) {
-                rejoinDistance = Geo.distance(fix.point, target.point)
-                rejoinBearing = Geo.bearing(fix.point, target.point)
-                planRejoinIfNeeded(from: fix.point, to: target.point)
-            }
-            if !wasOff, directionsSpoken { voice.say("Hors tracé. Je cherche le meilleur chemin pour rejoindre l'itinéraire.", key: "offroute", cooldown: 30) }
-            if var r = rejoin {
-                let u = r.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
-                rejoin = r
-                rejoinUpdate = u
-                for a in u.announcements where a.key != "detour-arrived" { say(a, key: "\(rejoinId)-\(a.key)") }
-                // Left the rejoin route too: plan again (at most once a minute).
-                if r.route.isRoad, let m = r.route.track.locate(fix.point), m.lateralOffset > 100 { rejoinPlannedAt = nil; rejoin = nil }
-            } else {
-                // No road back yet (offline, computing): cameras and hazards still announced on the road taken.
-                announcePackAhead(fix)
-            }
+            rejoinRoute = back.route
+            rejoinUpdate = back.update
+            rejoinDistance = back.arrow?.distance
+            rejoinBearing = back.arrow?.bearing
+            for a in back.announcements { say(a, key: "\(back.keyPrefix)-\(a.key)") }
+            // No road back yet (offline, computing): cameras and hazards still announced on the road taken.
+            if back.route == nil { announcePackAhead(fix) }
         } else {
             lastProgress = snap.progress
+            rejoinRoute = nil
+            rejoinUpdate = nil
             rejoinDistance = nil
             rejoinBearing = nil
-            rejoin = nil
-            rejoinUpdate = nil
-            if wasOff, directionsSpoken { voice.say("Retour sur l'itinéraire.", key: "onroute", cooldown: 30) }
         }
 
         if !offRoute, !day.instructions.isEmpty {

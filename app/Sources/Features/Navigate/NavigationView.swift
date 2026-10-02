@@ -84,10 +84,11 @@ struct NavigationView: View {
         c.lines = c.lines.filter { $0.id == "day\(session.day.index)" }
         c.followUser = true
         c.recenter = recenter
-        let extra = session.detour ?? session.rejoin
-        c.detour = extra?.route.track.points ?? []
+        // The detour (or its way back after a wrong turn), else the way back to the track.
+        let extra = session.detour.map { session.detourBack?.route ?? $0.route } ?? session.rejoinRoute
+        c.detour = extra?.track.points ?? []
         // Up-to-date cameras and hazards: the day's (merged with the latest pack) and the detour's.
-        c.alerts = (session.alerts + (extra?.route.alerts ?? []))
+        c.alerts = (session.alerts + (extra?.alerts ?? []))
             .filter { settings.radarAnnouncements || !$0.kind.isCamera }
             .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
         return c
@@ -98,8 +99,12 @@ struct NavigationView: View {
     private var topBanner: some View {
         HStack(spacing: 14) {
             if let detour = session.detour {
-                DetourBanner(name: detour.route.name, update: session.detourUpdate)
-            } else if session.offRoute, session.rejoin != nil {
+                if let back = session.detourBack {
+                    WayBackBanner(back: back, label: "Retour vers \(detour.route.name)")
+                } else {
+                    DetourBanner(name: detour.route.name, update: session.detourUpdate)
+                }
+            } else if session.offRoute, session.rejoinRoute != nil {
                 DetourBanner(name: "Retour au tracé", update: session.rejoinUpdate)
             } else if session.offRoute {
                 Image(systemName: "location.north.fill")
@@ -110,7 +115,7 @@ struct NavigationView: View {
                     if let d = session.rejoinDistance { Text("Tracé à \(Format.distance(d))").font(.title3) }
                 }
             } else if let turn = session.nextTurn {
-                Image(systemName: Self.symbol(for: turn.instruction.maneuver)).font(.system(size: 44, weight: .bold))
+                ManeuverIcon(instruction: turn.instruction)
                 VStack(alignment: .leading) {
                     Text(Format.distance(turn.distance)).font(.title.bold())
                     Text(TurnGuide.banner(turn.instruction)).font(.title3).lineLimit(2).minimumScaleFactor(0.7)

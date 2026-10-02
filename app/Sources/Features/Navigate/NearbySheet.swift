@@ -8,7 +8,7 @@ struct DetourBanner: View {
 
     var body: some View {
         if let turn = update?.nextTurn {
-            Image(systemName: NavigationView.symbol(for: turn.instruction.maneuver)).font(.system(size: 44, weight: .bold))
+            ManeuverIcon(instruction: turn.instruction)
             VStack(alignment: .leading) {
                 Text(Format.distance(turn.distance)).font(.title.bold())
                 Text(TurnGuide.banner(turn.instruction)).font(.title3).lineLimit(2).minimumScaleFactor(0.7)
@@ -22,6 +22,27 @@ struct DetourBanner: View {
                 Text(name).font(.title3.bold()).lineLimit(1)
                 Text(update.map { Format.distance($0.remaining) } ?? "…").font(.title.bold())
                 if update?.bearing != nil { Text("À vol d'oiseau (pas de réseau)").font(.caption).foregroundStyle(.orange) }
+            }
+        }
+    }
+}
+
+
+/// Off a guided route: the way back's next turn, or the direction while it is computed (or offline).
+struct WayBackBanner: View {
+    let back: RejoinAssistant.Output
+    let label: String
+
+    var body: some View {
+        if back.update != nil {
+            DetourBanner(name: label, update: back.update)
+        } else {
+            Image(systemName: "location.north.fill")
+                .font(.system(size: 44, weight: .bold))
+                .rotationEffect(.degrees(back.arrow?.bearing ?? 0))
+            VStack(alignment: .leading) {
+                Text("Hors itinéraire").font(.title2.bold())
+                Text(back.arrow.map { "Recalcul… · \(Format.distance($0.distance))" } ?? "Recalcul…").font(.title3)
             }
         }
     }
@@ -329,5 +350,27 @@ struct NearbySheet: View {
         routing = nil
         onPick(route)
         dismiss()
+    }
+}
+
+/// The next maneuver's arrow; at a roundabout, the exit number in big digits on it (readable at a glance).
+struct ManeuverIcon: View {
+    let instruction: TurnInstruction
+
+    var body: some View {
+        Image(systemName: NavigationView.symbol(for: instruction.maneuver))
+            .font(.system(size: 44, weight: .bold))
+            .overlay(alignment: .bottomTrailing) {
+                if instruction.maneuver == .roundabout, let exit = instruction.exit {
+                    Text("\(exit)")
+                        .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.black)
+                        .frame(width: 28, height: 28)
+                        .background(Circle().fill(.white))
+                        .overlay(Circle().stroke(Theme.accent, lineWidth: 2))
+                        .offset(x: 8, y: 6)
+                        .accessibilityLabel("sortie \(exit)")
+                }
+            }
     }
 }

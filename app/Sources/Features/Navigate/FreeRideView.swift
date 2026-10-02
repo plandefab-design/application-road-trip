@@ -34,18 +34,19 @@ struct FreeRideView: View {
 
     var body: some View {
         ZStack {
-            TripMapView(content: MapContent(lines: [.init(id: "ride", points: session.trackPreview, highlighted: true)],
-                                            markers: stopMarkers,
-                                            alerts: session.nearbyAlerts + (session.detour?.route.alerts ?? [])
-                                                .filter { settings.radarAnnouncements || !$0.kind.isCamera }
-                                                .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } },
-                                            followUser: true, recenter: recenter,
-                                            detour: session.detour?.route.track.points ?? []))
+            TripMapView(content: mapContent)
                 .ignoresSafeArea()
             VStack(spacing: 8) {
                 header
                 if let detour = session.detour {
-                    HStack(spacing: 14) { DetourBanner(name: detour.route.name, update: session.detourUpdate); Spacer() }
+                    HStack(spacing: 14) {
+                        if let back = session.detourBack {
+                            WayBackBanner(back: back, label: "Retour vers \(detour.route.name)")
+                        } else {
+                            DetourBanner(name: detour.route.name, update: session.detourUpdate)
+                        }
+                        Spacer()
+                    }
                         .padding(14)
                         .glass(radius: 24, tint: Theme.info)
                     if let routeNote {
@@ -131,6 +132,24 @@ struct FreeRideView: View {
             session.stop()
             onFinished(session.finishedRide)
         }
+    }
+
+    /// The ride so far, the route followed in blue (or, after a wrong turn, the way back in blue and the route in
+    /// grey), its stops, cameras and hazards.
+    private var mapContent: MapContent {
+        var c = MapContent(lines: [.init(id: "ride", points: session.trackPreview, highlighted: true)], markers: stopMarkers)
+        let followed: DetourRoute? = session.detourBack?.route ?? session.detour?.route
+        if session.detourBack != nil, let planned = session.detour?.route {
+            c.lines.append(.init(id: "plan", points: planned.track.points, highlighted: false))
+        }
+        let alerts: [RoadAlert] = followed?.alerts ?? []
+        c.alerts = session.nearbyAlerts + alerts
+            .filter { settings.radarAnnouncements || !$0.kind.isCamera }
+            .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
+        c.followUser = true
+        c.recenter = recenter
+        c.detour = followed?.track.points ?? []
+        return c
     }
 
     /// Stops of the current route and its destination, as badges on the map.

@@ -92,11 +92,16 @@ final class FreeRideSession: ObservableObject {
     @Published private(set) var detour: DetourRoute.Guidance?
     @Published private(set) var detourUpdate: DetourRoute.Guidance.Update?
     private var detourId = ""
+    /// Off the route after a wrong turn: the way back to it (nil while on it).
+    @Published private(set) var detourBack: RejoinAssistant.Output?
+    private let wayBack = RejoinAssistant()
 
     func startDetour(_ route: DetourRoute) {
         detourId = String(UUID().uuidString.prefix(6))
         detour = DetourRoute.Guidance(route: route)
         detourUpdate = nil
+        detourBack = nil
+        wayBack.reset()
         let via = route.stops.isEmpty ? "" : ", \(route.stops.count) étape\(route.stops.count > 1 ? "s" : "")"
         voice.say(route.isRoad ? "Itinéraire vers \(route.name)\(via), \(TurnGuide.spokenLength(route.track.length))."
                                : "Pas d'itinéraire sans réseau. Direction \(route.name) à vol d'oiseau.",
@@ -106,6 +111,8 @@ final class FreeRideSession: ObservableObject {
     func endDetour() {
         detour = nil
         detourUpdate = nil
+        detourBack = nil
+        wayBack.reset()
     }
 
     private func handle(_ fix: LocationService.Fix) {
@@ -119,11 +126,14 @@ final class FreeRideSession: ObservableObject {
             speeds.append(fix.speed)
         }
         if var d = detour {
-            let u = d.update(position: fix.point, speed: max(0, fix.speed), cameras: camerasEnabled)
+            // On the route: its turns, stops and alerts. After a wrong turn: the way back to it (see RejoinAssistant).
+            let step = wayBack.follow(&d, fix: fix, routeKey: detourId, cameras: camerasEnabled)
             detour = d
-            detourUpdate = u
-            for a in u.announcements where directionsSpoken || !TurnGuide.isDirection(a) {
-                voice.say(a.text, key: "\(detourId)-\(a.key)", cooldown: 3_600, priority: a.urgent ? .urgent : .normal)
+            detourUpdate = step.update
+            detourBack = step.back
+            if let status = step.status, directionsSpoken { voice.say(status, key: "status-\(status)", cooldown: 20) }
+            for s in step.spoken where directionsSpoken || !TurnGuide.isDirection(s.announcement) {
+                voice.say(s.announcement.text, key: s.key, cooldown: 3_600, priority: s.announcement.urgent ? .urgent : .normal)
             }
         }
         if points.count % 15 == 0 || points.count == 1 {
@@ -142,8 +152,9 @@ final class FreeRideSession: ObservableObject {
         }
         incidentAhead = incidentWarnings.first?.text
         guard let guide else { nextAlert = nil; return }
-        // On a road detour its own alerts are announced along it; otherwise the ones ahead in the direction of travel.
-        if detour?.route.isRoad != true {
+        // On a road route its own alerts are announced along it (and along the way back to it); otherwise, or off it
+        // before the way back is known, the ones ahead in the direction of travel.
+        if detour?.route.isRoad != true || (detourBack != nil && detourBack?.route == nil) {
             for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
                 voice.say(a.text, key: a.key, cooldown: 600, priority: .urgent)   // again only after 10 min (way back)
             }
