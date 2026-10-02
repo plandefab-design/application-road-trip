@@ -123,11 +123,24 @@ final class OfflineMapStore: ObservableObject {
     }
 
     func delete(tripId: String) async {
-        for pack in packs(for: tripId, in: await loadedPacks()) {
-            await withCheckedContinuation { cont in
-                storage.removePack(pack) { _ in cont.resume() }
-            }
-        }
+        for pack in packs(for: tripId, in: await loadedPacks()) { await remove(pack) }
         status[tripId] = nil
+    }
+
+    /// Frees the maps no longer needed (deleted trips, trips ended over a week ago): run when the app opens.
+    func purge(trips: [Trip]) async {
+        let all = await loadedPacks()
+        let owners = all.map { (pack: $0, tripId: (try? JSONDecoder().decode(Context.self, from: $0.context))?.tripId) }
+        let stale = OfflineArea.stalePacks(Set(owners.compactMap(\.tripId)), trips: trips)
+        for owner in owners where owner.tripId.map(stale.contains) ?? true {
+            await remove(owner.pack)
+            if let id = owner.tripId { status[id] = nil }
+        }
+    }
+
+    private func remove(_ pack: MLNOfflinePack) async {
+        await withCheckedContinuation { cont in
+            storage.removePack(pack) { _ in cont.resume() }
+        }
     }
 }

@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct TripsListView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var offlineMaps: OfflineMapStore
     @State private var importing = false
     @State private var creating = false
     @State private var exporting: String?
@@ -42,7 +43,7 @@ struct TripsListView: View {
                                     .tint(.yellow)
                                 }
                                 .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) { store.delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
+                                    Button(role: .destructive) { delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
                                     Button { Task { await exportPDF(trip) } } label: { Label("PDF", systemImage: "doc.richtext") }
                                         .tint(Theme.accent)
                                 }
@@ -53,7 +54,7 @@ struct TripsListView: View {
                                     Button { favorites.toggleTrip(trip.id) } label: {
                                         Label(favorites.isFavoriteTrip(trip.id) ? "Retirer des favoris" : "Ajouter aux favoris", systemImage: "star")
                                     }
-                                    Button(role: .destructive) { store.delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
+                                    Button(role: .destructive) { delete(trip) } label: { Label("Supprimer", systemImage: "trash") }
                                 }
                         }
                     }
@@ -91,6 +92,12 @@ struct TripsListView: View {
     }
 
     /// Road book PDF of any trip (« validé » when its road book is validated, else marked as a draft), then share.
+    /// The trip and its offline map (no orphan pack left taking space).
+    private func delete(_ trip: Trip) {
+        store.delete(trip)
+        Task { await offlineMaps.delete(tripId: trip.id) }
+    }
+
     private func exportPDF(_ trip: Trip) async {
         guard exporting == nil else { return }
         exporting = trip.id

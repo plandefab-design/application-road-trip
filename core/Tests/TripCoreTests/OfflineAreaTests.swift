@@ -16,3 +16,17 @@ final class OfflineAreaTests: XCTestCase {
         XCTAssertNil(OfflineArea.bounds([]))
     }
 }
+
+final class StalePackTests: XCTestCase {
+    func trip(_ id: String, end: String) -> Trip {
+        Trip(id: id, name: id, params: TripParams(start: Place(name: "A"), dateStart: end, dateEnd: end))
+    }
+
+    func testDeletedAndLongFinishedTripsFreeTheirMaps() {
+        let today = ISODate.parse("2027-06-20")!
+        let trips = [trip("next", end: "2027-07-01"), trip("lastweek", end: "2027-06-14"), trip("old", end: "2027-05-01"),
+                     trip("nodate", end: "")]
+        let stale = OfflineArea.stalePacks(["next", "lastweek", "old", "nodate", "deleted"], trips: trips, today: today)
+        XCTAssertEqual(stale, ["old", "deleted"])
+    }
+}

@@ -24,6 +24,7 @@ struct MotoTripApp: App {
                 .task {
                     // After each SideStore refresh the expiry moves: keep the reminder in step (if allowed).
                     if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
+                    await offlineMaps.purge(trips: store.trips)      // space: maps of past or deleted trips
                 }
         }
         .onChange(of: scenePhase) { _, phase in

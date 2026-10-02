@@ -643,7 +643,7 @@ public enum TripCodec {
 
     public static func encode(_ trip: Trip) throws -> Data {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = [.sortedKeys]      // compact: half the size of an indented file
         return try encoder.encode(trip)
     }
 }

@@ -17,18 +17,23 @@ final class AlertPackStore: ObservableObject {
 
     init() {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        file = docs.appendingPathComponent("alerts-pack.json")
-        if let data = try? Data(contentsOf: file), let pack = try? JSONDecoder().decode(AlertPack.self, from: data) {
-            load(pack)
-            updatedAt = (try? FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate]) as? Date
+        let file = docs.appendingPathComponent("alerts-pack.json")
+        self.file = file
+        // Tens of thousands of cameras: read and indexed off the main thread, the app opens without waiting.
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let data = try? Data(contentsOf: file), let pack = try? JSONDecoder().decode(AlertPack.self, from: data) else { return }
+            let guide = FreeRideGuide(alerts: pack.alerts)
+            let date = (try? FileManager.default.attributesOfItem(atPath: file.path)[.modificationDate]) as? Date
+            await self?.load(pack, guide: guide, date: date)
         }
     }
 
-    private func load(_ pack: AlertPack) {
+    private func load(_ pack: AlertPack, guide: FreeRideGuide, date: Date?) {
         version = pack.version
         cameraCount = pack.cameras.count
         hazardCount = pack.hazards.count
-        guide = FreeRideGuide(alerts: pack.alerts)
+        self.guide = guide
+        updatedAt = date
     }
 
     /// Downloads the pack if the PC has another version. Returns true when it changed.
@@ -39,8 +44,7 @@ final class AlertPackStore: ObservableObject {
         let pack = try await client.alertPack()
         let data = try JSONEncoder().encode(pack)
         try data.write(to: file, options: .atomic)
-        load(pack)
-        updatedAt = Date()
+        load(pack, guide: FreeRideGuide(alerts: pack.alerts), date: Date())
         return true
     }
 }
