@@ -27,8 +27,8 @@ final class RoadBookPDFTests: XCTestCase {
             "track": {"points": [\(line(from: 45.08, km: 90))]}}
          ],
          "pois": [
-           {"id": "m1", "type": "meal", "name": "Restaurant test", "point": {"lat": 44.6, "lon": 6.0}},
-           {"id": "h1", "type": "lodging", "name": "Hôtel test", "point": {"lat": 45.08, "lon": 6.0}}
+           {"id": "m1", "type": "meal", "name": "Restaurant test", "point": {"lat": 44.6, "lon": 6.0}, "verification": "unverified"},
+           {"id": "h1", "type": "lodging", "name": "Hôtel test", "point": {"lat": 45.08, "lon": 6.0}, "verification": "unverified"}
          ]}
         """
         return try TripCodec.decode(Data(json.utf8))
