@@ -10,24 +10,21 @@ final class AlertGuideTests: XCTestCase {
     ]
 
     func testCameraAnnouncedAt500m() {
-        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 400, cameras: true), [])      // 600 m ahead
-        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 500, cameras: true),
+        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 400), [])      // 600 m ahead
+        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 500),
                        [.init(key: "alert-0", text: "Radar dans 500 mètres, limité à 80", urgent: true)])
     }
 
     func testHazardBehindACameraIsNotMasked() {
         // 900 m: camera 100 m ahead (second warning) and hazard 300 m ahead are both due.
-        let due = AlertGuide.announcements(alerts, progress: 900, cameras: true)
+        let due = AlertGuide.announcements(alerts, progress: 900)
         XCTAssertEqual(due.map(\.key), ["alert-0-near", "alert-1"])
         XCTAssertEqual(due[0].text, "Radar maintenant, limité à 80")
         XCTAssertEqual(due[1].text, "Attention, chutes de pierres dans 300 mètres")
     }
 
-    func testCamerasCanBeMuted() {
-        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 500, cameras: false), [])
-        XCTAssertEqual(AlertGuide.next(alerts, progress: 0, cameras: false)?.index, 1)
-        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 4_600, cameras: true).first?.text,
-                       "Radar feu rouge dans 400 mètres")
+    func testRedLightCamera() {
+        XCTAssertEqual(AlertGuide.announcements(alerts, progress: 4_600).first?.text, "Radar feu rouge dans 400 mètres")
     }
 
     /// Invariant: riding the whole track, every alert is announced exactly once, in order, within its lead.
@@ -36,7 +33,7 @@ final class AlertGuideTests: XCTestCase {
             var spoken: [String] = []
             var progress = 0.0
             while progress < 6_000 {
-                for a in AlertGuide.announcements(alerts, progress: progress, cameras: true) where !spoken.contains(a.key) {
+                for a in AlertGuide.announcements(alerts, progress: progress) where !spoken.contains(a.key) {
                     let near = a.key.hasSuffix("-near")
                     let i = Int(a.key.dropFirst("alert-".count).split(separator: "-")[0])!
                     let lead = near ? FreeRideGuide.nearCamera : AlertGuide.lead(for: alerts[i].kind)

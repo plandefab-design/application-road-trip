@@ -59,10 +59,10 @@ final class RejoinAssistant {
     ///   - progress: the rider's projection on the route (its direction there is compared with the course)
     ///   - lastProgress: the last progress while on the route (where the way back may start from)
     func update(position: GeoPoint, speed: Double, course: Double, accuracy: Double, time: Date, route: Polyline,
-                lateralOffset: Double, progress: Double, lastProgress: Double, cameras: Bool) -> Output {
+                lateralOffset: Double, progress: Double, lastProgress: Double) -> Output {
         var out = Output()
         let heading: Double? = speed >= 4 && course >= 0 ? course : nil
-        let delta: Double? = heading.flatMap { h in route.bearing(at: progress).map { Self.angle(h, $0) } }
+        let delta: Double? = heading.flatMap { h in route.bearing(at: progress).map { Geo.angleDelta($0, h) } }
         let wasOff = isOffRoute
         detector.update(lateralOffset: lateralOffset, time: time.timeIntervalSince1970, accuracy: accuracy, headingDelta: delta)
         out.offRoute = isOffRoute
@@ -90,7 +90,7 @@ final class RejoinAssistant {
             if let s = spare, time.timeIntervalSince(s.at) < 30, Geo.distance(s.from, position) < 400 { adopt(s.route) }
         }
         if var g = guidance {
-            let u = g.update(position: position, speed: max(0, speed), cameras: cameras)
+            let u = g.update(position: position, speed: max(0, speed))
             guidance = g
             awayFromWayBack = (u.lateralOffset ?? 0) > Self.leftWayBack ? awayFromWayBack + 1 : 0
             if awayFromWayBack >= 2 {
@@ -149,11 +149,6 @@ final class RejoinAssistant {
         newWayBack = true
         awayFromWayBack = 0
     }
-
-    /// Signed difference between two bearings, −180…180°.
-    static func angle(_ a: Double, _ b: Double) -> Double {
-        (a - b + 540).truncatingRemainder(dividingBy: 360) - 180
-    }
 }
 
 extension RejoinAssistant {
@@ -168,8 +163,8 @@ extension RejoinAssistant {
     }
 
     /// The route's own turns, stops and alerts while on it; the way back to it after a wrong turn.
-    func follow(_ guidance: inout DetourRoute.Guidance, fix: LocationService.Fix, routeKey: String, cameras: Bool) -> RouteStep {
-        let u = guidance.update(position: fix.point, speed: max(0, fix.speed), cameras: cameras)
+    func follow(_ guidance: inout DetourRoute.Guidance, fix: LocationService.Fix, routeKey: String) -> RouteStep {
+        let u = guidance.update(position: fix.point, speed: max(0, fix.speed))
         var step = RouteStep(update: u)
         guard guidance.route.isRoad, let offset = u.lateralOffset else {
             step.spoken = u.announcements.map { (announcement: $0, key: "\(routeKey)-\($0.key)") }
@@ -177,7 +172,7 @@ extension RejoinAssistant {
         }
         let back = update(position: fix.point, speed: fix.speed, course: fix.course, accuracy: fix.accuracy, time: fix.time,
                           route: guidance.route.track, lateralOffset: offset, progress: guidance.progress,
-                          lastProgress: guidance.progress, cameras: cameras)
+                          lastProgress: guidance.progress)
         step.status = back.status
         if back.offRoute {
             step.back = back

@@ -33,7 +33,16 @@ public enum SegmentBuilder {
 
     /// Segments whose total time matches the routing engine's planned time for the day (GraphHopper), keeping
     /// the relative speeds of curvy / secondary / link roads. Without a plan: the default speeds.
+    /// Remembered per track: the trip screen, the road book and the navigation ask for the same days again and again.
     public static func segments(for line: Polyline, plannedDuration: TimeInterval?) -> [RouteSegment] {
+        let key = SegmentCache.Key(line: line, planned: plannedDuration)
+        if let known = SegmentCache.shared.get(key) { return known }
+        let result = computeSegments(for: line, plannedDuration: plannedDuration)
+        SegmentCache.shared.set(key, result)
+        return result
+    }
+
+    static func computeSegments(for line: Polyline, plannedDuration: TimeInterval?) -> [RouteSegment] {
         let base = segments(for: line)
         guard let planned = plannedDuration, planned >= 60 else { return base }
         let defaultTime = base.reduce(0) { $0 + $1.distance / $1.routingSpeed }
@@ -130,5 +139,33 @@ public struct NavigationComputer: Sendable {
 
         return NavigationSnapshot(progress: here, lateralOffset: m.lateralOffset, nextFuel: nextFuel,
                                   nextStop: nextStop, endOfDay: end, delay: delay, arrivesAfterSunset: afterSunset)
+    }
+}
+
+/// Small memory of computed segments (a few tracks), safe from any thread.
+final class SegmentCache: @unchecked Sendable {
+    struct Key: Hashable {
+        let line: Polyline
+        let planned: TimeInterval?
+    }
+
+    static let shared = SegmentCache()
+    static let capacity = 16
+
+    private let lock = NSLock()
+    private var entries: [Key: [RouteSegment]] = [:]
+    private var order: [Key] = []
+
+    func get(_ key: Key) -> [RouteSegment]? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries[key]
+    }
+
+    func set(_ key: Key, _ value: [RouteSegment]) {
+        lock.lock()
+        defer { lock.unlock() }
+        if entries.updateValue(value, forKey: key) == nil { order.append(key) }
+        while order.count > Self.capacity { entries[order.removeFirst()] = nil }
     }
 }

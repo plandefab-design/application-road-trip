@@ -8,10 +8,10 @@ public enum AlertGuide {
 
     public static func lead(for kind: RoadAlertKind) -> Double { kind.isCamera ? cameraLead : hazardLead }
 
-    /// Next alert strictly ahead of `progress` (cameras skipped when `cameras` is false).
-    public static func next(_ alerts: [RoadAlert], progress: Double, cameras: Bool)
+    /// Next alert strictly ahead of `progress`.
+    public static func next(_ alerts: [RoadAlert], progress: Double)
         -> (index: Int, alert: RoadAlert, distance: Double)? {
-        for (i, a) in alerts.enumerated() where a.along > progress && (cameras || !a.kind.isCamera) {
+        for (i, a) in alerts.enumerated() where a.along > progress {
             return (i, a, a.along - progress)
         }
         return nil
@@ -19,9 +19,9 @@ public enum AlertGuide {
 
     /// All announcements due at `progress` (alerts within their lead distance), nearest first. Keys are unique
     /// per alert: the voice service says each one once, so an alert already spoken never masks the next one.
-    public static func announcements(_ alerts: [RoadAlert], progress: Double, cameras: Bool) -> [TurnGuide.Announcement] {
+    public static func announcements(_ alerts: [RoadAlert], progress: Double) -> [TurnGuide.Announcement] {
         var out: [TurnGuide.Announcement] = []
-        for (i, a) in alerts.enumerated() where a.along > progress && (cameras || !a.kind.isCamera) {
+        for (i, a) in alerts.enumerated() where a.along > progress {
             let d = a.along - progress
             if d > cameraLead { break }            // sorted by `along`: nothing due further on
             if a.kind.isCamera && d <= FreeRideGuide.nearCamera {

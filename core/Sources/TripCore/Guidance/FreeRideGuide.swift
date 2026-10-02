@@ -101,8 +101,7 @@ public struct FreeRideGuide: Sendable {
                     let a = alerts[i]
                     let d = Geo.distance(position, a.point)
                     guard d <= range else { continue }
-                    var delta = Geo.bearing(position, a.point) - heading
-                    delta = (delta + 540).truncatingRemainder(dividingBy: 360) - 180
+                    let delta = Geo.angleDelta(heading, Geo.bearing(position, a.point))
                     let along = d * cos(delta * .pi / 180)
                     let lateral = abs(d * sin(delta * .pi / 180))
                     guard along > 0, lateral <= Self.corridor else { continue }
@@ -117,24 +116,40 @@ public struct FreeRideGuide: Sendable {
     /// Used for any computed route (address, « autour de moi », rejoin) and to refresh a trip's alerts.
     public func along(_ track: Polyline, maxOffset: Double = 40) -> [RoadAlert] {
         guard track.points.count > 1 else { return [] }
-        var candidates = Set<Int>()
+        // Alerts of the grid cells the route crosses, with where along the route they were met: the projection then
+        // searches around there only (a full search per alert froze the start of a long day). A route coming back
+        // near the same alert later (loop) gets it once per passage.
+        var hints: [Int: [Double]] = [:]
         var d = 0.0
-        while d <= track.length {
-            if let p = track.point(at: d) {
+        while d < track.length + 1_000 {
+            let at = min(d, track.length)
+            if let p = track.point(at: at) {
                 let cLat = Int64((p.lat / Self.cell).rounded(.down)), cLon = Int64((p.lon / Self.cell).rounded(.down))
-                for dLat in -1...1 { for dLon in -1...1 { candidates.formUnion(grid[(cLat + Int64(dLat)) * 100_000 + cLon + Int64(dLon)] ?? []) } }
+                for dLat in -1...1 {
+                    for dLon in -1...1 {
+                        for i in grid[(cLat + Int64(dLat)) * 100_000 + cLon + Int64(dLon)] ?? [] {
+                            if let last = hints[i]?.last, at - last < 6_000 { continue }
+                            hints[i, default: []].append(at)
+                        }
+                    }
+                }
             }
             d += 1_000
         }
-        return candidates.compactMap { i -> RoadAlert? in
-            let a = alerts[i]
-            guard let m = track.locate(a.point), m.lateralOffset <= maxOffset else { return nil }
-            var alert = a.alert
-            alert.along = m.distanceAlong
-            alert.point = a.point
-            return alert
+        var out: [RoadAlert] = []
+        for (i, passages) in hints {
+            var found: [Double] = []
+            for hint in passages {
+                guard let m = track.locate(alerts[i].point, hint: hint, window: 6_000), m.lateralOffset <= maxOffset,
+                      !found.contains(where: { abs($0 - m.distanceAlong) < 100 }) else { continue }
+                found.append(m.distanceAlong)
+                var alert = alerts[i].alert
+                alert.along = m.distanceAlong
+                alert.point = alerts[i].point
+                out.append(alert)
+            }
         }
-        .sorted { $0.along < $1.along }
+        return out.sorted { $0.along < $1.along }
     }
 
     /// Alerts within `radius` metres whatever the direction (map display), nearest first.
@@ -154,10 +169,9 @@ public struct FreeRideGuide: Sendable {
     }
 
     /// Spoken warnings due now: cameras at 500 m then 150 m, hazards at 300 m. Keys are unique per alert and phase.
-    public func announcements(position: GeoPoint, heading: Double?, cameras: Bool) -> [TurnGuide.Announcement] {
+    public func announcements(position: GeoPoint, heading: Double?) -> [TurnGuide.Announcement] {
         ahead(of: position, heading: heading).compactMap { item in
             if item.alert.kind.isCamera {
-                guard cameras else { return nil }
                 if item.distance <= Self.nearCamera {
                     let limit = item.alert.maxspeed.map { ", limité à \($0)" } ?? ""
                     return .init(key: "free-\(item.index)-near", text: "Radar maintenant\(limit)", urgent: true)

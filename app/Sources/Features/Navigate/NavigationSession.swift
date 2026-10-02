@@ -30,7 +30,6 @@ final class NavigationSession: ObservableObject {
     /// Next speed camera or hazard ahead, for the banner.
     @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
     /// Rider setting « Annonces radar » (hazards are always announced).
-    let camerasEnabled: Bool
     /// Live incidents on the route ahead (TomTom, optional) and the status line shown to the rider.
     @Published private(set) var incidentsAhead: [IncidentAhead] = []
     @Published private(set) var trafficStatus: String?
@@ -58,6 +57,8 @@ final class NavigationSession: ObservableObject {
     /// The day's cameras and hazards, completed at start with the iPhone's latest pack (a trip prepared weeks
     /// ago still gets the new cameras, e.g. the daily official French list).
     let alerts: [RoadAlert]
+    /// The map's fixed part (route, places, alerts); the view adds what moves (detour, way back).
+    let baseMap: MapContent
     /// Pause spots re-positioned on the track (same fix as the alerts).
     private let pauses: [PauseSpot]
     /// Validated stops of the day on the track (fuel, chosen restaurant, hotel), announced like GPS waypoints.
@@ -75,16 +76,22 @@ final class NavigationSession: ObservableObject {
     private let onPaceUpdate: (PaceEstimator) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService,
-         pace: PaceEstimator, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+         pace: PaceEstimator, traffic: TrafficClient?, directions: Bool = true,
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
-        self.camerasEnabled = camerasEnabled
         self.directionsSpoken = directions
         self.traffic = traffic
         let r = day.track ?? Polyline([])
         self.trip = trip
         self.day = day
         self.route = r
-        self.alerts = AlertGuide.merge(AlertGuide.relocated(day.alerts, on: r), with: AlertPackStore.shared.guide?.along(r) ?? [])
+        let alerts = AlertGuide.merge(AlertGuide.relocated(day.alerts, on: r), with: AlertPackStore.shared.guide?.along(r) ?? [])
+        self.alerts = alerts
+        // What does not move on the map, built once: the day's route, its places, its cameras and hazards.
+        var base = MapContent.from(trip: trip, highlightDay: day.index)
+        base.lines = base.lines.filter { $0.id == "day\(day.index)" }
+        base.alerts = alerts.compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
+        base.followUser = true
+        self.baseMap = base
         self.pauses = PauseAdvisor.relocated(day.pauses, on: r)
         self.stops = StopGuide.stops(for: day, in: trip)
         self.location = location
@@ -92,15 +99,12 @@ final class NavigationSession: ObservableObject {
         self.pace = pace
         self.onPaceUpdate = onPaceUpdate
 
-        let fuel: [(name: String, along: Double)] = day.fuelStops.compactMap { f in
-            r.locate(f.point).map { (name: f.name, along: $0.distanceAlong) }
-        }
-        let stops: [(name: String, along: Double, duration: TimeInterval)] = trip.selectedStops(for: day).compactMap { poi in
-            guard let p = poi.point, let m = r.locate(p), m.lateralOffset < 2_000 else { return nil }
-            let duration: TimeInterval = poi.type == .meal ? 75 * 60 : 0
-            return (name: poi.name, along: m.distanceAlong, duration: duration)
-        }
-        computer = NavigationComputer(route: r, fuelStops: fuel, stops: stops,
+        // The same validated stops feed the voice (StopGuide) and the times on the cards (fuel, stop, arrival).
+        computer = NavigationComputer(route: r,
+                                      fuelStops: stops.filter { $0.kind == .fuel }.map { (name: $0.name, along: $0.along) },
+                                      stops: stops.filter { $0.kind == .meal || $0.kind == .lodging }.map {
+                                          (name: $0.name, along: $0.along, duration: $0.kind == .meal ? StageTimer.mealStop : 0)
+                                      },
                                       plannedDuration: day.drivingTimeMin.map { $0 * 60 },
                                       dayStart: nil)
         if traffic != nil { trafficStatus = "Trafic : en attente du réseau" }
@@ -184,7 +188,7 @@ final class NavigationSession: ObservableObject {
     /// the day's alerts do not cover (off route without a road back, straight-line detour).
     private func announcePackAhead(_ fix: LocationService.Fix) {
         let heading: Double? = fix.speed >= 2 && fix.course >= 0 ? fix.course : nil
-        for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) ?? [] {
+        for a in AlertPackStore.shared.guide?.announcements(position: fix.point, heading: heading) ?? [] {
             say(a, cooldown: 600)
         }
     }
@@ -201,7 +205,7 @@ final class NavigationSession: ObservableObject {
         speedKmh = max(0, fix.speed) * 3.6
 
         if var d = detour {
-            let step = detourWayBack.follow(&d, fix: fix, routeKey: detourId, cameras: camerasEnabled)
+            let step = detourWayBack.follow(&d, fix: fix, routeKey: detourId)
             detour = d
             detourUpdate = step.update
             detourBack = step.back
@@ -225,7 +229,7 @@ final class NavigationSession: ObservableObject {
         // Wrong turn: the way back to the most logical point of the track (see RejoinAssistant).
         let back = wayBack.update(position: fix.point, speed: max(0, fix.speed), course: fix.course, accuracy: fix.accuracy,
                                   time: fix.time, route: route, lateralOffset: snap.lateralOffset, progress: snap.progress,
-                                  lastProgress: lastProgress ?? 0, cameras: camerasEnabled)
+                                  lastProgress: lastProgress ?? 0)
         offRoute = back.offRoute
         sayStatus(back.status)
         if offRoute {
@@ -251,13 +255,13 @@ final class NavigationSession: ObservableObject {
         }
 
         if !offRoute, !alerts.isEmpty {
-            let next = AlertGuide.next(alerts, progress: snap.progress, cameras: camerasEnabled)
+            let next = AlertGuide.next(alerts, progress: snap.progress)
             if let n = next, n.distance <= AlertGuide.cameraLead {
                 nextAlert = (alert: n.alert, distance: n.distance)
             } else {
                 nextAlert = nil
             }
-            for a in AlertGuide.announcements(alerts, progress: snap.progress, cameras: camerasEnabled) { say(a) }
+            for a in AlertGuide.announcements(alerts, progress: snap.progress) { say(a) }
         }
 
         if !offRoute {
@@ -349,11 +353,5 @@ final class NavigationSession: ObservableObject {
             }
             self.weatherTask = nil
         }
-    }
-
-    /// Recorded track as GPX (after-trip stats, SPEC §4.5).
-    func recordedGPX() -> String {
-        GPX.write(name: "\(trip.name) — trace réelle jour \(day.index)",
-                  tracks: [(name: "Trace réelle", line: Polyline(recorded))], waypoints: [])
     }
 }

@@ -15,13 +15,13 @@ struct NavigationView: View {
     private let onFinished: (RideLog?) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
-         camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+         traffic: TrafficClient?, directions: Bool = true,
          onFinished: @escaping (RideLog?) -> Void = { _ in },
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         self.location = location
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
-                                                               pace: pace, camerasEnabled: camerasEnabled, traffic: traffic,
+                                                               pace: pace, traffic: traffic,
                                                                directions: directions, onPaceUpdate: onPaceUpdate))
     }
 
@@ -80,17 +80,12 @@ struct NavigationView: View {
     }
 
     private var mapContent: MapContent {
-        var c = MapContent.from(trip: session.trip, highlightDay: session.day.index)
-        c.lines = c.lines.filter { $0.id == "day\(session.day.index)" }
-        c.followUser = true
+        var c = session.baseMap
         c.recenter = recenter
-        // The detour (or its way back after a wrong turn), else the way back to the track.
+        // The detour (or its way back after a wrong turn), else the way back to the track, with its alerts.
         let extra = session.detour.map { session.detourBack?.route ?? $0.route } ?? session.rejoinRoute
         c.detour = extra?.track.points ?? []
-        // Up-to-date cameras and hazards: the day's (merged with the latest pack) and the detour's.
-        c.alerts = (session.alerts + (extra?.alerts ?? []))
-            .filter { settings.radarAnnouncements || !$0.kind.isCamera }
-            .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
+        c.alerts += (extra?.alerts ?? []).compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
         return c
     }
 

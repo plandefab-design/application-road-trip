@@ -120,7 +120,7 @@ struct TripDetailContent: View {
             }
         }) { day in
             NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                           camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
+                           traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
                            onFinished: { ride in
                                guard let ride else { return }
                                // The km go to « Ma moto »: odometer + maintenance alerts.

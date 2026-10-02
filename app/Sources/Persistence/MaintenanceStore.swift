@@ -55,14 +55,4 @@ final class MaintenanceStore: ObservableObject {
         stale.forEach { books[$0] = nil }
         persist()
     }
-
-    /// Most urgent item of the whole garage, for the home screen.
-    func mostUrgent(garage: [Bike]) -> (bike: Bike, item: MaintenanceItem, status: MaintenanceBook.Status)? {
-        garage.compactMap { bike -> (Bike, MaintenanceItem, MaintenanceBook.Status)? in
-            guard let first = books[bike.id]?.attention().first else { return nil }
-            return (bike, first.item, first.status)
-        }
-        .max { $0.2.level < $1.2.level }
-        .map { (bike: $0.0, item: $0.1, status: $0.2) }
-    }
 }

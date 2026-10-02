@@ -65,14 +65,12 @@ struct HomeView: View {
             .fullScreenCover(item: $ride, onDismiss: finishRide) { ride in
                 switch ride {
                 case .free, .address:
-                    FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
-                                 traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, startWithAddress: ride.id == "address", onFinished: record)
+                    FreeRideView(location: location, voice: voice, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, startWithAddress: ride.id == "address", onFinished: record)
                 case .place(let place):
-                    FreeRideView(location: location, voice: voice, camerasEnabled: settings.radarAnnouncements,
-                                 traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, destination: place, onFinished: record)
+                    FreeRideView(location: location, voice: voice, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled, destination: place, onFinished: record)
                 case .trip(let trip, let day):
                     NavigationView(trip: trip, day: day, location: location, voice: voice, pace: settings.pace,
-                                   camerasEnabled: settings.radarAnnouncements, traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
+                                   traffic: LiveTraffic.client(settings), directions: settings.voiceEnabled,
                                    onFinished: record) { settings.pace = $0 }
                 }
             }

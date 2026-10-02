@@ -30,9 +30,4 @@ public enum RouteEdit {
         day.highlights.insert(Highlight(name: name, type: .viewpoint, point: point), at: index)
         return index
     }
-
-    /// true when the stage's geometry no longer matches its passages (to be recomputed before riding).
-    public static func passagesChanged(_ old: TripDay, _ new: TripDay) -> Bool {
-        old.highlights != new.highlights
-    }
 }

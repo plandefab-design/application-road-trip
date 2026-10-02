@@ -80,8 +80,10 @@ public struct Polyline: Codable, Hashable, Sendable {
         let a = min(max(start, 0), length), b = min(max(end, 0), length)
         guard b > a, let pa = point(at: a), let pb = point(at: b) else { return Polyline([]) }
         var out = [pa]
-        for (i, p) in points.enumerated() where cumulative[i] > a && cumulative[i] < b {
-            out.append(p)
+        // Only the points strictly between a and b (binary search: slicing a long day stays cheap).
+        let lo = firstIndex(atOrAfter: a), hi = firstIndex(atOrAfter: b)
+        if lo < hi {
+            for i in lo..<hi where cumulative[i] > a { out.append(points[i]) }
         }
         out.append(pb)
         return Polyline(out)
@@ -101,24 +103,29 @@ public struct Polyline: Codable, Hashable, Sendable {
             let upper = min(points.count - 1, max(hi, lower + 1))
             range = lower..<upper
         }
-        var best: PolylineMatch?
+        // One flat projection centred on `p` (metres; exact enough at the scale of a ride), squared distances only:
+        // no trigonometry per segment. The haversine is computed once, for the best segment.
+        let ky = Geo.rad(1) * Geo.earthRadius
+        let kx = ky * cos(Geo.rad(p.lat))
+        var best = (index: -1, t: 0.0, d2: Double.infinity)
+        var ax = (points[range.lowerBound].lon - p.lon) * kx, ay = (points[range.lowerBound].lat - p.lat) * ky
         for i in range {
-            let a = points[i], b = points[i + 1]
-            let pa = Geo.toLocal(a, origin: a)
-            let pb = Geo.toLocal(b, origin: a)
-            let pp = Geo.toLocal(p, origin: a)
-            let dx = pb.x - pa.x, dy = pb.y - pa.y
+            let b = points[i + 1]
+            let bx = (b.lon - p.lon) * kx, by = (b.lat - p.lat) * ky
+            let dx = bx - ax, dy = by - ay
             let len2 = dx * dx + dy * dy
-            var t = len2 > 0 ? ((pp.x - pa.x) * dx + (pp.y - pa.y) * dy) / len2 : 0
-            t = min(max(t, 0), 1)
-            let proj = Geo.interpolate(a, b, t)
-            let offset = Geo.distance(p, proj)
-            if best == nil || offset < best!.lateralOffset {
-                let along = cumulative[i] + (cumulative[i + 1] - cumulative[i]) * t
-                best = PolylineMatch(segmentIndex: i, distanceAlong: along, lateralOffset: offset, projected: proj)
-            }
+            let t = len2 > 0 ? min(max(-(ax * dx + ay * dy) / len2, 0), 1) : 0
+            let qx = ax + t * dx, qy = ay + t * dy
+            let d2 = qx * qx + qy * qy
+            if d2 < best.d2 { best = (i, t, d2) }
+            ax = bx
+            ay = by
         }
-        return best
+        guard best.index >= 0 else { return nil }
+        let i = best.index
+        let proj = Geo.interpolate(points[i], points[i + 1], best.t)
+        return PolylineMatch(segmentIndex: i, distanceAlong: cumulative[i] + (cumulative[i + 1] - cumulative[i]) * best.t,
+                             lateralOffset: Geo.distance(p, proj), projected: proj)
     }
 
     /// Bearing of the line at a given distance along it.

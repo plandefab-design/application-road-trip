@@ -87,8 +87,6 @@ struct CompanionClient {
         return try TripCodec.decode(data)
     }
 
-    struct Ack: Decodable {}
-
     func putTrip(_ trip: Trip) async throws {
         var r = request("trips/\(trip.id)", timeout: 30)
         r.httpMethod = "PUT"

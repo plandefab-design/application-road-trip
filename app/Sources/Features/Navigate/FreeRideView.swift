@@ -22,13 +22,13 @@ struct FreeRideView: View {
     /// Favourite destination to be guided to right away (Favoris tab).
     private let destination: FavoritePlaces.Place?
 
-    init(location: LocationService, voice: VoiceService, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+    init(location: LocationService, voice: VoiceService, traffic: TrafficClient?, directions: Bool = true,
          startWithAddress: Bool = false, destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
         self.startWithAddress = startWithAddress
         self.destination = destination
         self.onFinished = onFinished
-        _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, camerasEnabled: camerasEnabled, traffic: traffic,
+        _session = StateObject(wrappedValue: FreeRideSession(guide: AlertPackStore.shared.guide, traffic: traffic,
                                                              directions: directions, location: location, voice: voice))
     }
 
@@ -143,9 +143,7 @@ struct FreeRideView: View {
             c.lines.append(.init(id: "plan", points: planned.track.points, highlighted: false))
         }
         let alerts: [RoadAlert] = followed?.alerts ?? []
-        c.alerts = session.nearbyAlerts + alerts
-            .filter { settings.radarAnnouncements || !$0.kind.isCamera }
-            .compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
+        c.alerts = session.nearbyAlerts + alerts.compactMap { a in a.point.map { MapContent.AlertDot(point: $0, isCamera: a.kind.isCamera) } }
         c.followUser = true
         c.recenter = recenter
         c.detour = followed?.track.points ?? []

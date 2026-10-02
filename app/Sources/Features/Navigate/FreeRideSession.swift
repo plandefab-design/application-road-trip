@@ -22,7 +22,6 @@ final class FreeRideSession: ObservableObject {
     private(set) var finishedRide: RideLog?
 
     private let guide: FreeRideGuide?
-    private let camerasEnabled: Bool
     private let location: LocationService
     private let voice: VoiceService
     private var cancellable: AnyCancellable?
@@ -45,12 +44,11 @@ final class FreeRideSession: ObservableObject {
                   key: "mode-\(on)", cooldown: 2)
     }
 
-    init(guide: FreeRideGuide?, camerasEnabled: Bool, traffic: TrafficClient?, directions: Bool = true,
+    init(guide: FreeRideGuide?, traffic: TrafficClient?, directions: Bool = true,
          location: LocationService, voice: VoiceService) {
         self.directionsSpoken = directions
         self.guide = guide
         self.hasPack = guide != nil
-        self.camerasEnabled = camerasEnabled
         self.traffic = traffic
         self.location = location
         self.voice = voice
@@ -127,7 +125,7 @@ final class FreeRideSession: ObservableObject {
         }
         if var d = detour {
             // On the route: its turns, stops and alerts. After a wrong turn: the way back to it (see RejoinAssistant).
-            let step = wayBack.follow(&d, fix: fix, routeKey: detourId, cameras: camerasEnabled)
+            let step = wayBack.follow(&d, fix: fix, routeKey: detourId)
             detour = d
             detourUpdate = step.update
             detourBack = step.back
@@ -139,7 +137,6 @@ final class FreeRideSession: ObservableObject {
         if points.count % 15 == 0 || points.count == 1 {
             trackPreview = points
             nearbyAlerts = (guide?.near(fix.point) ?? [])
-                .filter { camerasEnabled || !$0.alert.kind.isCamera }
                 .map { MapContent.AlertDot(point: $0.point, isCamera: $0.alert.kind.isCamera) }
         }
 
@@ -155,12 +152,12 @@ final class FreeRideSession: ObservableObject {
         // On a road route its own alerts are announced along it (and along the way back to it); otherwise, or off it
         // before the way back is known, the ones ahead in the direction of travel.
         if detour?.route.isRoad != true || (detourBack != nil && detourBack?.route == nil) {
-            for a in guide.announcements(position: fix.point, heading: heading, cameras: camerasEnabled) {
+            for a in guide.announcements(position: fix.point, heading: heading) {
                 voice.say(a.text, key: a.key, cooldown: 600, priority: .urgent)   // again only after 10 min (way back)
             }
         }
         nextAlert = guide.ahead(of: fix.point, heading: heading)
-            .first { camerasEnabled || !$0.alert.kind.isCamera }
+            .first
             .map { (alert: $0.alert, distance: $0.distance) }
     }
 }

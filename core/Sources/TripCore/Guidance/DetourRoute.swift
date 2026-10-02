@@ -67,7 +67,7 @@ public struct DetourRoute: Equatable, Sendable {
 
         public init(route: DetourRoute) { self.route = route }
 
-        public mutating func update(position: GeoPoint, speed: Double, cameras: Bool = true) -> Update {
+        public mutating func update(position: GeoPoint, speed: Double) -> Update {
             let direct = Geo.distance(position, route.destination)
             var remaining = direct
             var offset: Double?
@@ -81,7 +81,7 @@ public struct DetourRoute: Equatable, Sendable {
                 .map { [TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text, urgent: $0.urgent)] } ?? []
             // Cameras and hazards positioned along this route (500 m / 150 m / 300 m like on a trip).
             if route.isRoad {
-                announcements += AlertGuide.announcements(route.alerts, progress: progress, cameras: cameras)
+                announcements += AlertGuide.announcements(route.alerts, progress: progress)
                     .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text, urgent: $0.urgent) }
                 announcements += StopGuide.announcements(route.stops, progress: progress)
                     .map { TurnGuide.Announcement(key: "detour-\($0.key)", text: $0.text) }

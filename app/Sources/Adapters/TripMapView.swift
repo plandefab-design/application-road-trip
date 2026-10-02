@@ -199,93 +199,21 @@ struct TripMapView: UIViewRepresentable {
             if let p = pending { apply(p, to: mapView) }
         }
 
+        /// Only what changed is redrawn: the ride's trace growing, a new way back or a radar coming into view no
+        /// longer rebuild every route, dot and marker (smoother map, less battery while riding).
         func apply(_ content: MapContent, to map: MLNMapView) {
             guard styleLoaded, let style = map.style else { pending = content; return }
             guard content != applied else { return }
-            let geometryChanged = content.lines != applied?.lines || content.markers != applied?.markers
-            let focusChanged = content.focus != nil && content.focus != applied?.focus
+            let old = applied
+            let geometryChanged = content.lines != old?.lines || content.markers != old?.markers
+            let focusChanged = content.focus != nil && content.focus != old?.focus
             applied = content
             pending = nil
 
-            // Route lines: dark casing under a bright line, readable on any background.
-            for layer in style.layers where layer.identifier.hasPrefix("mt-line-") || layer.identifier.hasPrefix("mt-case-") {
-                style.removeLayer(layer)
-            }
-            for source in style.sources where source.identifier.hasPrefix("mt-src-") { style.removeSource(source) }
-            for line in content.lines.sorted(by: { !$0.highlighted && $1.highlighted }) where line.points.count > 1 {
-                var coords = line.points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
-                let feature = MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
-                let source = MLNShapeSource(identifier: "mt-src-\(line.id)", shape: feature, options: nil)
-                style.addSource(source)
-                let casing = MLNLineStyleLayer(identifier: "mt-case-\(line.id)", source: source)
-                casing.lineColor = NSExpression(forConstantValue: UIColor(white: 0.08, alpha: line.highlighted ? 0.85 : 0.4))
-                casing.lineWidth = NSExpression(forConstantValue: line.highlighted ? 10 : 6)
-                casing.lineCap = NSExpression(forConstantValue: "round")
-                casing.lineJoin = NSExpression(forConstantValue: "round")
-                style.addLayer(casing)
-                let layer = MLNLineStyleLayer(identifier: "mt-line-\(line.id)", source: source)
-                layer.lineColor = NSExpression(forConstantValue: line.highlighted ? Theme.uiAccent : UIColor.systemGray2)
-                layer.lineWidth = NSExpression(forConstantValue: line.highlighted ? 6 : 3)
-                layer.lineCap = NSExpression(forConstantValue: "round")
-                layer.lineJoin = NSExpression(forConstantValue: "round")
-                style.addLayer(layer)
-            }
-
-            // Cameras, hazards and pause spots: dots in their own layers (constant colors, no expression needed).
-            let dotLayers: [(id: String, points: [GeoPoint], color: UIColor, radius: Double)] = [
-                ("mt-dots-pause", content.pauses, .systemGreen, 4),
-                ("mt-dots-haz", content.alerts.filter { !$0.isCamera }.map(\.point), .systemOrange, 6),
-                ("mt-dots-cam", content.alerts.filter(\.isCamera).map(\.point), .systemRed, 6),
-            ]
-            for dots in dotLayers {
-                if let layer = style.layer(withIdentifier: dots.id) { style.removeLayer(layer) }
-                if let source = style.source(withIdentifier: dots.id) { style.removeSource(source) }
-                guard !dots.points.isEmpty else { continue }
-                let features: [MLNPointFeature] = dots.points.map { p in
-                    let f = MLNPointFeature()
-                    f.coordinate = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon)
-                    return f
-                }
-                let source = MLNShapeSource(identifier: dots.id, features: features, options: nil)
-                style.addSource(source)
-                let layer = MLNCircleStyleLayer(identifier: dots.id, source: source)
-                layer.circleColor = NSExpression(forConstantValue: dots.color)
-                layer.circleRadius = NSExpression(forConstantValue: dots.radius)
-                layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
-                layer.circleStrokeWidth = NSExpression(forConstantValue: 2)
-                style.addLayer(layer)
-            }
-
-            // Markers (round emoji icons, see viewFor)
-            if let old = map.annotations?.filter({ !($0 is MLNUserLocation) }) { map.removeAnnotations(old) }
-            let annotations: [MLNPointAnnotation] = content.markers.map { m in
-                let a = MLNPointAnnotation()
-                a.coordinate = CLLocationCoordinate2D(latitude: m.point.lat, longitude: m.point.lon)
-                a.title = m.title
-                a.subtitle = m.subtitle
-                return a
-            }
-            map.addAnnotations(annotations)
-
-            // Detour (« Autour de moi »): blue line on top.
-            for id in ["mt-detour-case", "mt-detour"] {
-                if let layer = style.layer(withIdentifier: id) { style.removeLayer(layer) }
-            }
-            if let source = style.source(withIdentifier: "mt-detour-src") { style.removeSource(source) }
-            if content.detour.count > 1 {
-                var coords = content.detour.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
-                let source = MLNShapeSource(identifier: "mt-detour-src",
-                                            shape: MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count)), options: nil)
-                style.addSource(source)
-                for (id, color, width) in [("mt-detour-case", UIColor(white: 0.08, alpha: 0.85), 10.0), ("mt-detour", UIColor.systemBlue, 6.0)] {
-                    let layer = MLNLineStyleLayer(identifier: id, source: source)
-                    layer.lineColor = NSExpression(forConstantValue: color)
-                    layer.lineWidth = NSExpression(forConstantValue: width)
-                    layer.lineCap = NSExpression(forConstantValue: "round")
-                    layer.lineJoin = NSExpression(forConstantValue: "round")
-                    style.addLayer(layer)
-                }
-            }
+            if content.lines != old?.lines { updateLines(content.lines, old: old?.lines, style: style) }
+            if old == nil || content.detour != old?.detour { updateDetour(content.detour, style: style) }
+            if old == nil || content.alerts != old?.alerts || content.pauses != old?.pauses { updateDots(content, style: style) }
+            if old == nil || content.markers != old?.markers { updateMarkers(content.markers, map: map) }
 
             // Camera
             following = content.followUser
@@ -312,6 +240,120 @@ struct TripMapView: UIViewRepresentable {
                 fit(map, all)
                 fitted = !all.isEmpty
             }
+        }
+
+        // MARK: Drawing (bottom to top: routes, detour, dots; markers are annotations above)
+
+        private static let overlays = ["mt-detour-case", "mt-detour", "mt-dots-pause", "mt-dots-haz", "mt-dots-cam"]
+
+        private func polyline(_ points: [GeoPoint]) -> MLNPolylineFeature {
+            var coords = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+            return MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count))
+        }
+
+        /// Adds `layer` under the first existing layer of `above` (else on top), so the drawing order holds
+        /// whatever is updated first.
+        private func insert(_ layer: MLNStyleLayer, below above: [String], in style: MLNStyle) {
+            if let anchor = above.lazy.compactMap({ style.layer(withIdentifier: $0) }).first {
+                style.insertLayer(layer, below: anchor)
+            } else {
+                style.addLayer(layer)
+            }
+        }
+
+        private func lineLayer(_ id: String, source: MLNSource, color: UIColor, width: Double) -> MLNLineStyleLayer {
+            let layer = MLNLineStyleLayer(identifier: id, source: source)
+            layer.lineColor = NSExpression(forConstantValue: color)
+            layer.lineWidth = NSExpression(forConstantValue: width)
+            layer.lineCap = NSExpression(forConstantValue: "round")
+            layer.lineJoin = NSExpression(forConstantValue: "round")
+            return layer
+        }
+
+        /// Route lines: dark casing under a bright line, readable on any background; the highlighted ones on top.
+        /// Same lines with new points (the ride's trace): the shapes are updated in place.
+        private func updateLines(_ lines: [MapContent.Line], old: [MapContent.Line]?, style: MLNStyle) {
+            let drawn = lines.filter { !$0.highlighted && $0.points.count > 1 } + lines.filter { $0.highlighted && $0.points.count > 1 }
+            let layout = { (ls: [MapContent.Line]) in ls.map { "\($0.id)|\($0.highlighted)" } }
+            if let old {
+                let before = old.filter { !$0.highlighted && $0.points.count > 1 } + old.filter { $0.highlighted && $0.points.count > 1 }
+                if layout(before) == layout(drawn) {
+                    let previous = Dictionary(before.map { ($0.id, $0.points) }, uniquingKeysWith: { a, _ in a })
+                    for line in drawn where previous[line.id] != line.points {
+                        (style.source(withIdentifier: "mt-src-\(line.id)") as? MLNShapeSource)?.shape = polyline(line.points)
+                    }
+                    return
+                }
+            }
+            for layer in style.layers where layer.identifier.hasPrefix("mt-line-") || layer.identifier.hasPrefix("mt-case-") {
+                style.removeLayer(layer)
+            }
+            for source in style.sources where source.identifier.hasPrefix("mt-src-") { style.removeSource(source) }
+            for line in drawn {
+                let source = MLNShapeSource(identifier: "mt-src-\(line.id)", shape: polyline(line.points), options: nil)
+                style.addSource(source)
+                insert(lineLayer("mt-case-\(line.id)", source: source, color: UIColor(white: 0.08, alpha: line.highlighted ? 0.85 : 0.4),
+                                 width: line.highlighted ? 10 : 6), below: Self.overlays, in: style)
+                insert(lineLayer("mt-line-\(line.id)", source: source, color: line.highlighted ? Theme.uiAccent : .systemGray2,
+                                 width: line.highlighted ? 6 : 3), below: Self.overlays, in: style)
+            }
+        }
+
+        /// Detour, way back or free-ride route: blue line above the routes.
+        private func updateDetour(_ points: [GeoPoint], style: MLNStyle) {
+            let shape: MLNShape = points.count > 1 ? polyline(points) : MLNShapeCollectionFeature(shapes: [])
+            if let source = style.source(withIdentifier: "mt-detour-src") as? MLNShapeSource {
+                source.shape = shape
+                return
+            }
+            guard points.count > 1 else { return }
+            let source = MLNShapeSource(identifier: "mt-detour-src", shape: shape, options: nil)
+            style.addSource(source)
+            let dots = Array(Self.overlays.dropFirst(2))
+            insert(lineLayer("mt-detour-case", source: source, color: UIColor(white: 0.08, alpha: 0.85), width: 10), below: dots, in: style)
+            insert(lineLayer("mt-detour", source: source, color: .systemBlue, width: 6), below: dots, in: style)
+        }
+
+        /// Cameras (red), hazards (orange) and pause spots (green): one dot layer each, updated in place.
+        private func updateDots(_ content: MapContent, style: MLNStyle) {
+            let groups: [(id: String, points: [GeoPoint], color: UIColor, radius: Double)] = [
+                ("mt-dots-pause", content.pauses, .systemGreen, 4),
+                ("mt-dots-haz", content.alerts.filter { !$0.isCamera }.map(\.point), .systemOrange, 6),
+                ("mt-dots-cam", content.alerts.filter(\.isCamera).map(\.point), .systemRed, 6),
+            ]
+            for group in groups {
+                let features: [MLNPointFeature] = group.points.map { p in
+                    let f = MLNPointFeature()
+                    f.coordinate = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon)
+                    return f
+                }
+                let shape = MLNShapeCollectionFeature(shapes: features)
+                if let source = style.source(withIdentifier: group.id) as? MLNShapeSource {
+                    source.shape = shape
+                    continue
+                }
+                guard !features.isEmpty else { continue }
+                let source = MLNShapeSource(identifier: group.id, shape: shape, options: nil)
+                style.addSource(source)
+                let layer = MLNCircleStyleLayer(identifier: group.id, source: source)
+                layer.circleColor = NSExpression(forConstantValue: group.color)
+                layer.circleRadius = NSExpression(forConstantValue: group.radius)
+                layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                layer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+                style.addLayer(layer)
+            }
+        }
+
+        /// Markers: round emoji badges (see viewFor).
+        private func updateMarkers(_ markers: [MapContent.Marker], map: MLNMapView) {
+            if let old = map.annotations?.filter({ !($0 is MLNUserLocation) }) { map.removeAnnotations(old) }
+            map.addAnnotations(markers.map { m in
+                let a = MLNPointAnnotation()
+                a.coordinate = CLLocationCoordinate2D(latitude: m.point.lat, longitude: m.point.lon)
+                a.title = m.title
+                a.subtitle = m.subtitle
+                return a
+            })
         }
 
         private func fit(_ map: MLNMapView, _ pts: [GeoPoint]) {

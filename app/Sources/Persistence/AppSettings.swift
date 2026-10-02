@@ -14,8 +14,6 @@ final class AppSettings: ObservableObject {
     @Published var companionURL: String { didSet { defaults.set(companionURL, forKey: "companionURL") } }
     /// Spoken directions by default when riding a route (off = « alertes uniquement »; switchable on the map).
     @Published var voiceEnabled: Bool { didSet { defaults.set(voiceEnabled, forKey: "voiceEnabled") } }
-    /// Camera, hazard and incident warnings are always spoken, in every mode (rider's choice).
-    let radarAnnouncements = true
     /// Moto Road is dark (carbon + racing orange) unless the rider prefers the light theme.
     @Published var lightTheme: Bool { didSet { defaults.set(lightTheme, forKey: "lightTheme") } }
     @Published var pace: PaceEstimator { didSet { persist(pace, "pace") } }

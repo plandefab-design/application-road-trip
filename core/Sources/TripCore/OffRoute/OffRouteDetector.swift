@@ -85,10 +85,8 @@ public enum RejoinGuide {
         while along <= end {
             if let p = route.point(at: along) {
                 var crow = Geo.distance(position, p)
-                if let heading, heading >= 0, crow > 50 {
-                    var delta = Geo.bearing(position, p) - heading
-                    delta = (delta + 540).truncatingRemainder(dividingBy: 360) - 180
-                    if abs(delta) > 100 { crow *= 1.5 }
+                if let heading, heading >= 0, crow > 50, abs(Geo.angleDelta(heading, Geo.bearing(position, p))) > 100 {
+                    crow *= 1.5
                 }
                 let cost = crow + 0.3 * (along - start)
                 if best == nil || cost < best!.cost { best = (p, along, cost) }

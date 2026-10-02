@@ -93,7 +93,7 @@ final class TrafficIncidentsTests: XCTestCase {
 
     func testCameraAndTurnNowAreUrgent() {
         let camera = RoadAlert(along: 400, kind: .speedCamera, label: "radar")
-        XCTAssertTrue(AlertGuide.announcements([camera], progress: 0, cameras: true).allSatisfy(\.urgent))
+        XCTAssertTrue(AlertGuide.announcements([camera], progress: 0).allSatisfy(\.urgent))
         let turn = TurnInstruction(along: 50, maneuver: .turnLeft, text: "Tournez à gauche")
         XCTAssertEqual(TurnGuide.announcement([turn], progress: 30, speed: 5)?.urgent, true)     // 20 m: the order
         XCTAssertEqual(TurnGuide.announcement([turn], progress: -150, speed: 5)?.urgent, false)  // 200 m: preparation

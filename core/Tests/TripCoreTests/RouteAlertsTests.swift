@@ -35,8 +35,5 @@ final class RouteAlertsTests: XCTestCase {
         var g = DetourRoute.Guidance(route: route)
         let u = g.update(position: GeoPoint(lat: 43.0 + 2_550 / 111_195.0, lon: 5.0), speed: 10)   // 450 m before
         XCTAssertTrue(u.announcements.contains { $0.text == "Radar dans 450 mètres, limité à 50" && $0.key.hasPrefix("detour-") })
-        var muted = DetourRoute.Guidance(route: route)
-        XCTAssertTrue(muted.update(position: GeoPoint(lat: 43.0 + 2_550 / 111_195.0, lon: 5.0), speed: 10, cameras: false)
-            .announcements.isEmpty)
     }
 }

@@ -34,10 +34,9 @@ final class FreeRideGuideTests: XCTestCase {
 
     func testAnnouncements() {
         let guide = FreeRideGuide(alerts: pack.alerts)
-        let texts = guide.announcements(position: GeoPoint(lat: 43.0, lon: 5.0), heading: 0, cameras: true).map(\.text)
+        let texts = guide.announcements(position: GeoPoint(lat: 43.0, lon: 5.0), heading: 0).map(\.text)
         XCTAssertEqual(texts, ["Attention, chutes de pierres dans 300 mètres", "Radar dans 450 mètres, limité à 80"])
-        XCTAssertEqual(guide.announcements(position: GeoPoint(lat: 43.0, lon: 5.0), heading: 0, cameras: false).count, 1)
-        let near = guide.announcements(position: GeoPoint(lat: 43.003, lon: 5.0), heading: 2, cameras: true)
+        let near = guide.announcements(position: GeoPoint(lat: 43.003, lon: 5.0), heading: 2)
         XCTAssertTrue(near.contains { $0.text == "Radar maintenant, limité à 80" && $0.key.hasSuffix("-near") })
     }
 
@@ -47,7 +46,7 @@ final class FreeRideGuideTests: XCTestCase {
         var spoken: [String] = []
         var lat = 42.999
         while lat < 43.012 {
-            for a in guide.announcements(position: GeoPoint(lat: lat, lon: 5.0), heading: 0, cameras: true) where !spoken.contains(a.key) {
+            for a in guide.announcements(position: GeoPoint(lat: lat, lon: 5.0), heading: 0) where !spoken.contains(a.key) {
                 spoken.append(a.key)
             }
             lat += 0.0002   // ≈ 22 m per fix
