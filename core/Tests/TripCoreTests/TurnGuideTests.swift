@@ -147,3 +147,51 @@ final class TurnGuideTests: XCTestCase {
         XCTAssertEqual(trip.days[0].instructions.first?.maneuver, .straight)
     }
 }
+
+/// Roundabouts in a row (town crossings): nothing new is said while the rider is still going round one.
+final class RoundaboutSequenceTests: XCTestCase {
+    // Two roundabouts 340 m apart (entry to entry), then a long road: the sequence heard on real routes.
+    let ins = [
+        TurnInstruction(along: 0, maneuver: .depart, text: ""),
+        TurnInstruction(along: 1_000, maneuver: .roundabout, text: "", street: "Route test", exit: 2),
+        TurnInstruction(along: 1_340, maneuver: .roundabout, text: "", street: "Route test", exit: 3),
+        TurnInstruction(along: 9_000, maneuver: .turnLeft, text: "", street: "Chemin test"),
+    ]
+
+    /// Everything said riding at 50 km/h, in order.
+    func heard(from: Double = 0, to: Double = 9_100) -> [(at: Double, key: String, text: String)] {
+        var said = Set<String>(), out: [(at: Double, key: String, text: String)] = []
+        var p = from
+        while p <= to {
+            if let a = TurnGuide.announcement(ins, progress: p, speed: 14), said.insert(a.key).inserted { out.append((p, a.key, a.text)) }
+            p += 5
+        }
+        return out
+    }
+
+    func testNothingNewWhileGoingRound() {
+        let inside = heard().filter { $0.at >= 1_000 && $0.at < 1_000 + TurnGuide.roundaboutLength(ins[1]) }
+        XCTAssertTrue(inside.isEmpty, "said in the roundabout: \(inside.map(\.text))")
+        // The next roundabout is still announced once out of this one, before reaching it.
+        let next = heard().filter { $0.key == "turn-2-soon" || $0.key == "turn-2-now" }
+        XCTAssertEqual(next.map(\.key), ["turn-2-soon", "turn-2-now"])
+        XCTAssertGreaterThanOrEqual(next[0].at, 1_000 + TurnGuide.roundaboutLength(ins[1]))
+        XCTAssertEqual(next[0].text, "Dans 250 mètres, au rond-point, prenez la troisième sortie sur Route test")
+    }
+
+    func testContinueOnlyOnceOut() {
+        let cont = heard().first { $0.key.hasPrefix("continue-2") }
+        XCTAssertNotNil(cont)
+        XCTAssertGreaterThanOrEqual(cont!.at, 1_340 + TurnGuide.roundaboutLength(ins[2]))
+    }
+
+    /// Property: whatever the exit, the estimated ring is longer than the measured 90 % and never above 200 m.
+    func testRingLengthCoversMeasuredExits() {
+        let measured90 = [1: 34.0, 2: 59.0, 3: 86.0, 4: 95.0]
+        for (exit, p90) in measured90 {
+            let l = TurnGuide.roundaboutLength(TurnInstruction(along: 0, maneuver: .roundabout, text: "", exit: exit))
+            XCTAssertGreaterThan(l, p90)
+            XCTAssertLessThanOrEqual(l, 200)
+        }
+    }
+}
