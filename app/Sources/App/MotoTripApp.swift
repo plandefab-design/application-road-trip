@@ -1,4 +1,5 @@
 import SwiftUI
+import TripCore
 
 @main
 struct MotoTripApp: App {
