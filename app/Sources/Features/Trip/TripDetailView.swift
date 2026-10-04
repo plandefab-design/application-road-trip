@@ -312,9 +312,9 @@ struct TripDetailContent: View {
         let day = latest.days.first { $0.index == selectedDay && $0.track != nil } ?? latest.days.first { $0.track != nil }
 
         set("traffic", .running)
-        if let track = day?.track, let live = LiveTraffic.client(settings) {
+        if let track = day?.track {
             do {
-                let incidents = try await live.alongRoute(track)
+                let incidents = try await LiveTraffic.client(settings).alongRoute(track)
                 // Dangers first (accident, obstacle, closure, jam…); roadworks only counted.
                 let serious = incidents.filter { !$0.incident.category.isMinor }
                 let works = incidents.count - serious.count
@@ -329,7 +329,7 @@ struct TripDetailContent: View {
                 set("traffic", .failed, TomTomTrafficClient.describe(error))
             }
         } else {
-            set("traffic", .warning, day == nil ? "Aucune étape tracée." : "Ajoute ta clé TomTom ou connecte le PC (Réglages).")
+            set("traffic", .warning, "Aucune étape tracée.")
         }
 
         set("weather", .running)

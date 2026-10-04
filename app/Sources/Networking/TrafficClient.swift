@@ -63,13 +63,47 @@ struct TomTomTrafficClient: TrafficClient {
     }
 }
 
-/// Official live events (Bison Futé for French national roads, DGT for Spain) relayed by the PC, in the TomTom
-/// shape. Reachable only through Tailscale: optional like every live source.
-struct CompanionTrafficClient: TrafficClient {
-    let client: CompanionClient
-
+/// Official live events (Bison Futé for French national roads, DGT for Spain), read by the iPhone itself: no key,
+/// no PC. Each feed covers a whole country, so it is downloaded once every 5 minutes at most (shared by every
+/// box asked meanwhile), and only when the ride is in its country.
+struct OfficialTrafficClient: TrafficClient {
     func incidents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
-        try await client.liveEvents(minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat)
+        let feeds = OfficialEvents.feeds.filter { $0.covers(minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat) }
+        var found: [TrafficIncident] = []
+        var failure: Error?
+        for feed in feeds {
+            do { found += try await OfficialFeedCache.shared.events(feed) } catch { failure = error }
+        }
+        if found.isEmpty, let failure { throw failure }
+        return OfficialEvents.inBox(found, minLon: minLon, minLat: minLat, maxLon: maxLon, maxLat: maxLat)
+    }
+}
+
+/// The last download of each official feed. A failed download keeps the previous events for 30 minutes.
+actor OfficialFeedCache {
+    static let shared = OfficialFeedCache()
+    private var stored: [String: (at: Date, events: [TrafficIncident])] = [:]
+    private var running: [String: Task<[TrafficIncident], Error>] = [:]
+
+    func events(_ feed: OfficialEvents.Feed) async throws -> [TrafficIncident] {
+        if let s = stored[feed.source], Date().timeIntervalSince(s.at) < 300 { return s.events }
+        let task = running[feed.source] ?? Task.detached {
+            // 5 s max while riding (CLAUDE.md rule 1); about 150 kB compressed, parsed off the main thread.
+            let (data, response) = try await URLSession.shared.data(for: URLRequest(url: feed.url, timeoutInterval: 5))
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard code == 200 else { throw URLError(.badServerResponse) }
+            return OfficialEvents.parse(data, source: feed.source)
+        }
+        running[feed.source] = task
+        defer { running[feed.source] = nil }
+        do {
+            let events = try await task.value
+            stored[feed.source] = (Date(), events)
+            return events
+        } catch {
+            if let s = stored[feed.source], Date().timeIntervalSince(s.at) < 1800 { return s.events }
+            throw error
+        }
     }
 }
 
@@ -97,14 +131,12 @@ struct CombinedTrafficClient: TrafficClient {
 }
 
 enum LiveTraffic {
-    /// TomTom (when a key is set) + the PC's official feeds (when the companion is configured); nil without either.
+    /// TomTom (when a key is set) first: it carries the delays; then the official feeds (always).
     @MainActor
-    static func client(_ settings: AppSettings) -> TrafficClient? {
+    static func client(_ settings: AppSettings) -> TrafficClient {
         var sources: [TrafficClient] = []
         if !settings.tomtomKey.isEmpty { sources.append(TomTomTrafficClient(key: settings.tomtomKey)) }
-        if let pc = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) {
-            sources.append(CompanionTrafficClient(client: pc))
-        }
-        return sources.isEmpty ? nil : CombinedTrafficClient(sources: sources)
+        sources.append(OfficialTrafficClient())
+        return CombinedTrafficClient(sources: sources)
     }
 }

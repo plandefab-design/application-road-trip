@@ -107,42 +107,11 @@ struct CompanionClient {
         guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
     }
 
-    // MARK: Offline alert pack (free ride)
-
-    struct PackVersion: Decodable { let version: String }
-
-    func alertPackVersion() async throws -> String {
-        let v: PackVersion = try await get("alerts-pack/version", timeout: 10)
-        return v.version
-    }
-
-    func alertPack() async throws -> AlertPack {
-        try await get("alerts-pack", timeout: 120)
-    }
-
     struct FinalizeRequest: Encodable { let trip: Trip }
 
     /// Locates the waypoints and computes each day's road track on the PC (GraphHopper), no Claude involved.
     func startFinalize(tripId: String, trip: Trip) async throws -> ChatJob {
         try await post("trips/\(tripId)/finalize", body: FinalizeRequest(trip: trip), timeout: 30)
-    }
-
-    /// A period proposed for a trip without dates (schema v9), with its reasons and the checks of its dates.
-    struct DateOption: Decodable, Identifiable, Equatable {
-        let start: String
-        let end: String
-        let label: String
-        let reasons: [String]
-        let checks: [String]
-        var id: String { start }
-    }
-
-    private struct DateOptions: Decodable { let options: [DateOption] }
-
-    /// The three best periods of the next 12 months, from the computed routes (no Claude involved).
-    func bestDates(tripId: String, trip: Trip) async throws -> [DateOption] {
-        let reply: DateOptions = try await post("trips/\(tripId)/best-dates", body: FinalizeRequest(trip: trip), timeout: 120)
-        return reply.options
     }
 
     /// Polls a job every 3 s until it ends; short network drops are retried.
@@ -190,19 +159,6 @@ struct CompanionClient {
     func rideRoute(points: [GeoPoint], mode: String) async throws -> RideRoute {
         struct Body: Encodable { let points: [[Double]]; let mode: String }
         return try await post("ride-route", body: Body(points: points.map { [$0.lat, $0.lon] }, mode: mode), timeout: 10)
-    }
-
-    // MARK: - Live events (riding: 5 s max, never waited for)
-
-    func liveEvents(minLon: Double, minLat: Double, maxLon: Double, maxLat: Double) async throws -> [TrafficIncident] {
-        var r = request("live-events", timeout: 5)
-        var comps = URLComponents(url: r.url!, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "bbox", value: String(format: "%.5f,%.5f,%.5f,%.5f", minLon, minLat, maxLon, maxLat))]
-        r.url = comps.url
-        let (data, response) = try await URLSession.shared.data(for: r)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard code == 200 else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
-        return try TrafficIncidents.parse(data)
     }
 
     // MARK: - Transport

@@ -76,7 +76,7 @@ final class FreeRideSession: ObservableObject {
         location.startNavigation()
         lean.start()
         cancellable = location.$lastFix.compactMap { $0 }.sink { [weak self] fix in self?.handle(fix) }
-        voice.say(hasPack ? "Balade libre. Radars et dangers actifs." : "Balade libre. Base radars absente : synchronise avec le PC.",
+        voice.say(hasPack ? "Balade libre. Radars et dangers actifs." : "Balade libre. Base radars pas encore téléchargée : il faut du réseau une fois.",
                   key: "free-start")
     }
 

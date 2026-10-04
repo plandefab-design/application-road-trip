@@ -1,16 +1,16 @@
 import SwiftUI
 import TripCore
 
-/// « Trouver la meilleure période » (trip created without dates): the PC compares every start date of the next
-/// 12 months on the trip's own roads (passes open, weather of the past years, daylight); the rider picks one.
+/// « Trouver la meilleure période » (trip created without dates): the iPhone compares every start date of the next
+/// 12 months on the trip's own roads (passes open, weather of the past years, daylight), without the PC; the rider
+/// picks one. Needs the network once (closures and weather history are then cached).
 struct BestDatesSheet: View {
     @EnvironmentObject private var store: TripStore
-    @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
     let tripId: String
 
-    @State private var options: [CompanionClient.DateOption] = []
-    @State private var loading = true
+    @State private var options: [DateOption] = []
+    @State private var step: String? = "Cols et routes à fermeture saisonnière…"
     @State private var failure: String?
 
     private var trip: Trip? { store.trips.first { $0.id == tripId } }
@@ -18,10 +18,10 @@ struct BestDatesSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if loading {
+                if let step {
                     HStack(spacing: 12) {
                         ProgressView()
-                        Text("Cols, météo des années passées et durée du jour sur tes routes…").font(.subheadline)
+                        Text(step).font(.subheadline)
                     }
                     .listRowBackground(Theme.row)
                 } else if let failure {
@@ -55,31 +55,37 @@ struct BestDatesSheet: View {
     }
 
     private func load() async {
-        defer { loading = false }
+        defer { step = nil }
         guard let trip else { return }
-        guard let client = CompanionClient(urlString: settings.companionURL, token: settings.companionToken) else {
-            failure = "Companion non configuré (Réglages › PC)."
+        let pack: SeasonPack
+        do {
+            pack = try await SeasonData.pack()
+        } catch {
+            failure = "Pas de réseau : il faut internet une fois pour les cols et la météo des années passées."
             return
         }
-        do {
-            options = try await client.bestDates(tripId: trip.id, trip: trip)
-        } catch let error as CompanionClient.Failure {
-            // The PC explains in French (route to compute first, a road closed all year…).
-            failure = Self.message(error)
-        } catch {
-            failure = "PC injoignable : PC allumé ? Tailscale actif ? (\(error.localizedDescription))"
+        let stages = await Task.detached { BestPeriods.stages(of: trip, pack: pack) }.value
+        guard !stages.isEmpty else {
+            failure = "Calcule d'abord le tracé : la meilleure période dépend des routes de chaque étape."
+            return
         }
+        let today = CalendarDay(Date(), timeZone: .current)
+        var climates: [Climate?] = []
+        for (k, stage) in stages.enumerated() {
+            step = "Météo des \(Climate.years) dernières années vers \(stage.place) (\(k + 1)/\(stages.count))…"
+            climates.append(await SeasonData.climate(at: stage.spot, today: today))
+        }
+        step = "Comparaison des 12 prochains mois…"
+        let found = await Task.detached { BestPeriods.options(trip: trip, stages: stages, climates: climates, today: today) }.value
+        if found.isEmpty {
+            failure = "Aucune période possible dans les 12 prochains mois : une route du trip reste fermée."
+        } else if climates.contains(where: { $0 == nil }) {
+            failure = "Météo des années passées indisponible pour une étape : comparée sur les cols et la durée du jour."
+        }
+        options = found
     }
 
-    private static func message(_ error: CompanionClient.Failure) -> String {
-        if case .http(_, let body) = error,
-           let detail = (try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any])?["detail"] as? String {
-            return detail
-        }
-        return error.localizedDescription
-    }
-
-    private func choose(_ option: CompanionClient.DateOption) {
+    private func choose(_ option: DateOption) {
         guard var t = trip, t.fixDates(start: option.start, checks: option.checks) else { return }
         store.save(t)
         dismiss()

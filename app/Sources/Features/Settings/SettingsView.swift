@@ -72,8 +72,8 @@ struct SettingsView: View {
 
                 Section {
                     row("Radars · dangers hors ligne", icon: "camera.fill", tint: Theme.camera,
-                        subtitle: alertPack.updatedAt.map { "Base du \($0.formatted(date: .abbreviated, time: .shortened))" },
-                        value: alertPack.version == nil ? "À synchroniser" : "\(alertPack.cameraCount) · \(alertPack.hazardCount)")
+                        subtitle: alertPack.updatedAt.map { "Base du \($0.formatted(date: .abbreviated, time: .shortened)), mise à jour chaque jour" },
+                        value: alertPack.version == nil ? "À télécharger" : "\(alertPack.cameraCount) · \(alertPack.hazardCount)")
                     row("Trips · sorties", icon: "map.fill", tint: Theme.accent, value: "\(store.trips.count) · \(rides.rides.count)")
                     row("Allure apprise (cols)", icon: "speedometer", tint: .purple,
                         value: String(format: "%.2f", settings.pace.coefficient(.curvy)))

@@ -199,7 +199,7 @@ struct HomeView: View {
                     .offset(x: 14, y: 10)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("ROULER").font(.system(size: 44, weight: .black, design: .rounded).italic())
-                    Label(alertPack.guide == nil ? "Synchronise le PC pour les radars" : "Radars · dangers · trafic en direct",
+                    Label(alertPack.guide == nil ? "Radars : il faut du réseau une fois" : "Radars · dangers · trafic en direct",
                           systemImage: alertPack.guide == nil ? "exclamationmark.triangle.fill" : "dot.radiowaves.left.and.right")
                         .font(.subheadline.weight(.semibold)).opacity(0.92)
                 }

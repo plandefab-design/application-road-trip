@@ -28,8 +28,11 @@ struct MotoTripApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, phase in
-            // Silent sync with the PC when the app opens or comes back (never while riding: no network need).
-            if phase == .active { Task { await sync.sync(store: store, rides: rides, settings: settings) } }
+            // When the app opens or comes back (never while riding: no network need): the camera pack from GitHub,
+            // then a silent sync with the PC when it answers.
+            guard phase == .active else { return }
+            Task { await AlertPackStore.shared.refresh() }
+            Task { await sync.sync(store: store, rides: rides, settings: settings) }
         }
     }
 }

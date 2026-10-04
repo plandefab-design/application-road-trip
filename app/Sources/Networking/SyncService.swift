@@ -45,12 +45,8 @@ final class SyncService: ObservableObject {
                     rides.save(ride)
                 } catch { failures.append("sauvegarde d'une sortie") }
             }
-            var packNote = ""
-            do {
-                if try await AlertPackStore.shared.refresh(using: client) { packNote = " · radars à jour" }
-            } catch { failures.append("base radars") }
             let deletions = plan.delete.isEmpty ? "" : " · 🗑 \(plan.delete.count)"
-            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(deletions)\(packNote)"
+            let what = "↑ \(plan.push.count) · ↓ \(plan.pull.count)\(deletions)"
             status = failures.isEmpty ? "Synchronisé \(Format.time(Date())) (\(what))"
                 : "Synchro partielle : \(failures.prefix(3).joined(separator: ", "))\(failures.count > 3 ? "…" : "")"
         } catch {
