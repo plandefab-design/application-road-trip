@@ -1,0 +1,18 @@
+# SwiftLint (Linux container, no Mac minutes): likely bugs and dead code only, see .swiftlint.yml.
+name: Swift lint
+
+on:
+  push:
+    paths: ["core/**", "app/**", ".swiftlint.yml", ".github/workflows/swift-lint.yml"]
+  pull_request:
+    paths: ["core/**", "app/**", ".swiftlint.yml"]
+  workflow_dispatch:
+
+jobs:
+  swiftlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    container: ghcr.io/realm/swiftlint@sha256:b8f3cf76353336c048f133aa5b02f5c35c6984b9e6451e906fb8f8c9f92bb30b   # 0.65.1
+    steps:
+      - uses: actions/checkout@v4
+      - run: swiftlint lint --strict --no-cache

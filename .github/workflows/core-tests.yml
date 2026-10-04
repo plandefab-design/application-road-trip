@@ -15,9 +15,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: swift test
+      - name: swift test (with coverage)
         working-directory: core
-        run: swift test
+        run: |
+          swift test --enable-code-coverage
+          llvm-cov report .build/debug/TripCorePackageTests.xctest             -instr-profile=.build/debug/codecov/default.profdata             -ignore-filename-regex='Tests|\.build' > coverage.txt
+          tail -1 coverage.txt
+          { echo '### TripCore coverage'; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
   windows:
     # FAB develops on Windows: keep TripCore portable.

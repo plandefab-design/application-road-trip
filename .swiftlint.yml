@@ -1,0 +1,18 @@
+# Lint kept small: likely bugs and dead code, not formatting taste (the code base is dense by choice).
+only_rules:
+  - force_try
+  - force_cast
+  - duplicate_conditions
+  - unused_optional_binding
+  - unused_closure_parameter
+  - unused_enumerated
+  - redundant_discardable_let
+  - no_fallthrough_only
+  - legacy_hashing
+  - overridden_super_call
+  - unowned_variable_capture
+included:
+  - core/Sources
+  - core/Tests
+  - app/Sources
+  - app/Tests

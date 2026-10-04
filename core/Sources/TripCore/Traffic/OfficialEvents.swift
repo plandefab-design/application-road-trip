@@ -82,6 +82,8 @@ private final class DatexReader: NSObject, XMLParserDelegate {
 
     let source: String
     let now: Date
+    // A constant pattern: it cannot fail at run time.
+    // swiftlint:disable:next force_try
     private let road = try! NSRegularExpression(pattern: #"^(A|AP|AG|N|RN|D|RD|M|E|C|CV|GI|BI)-?\s?\d{1,4}[a-zA-Z]?$"#)
     private let plainTime = ISO8601DateFormatter()
     private let fractionalTime: ISO8601DateFormatter = {
