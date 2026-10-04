@@ -1,0 +1,78 @@
+name: Données iPhone (radars, cols)
+
+# What the iPhone downloads without the PC, every day: the speed camera / hazard pack and the seasonal closures and
+# passes used to choose a trip's dates (companion/planner/app/data_pack.py). Published as assets of the release
+# « data » (pre-release, never « latest »): manifest.json + one raw DEFLATE file per pack.
+# OpenStreetMap is extracted again once a week (Geofabrik, the countries of companion/maps.txt); the previous run's
+# files come back from the Actions cache.
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      osm:
+        description: "Extraire à nouveau OpenStreetMap"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-pack
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install httpx==0.28.1
+
+      - name: Previous data (cache)
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/moto-data
+          key: moto-data-${{ github.run_id }}
+          restore-keys: moto-data-
+
+      - name: OpenStreetMap (once a week)
+        run: |
+          osm="$HOME/moto-data/osm"
+          if [ "${{ inputs.osm }}" = "true" ] || [ ! -s "$osm/speed_cameras.geojsonseq" ] \
+             || [ -n "$(find "$osm/speed_cameras.geojsonseq" -mtime +6)" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq osmium-tool
+            bash companion/jobs/extract_osm_points.sh "$osm"
+          else
+            echo "Extraction OpenStreetMap de moins de 7 jours : réutilisée."
+          fi
+
+      - name: Build the packs
+        working-directory: companion/planner
+        run: python -m app.data_pack "$HOME/moto-data" "$RUNNER_TEMP/packs"
+
+      - name: Publish (release « data »)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view data >/dev/null 2>&1; then
+            gh release create data --prerelease --latest=false --title "Données Moto Road" \
+              --notes "Fichiers téléchargés par l'app chaque jour (radars, dangers, fermetures saisonnières, cols). $(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["attribution"])' "$RUNNER_TEMP/packs/manifest.json")"
+          fi
+          cd "$RUNNER_TEMP/packs"
+          # The packs first, the manifest last: it never names a version that is not online yet.
+          gh release upload data alerts-pack.json.deflate seasons-pack.json.deflate --clobber
+          gh release upload data manifest.json --clobber
+
+      - name: Keep the data for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/moto-data
+          key: moto-data-${{ github.run_id }}

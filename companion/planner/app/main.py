@@ -15,13 +15,12 @@ import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
-from .alerts import alerts_along, camera_alert, hazard_alert, load_features, pauses_along, stations_along
-from . import live_events
+from .alerts import alerts_along, load_features, pauses_along, stations_along
+from .data_pack import all_cameras
 from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router,
                        instructions_from_path, route_profile)
 from .planner import Planner, is_configured
-from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
-from .best_dates import best_periods
+from .radar_sources import refresh_loop
 from .seasonal import cached, load_closures, load_passes, seasonal_checks
 from .trip_schema import sanitize_trip, validate_trip
 
@@ -32,12 +31,10 @@ TRIP_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Official camera lists refreshed in the background (never blocks the API): France, Spain daily, MapAtlas monthly.
+    # They complete the alerts of the trips traced here; the iPhone's own pack comes from GitHub (app.data_pack).
     task = asyncio.create_task(refresh_loop(DATA_DIR))
-    # Live accidents, jams, closures and obstacles (Bison Futé, DGT) every 5 min.
-    live = asyncio.create_task(live_events.refresh_loop())
     yield
     task.cancel()
-    live.cancel()
 
 
 app = FastAPI(title="Moto Road companion", version="0.1.0", lifespan=lifespan)
@@ -128,40 +125,6 @@ def list_rides() -> list[str]:
 
 # ---------------------------------------------------------------- offline alert pack (free ride)
 
-def all_cameras() -> list[dict[str, Any]]:
-    """Official lists (France, Spain) + OpenStreetMap + MapAtlas, merged by priority (see radar_sources)."""
-    return merged_cameras(load_features(DATA_DIR / "osm" / "speed_cameras.geojsonseq"),
-                          official_fr(DATA_DIR) + official_es(DATA_DIR), camera_alert, extra=mapatlas(DATA_DIR))
-
-
-def alert_pack_version() -> str:
-    osm = DATA_DIR / "osm"
-    stamps = [int((osm / f).stat().st_mtime) for f in ("speed_cameras.geojsonseq", "hazards.geojsonseq", "radars_fr.json",
-                                                        "radars_es.json", "radars_mapatlas.json")
-              if (osm / f).exists()]
-    return str(max(stamps)) if stamps else ""
-
-
-@app.get("/alerts-pack/version", dependencies=[Depends(require_token)])
-def get_alert_pack_version() -> dict[str, str]:
-    return {"version": alert_pack_version()}
-
-
-@app.get("/alerts-pack", dependencies=[Depends(require_token)])
-def get_alert_pack() -> dict[str, Any]:
-    """Every speed camera and hazard of the map, compact, for riding without an itinerary (stored on the iPhone)."""
-    osm = DATA_DIR / "osm"
-    cameras = []
-    kind_code = {"speedCamera": 0, "redLightCamera": 1, "sectionCamera": 2}
-    for f in all_cameras():
-        a = f["alert"]
-        # [lat, lon, maxspeed|null, 0 speed / 1 red light / 2 section, label]
-        cameras.append([round(f["lat"], 5), round(f["lon"], 5), a.get("maxspeed"), kind_code.get(a["kind"], 0), a["label"]])
-    hazards = [[round(f["lat"], 5), round(f["lon"], 5), hazard_alert(f["props"])["label"]]
-               for f in load_features(osm / "hazards.geojsonseq")]
-    return {"version": alert_pack_version(), "cameras": cameras, "hazards": hazards}
-
-
 @app.get("/trips/{trip_id}", dependencies=[Depends(require_token)])
 def get_trip(trip_id: str) -> dict[str, Any]:
     p = trip_path(trip_id)
@@ -228,7 +191,7 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
     if not trip.get("days"):
         return ""
     osm = DATA_DIR / "osm"
-    cameras, hazards = all_cameras(), load_features(osm / "hazards.geojsonseq")
+    cameras, hazards = all_cameras(DATA_DIR), load_features(osm / "hazards.geojsonseq")
     fuel = load_features(osm / "fuel_stations.geojsonseq")
     pause_spots = load_features(osm / "pauses.geojsonseq")
     params = trip.get("params") or {}
@@ -317,22 +280,6 @@ async def start_finalize(trip_id: str, body: FinalizeRequest, background: Backgr
     return start_job(trip_id, background, work)
 
 
-@app.post("/trips/{trip_id}/best-dates", dependencies=[Depends(require_token)])
-async def best_dates(trip_id: str, body: FinalizeRequest) -> dict[str, Any]:
-    """The three best periods of the next 12 months for a trip created without dates (schema v9), from its computed
-    routes: seasonal closures, weather of the past years, daylight. No Claude involved."""
-    trip_path(trip_id)
-    if not any((d.get("track") or {}).get("points") for d in body.trip.get("days") or []):
-        raise HTTPException(422, "Calcule d'abord le tracé : la meilleure période dépend des routes de chaque étape.")
-    osm = DATA_DIR / "osm"
-    async with httpx.AsyncClient(headers={"User-Agent": "MotoRoad-companion/1.0"}) as client:
-        options = await best_periods(body.trip, cached(osm / "closures.geojsonseq", load_closures),
-                                     cached(osm / "passes.geojsonseq", load_passes), client, DATA_DIR / "climate")
-    if not options:
-        raise HTTPException(404, "Aucune période possible dans les 12 prochains mois : une route du trip reste fermée.")
-    return {"options": options}
-
-
 @app.get("/trips/{trip_id}/jobs/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)
 @app.get("/trips/{trip_id}/chat/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)
 async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
@@ -364,21 +311,6 @@ async def route(req: RouteRequest) -> dict[str, Any]:
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text[:500])
     return r.json()
-
-
-@app.get("/live-events", dependencies=[Depends(require_token)])
-def get_live_events(bbox: str) -> dict[str, Any]:
-    """Official live events (France national roads, Spain) in a box "minLon,minLat,maxLon,maxLat", TomTom shape."""
-    try:
-        min_lon, min_lat, max_lon, max_lat = (float(x) for x in bbox.split(","))
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail="bbox attendu : minLon,minLat,maxLon,maxLat") from e
-    return live_events.in_box(min_lon, min_lat, max_lon, max_lat)
-
-
-@app.get("/live-events/status", dependencies=[Depends(require_token)])
-def get_live_events_status() -> dict[str, Any]:
-    return live_events.status()
 
 
 # ---------------------------------------------------------------- free ride with several stops

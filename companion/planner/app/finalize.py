@@ -157,7 +157,7 @@ def graphhopper_router(base_url: str, profile: str = "moto_curvy", avoid_motorwa
     return route
 
 
-def _douglas_peucker(coords: list[list[float]], anchors: list[int], tolerance_m: float) -> list[int]:
+def douglas_peucker(coords: list[list[float]], anchors: list[int], tolerance_m: float) -> list[int]:
     """Indices kept by Douglas-Peucker between each pair of consecutive anchors (always kept), in a flat metric
     projection (exact enough at the scale of a road)."""
     k = 6_371_008.8 * math.pi / 180
@@ -201,7 +201,7 @@ def simplify_path(path: dict[str, Any], tolerance_m: float = 2.0) -> dict[str, A
     for rows in (path.get("details") or {}).values():
         for row in rows or []:
             anchors.update(i for i in row[:2] if isinstance(i, int) and 0 <= i < n)
-    keep = _douglas_peucker(coords, sorted(anchors), tolerance_m)
+    keep = douglas_peucker(coords, sorted(anchors), tolerance_m)
     position = {old: new for new, old in enumerate(keep)}
 
     def remap(i: Any) -> Any:
