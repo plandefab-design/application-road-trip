@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from .alerts import alerts_along, load_features, pauses_along, stations_along
 from .data_pack import all_cameras
-from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payload, graphhopper_router,
+from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_router,
                        instructions_from_path, route_profile)
 from .planner import Planner, is_configured
 from .radar_sources import refresh_loop
@@ -287,30 +287,6 @@ async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
     if job is None or job.tripId != trip_id:
         raise HTTPException(404, "tâche inconnue (le PC a peut-être redémarré) : renvoie ta demande")
     return job
-
-
-# ---------------------------------------------------------------- routing (GraphHopper proxy)
-
-class RouteRequest(BaseModel):
-    points: list[tuple[float, float]] = Field(min_length=2, description="[[lat, lon], ...]")
-    profile: str = Field(default="moto_curvy", pattern="^(moto_curvy|moto_fast|moto_adventure|moto_enduro)$")
-    avoid_motorway: bool = True
-
-
-@app.post("/route", dependencies=[Depends(require_token)])
-async def route(req: RouteRequest) -> dict[str, Any]:
-    for lat, lon in req.points:
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            raise HTTPException(422, "coordonnées invalides")
-    payload = graphhopper_payload(list(req.points), req.profile, req.avoid_motorway)
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(f"{GRAPHHOPPER_URL}/route", json=payload)
-    except httpx.HTTPError as exc:
-        raise HTTPException(503, f"GraphHopper injoignable : {exc}") from exc
-    if r.status_code != 200:
-        raise HTTPException(r.status_code, r.text[:500])
-    return r.json()
 
 
 # ---------------------------------------------------------------- free ride with several stops

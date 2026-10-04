@@ -65,13 +65,6 @@ def test_chat_without_claude_auth_returns_503(client):
     assert "setup-token" in r.json()["detail"]
 
 
-def test_route_validates_input_and_reports_graphhopper_down(client):
-    assert client.post("/route", headers=AUTH, json={"points": [[43.5, 5.4]]}).status_code == 422
-    assert client.post("/route", headers=AUTH, json={"points": [[143.5, 5.4], [44, 6]]}).status_code == 422
-    r = client.post("/route", headers=AUTH, json={"points": [[43.5, 5.4], [44.0, 6.0]]})
-    assert r.status_code == 503
-
-
 def test_chat_runs_as_a_job_with_progress(client, monkeypatch):
     import app.main as main
     from app.planner import PlannerReply
@@ -197,3 +190,4 @@ def test_validated_stops_become_waypoints():
     meal, fuel = {"lat": 43.6, "lon": 5.02}, {"lat": 43.3, "lon": 4.98}
     out = insert_stops([a, b], [meal, fuel, {"lat": 43.0001, "lon": 5.0}])
     assert out == [a, fuel, meal, b]          # in route order, the stop on the start not added twice
+
