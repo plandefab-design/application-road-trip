@@ -11,6 +11,8 @@ struct CreateTripView: View {
     @Environment(\.dismiss) private var dismiss
 
     var editing: Trip? = nil
+    /// Called with the new trip id once it is saved from the chat, so the list opens its sheet.
+    var onCreated: ((String) -> Void)? = nil
     @State private var loaded = false
     @State private var step = 0
     @State private var status: TripStatus = .draft
@@ -109,7 +111,12 @@ struct CreateTripView: View {
                     }
                 }
             }
-            .navigationDestination(item: $draft) { PlannerChatView(trip: $0) }
+            .navigationDestination(item: $draft) { trip in
+                PlannerChatView(trip: trip) { id in
+                    dismiss()
+                    onCreated?(id)
+                }
+            }
             .onAppear(perform: loadOnce)
         }
     }

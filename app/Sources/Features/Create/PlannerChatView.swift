@@ -5,8 +5,17 @@ import TripCore
 struct PlannerChatView: View {
     @EnvironmentObject private var store: TripStore
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.dismiss) private var dismiss
+
+    /// Called after « Enregistrer » when the chat was opened from the creation form (which then shows the trip).
+    var onSaved: ((String) -> Void)?
 
     @State var trip: Trip
+
+    init(trip: Trip, onSaved: ((String) -> Void)? = nil) {
+        _trip = State(initialValue: trip)
+        self.onSaved = onSaved
+    }
     @State private var messages: [Message] = []
     @State private var input = ""
     @State private var sending = false
@@ -89,7 +98,10 @@ struct PlannerChatView: View {
         .navigationTitle(trip.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            Button("Enregistrer") { store.save(trip) }
+            Button("Enregistrer") {
+                store.save(trip)
+                if let onSaved { onSaved(trip.id) } else { dismiss() }
+            }
         }
         .keyboardDoneButton()
         .fullScreenCover(isPresented: $editingRoute) {

@@ -8,6 +8,7 @@ struct TripsListView: View {
     @EnvironmentObject private var offlineMaps: OfflineMapStore
     @State private var importing = false
     @State private var creating = false
+    @State private var path: [String] = []
     @State private var exporting: String?
     @State private var viewing: PDFToShow?
     @ObservedObject private var favorites = FavoritePlaces.shared
@@ -15,7 +16,7 @@ struct TripsListView: View {
     private static let gpxType = UTType(filenameExtension: "gpx") ?? .xml
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if store.trips.isEmpty {
                     ContentUnavailableView {
@@ -75,7 +76,10 @@ struct TripsListView: View {
                         .buttonStyle(.borderedProminent).tint(.orange)
                 }
             }
-            .sheet(isPresented: $creating) { CreateTripView().environmentObject(store).environmentObject(settings) }
+            .sheet(isPresented: $creating) {
+                CreateTripView(onCreated: { id in path.append(id) })
+                    .environmentObject(store).environmentObject(settings)
+            }
             .sheet(item: $viewing) { PDFViewer(url: $0.url, title: $0.title) }
             .sheet(isPresented: $importing) {
                 DocumentPicker(types: [Self.gpxType, .json],
