@@ -28,6 +28,14 @@ struct RideSummaryView: View {
                         tile("Vitesse max", "\(Int((ride.summary.maxSpeed * 3.6).rounded())) km/h", "gauge.with.dots.needle.100percent")
                         tile("Virages", "\(ride.summary.bends)", "point.topleft.down.to.point.bottomright.curvepath")
                         tile("Dénivelé +", ride.summary.ascent.map { "\(Int($0.rounded())) m" } ?? "—", "mountain.2.fill")
+                        if let lean = ride.summary.lean {
+                            tile("Angle max gauche", "\(Int(lean.maxLeft))°", "arrow.down.left")
+                            tile("Angle max droite", "\(Int(lean.maxRight))°", "arrow.down.right")
+                        }
+                    }
+                    if let lean = ride.summary.lean, lean.over20 > 0 {
+                        Text("Virages pris à plus de 20° : \(lean.over20) · plus de 30° : \(lean.over30) · plus de 40° : \(lean.over40)")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                     if let start = ride.summary.startedAt, let end = ride.summary.endedAt {
                         Text("\(start.formatted(date: .abbreviated, time: .shortened)) → \(end.formatted(date: .omitted, time: .shortened)) · total \(Format.duration(minutes: ride.summary.totalTime / 60))")

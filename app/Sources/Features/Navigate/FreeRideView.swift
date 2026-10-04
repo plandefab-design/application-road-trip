@@ -175,6 +175,7 @@ struct FreeRideView: View {
                 Text(session.startedAt, style: .timer).font(.subheadline.monospacedDigit())
             }
             Spacer()
+            LeanBadge(meter: session.lean)
             VStack {
                 Text("\(Int(session.speedKmh))").font(.system(size: 44, weight: .heavy, design: .rounded))
                 Text("km/h").font(.caption)

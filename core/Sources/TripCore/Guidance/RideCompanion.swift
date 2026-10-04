@@ -86,6 +86,8 @@ public struct RideSummary: Codable, Equatable, Sendable {
     public var bends: Int
     public var startedAt: Date?
     public var endedAt: Date?
+    /// Lean angles measured on the bike (gyroscope); nil for rides recorded before, or without gyroscope.
+    public var lean: LeanSummary?
 
     public var averageMovingSpeed: Double { movingTime > 0 ? distance / movingTime : 0 }
 

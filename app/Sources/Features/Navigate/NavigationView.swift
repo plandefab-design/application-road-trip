@@ -35,6 +35,7 @@ struct NavigationView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 10) {
+                        LeanBadge(meter: session.lean).padding(8).glass(radius: 18)
                         MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
                         MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
                         VoiceModeButton(directions: session.directionsSpoken) { session.setDirections(!session.directionsSpoken) }

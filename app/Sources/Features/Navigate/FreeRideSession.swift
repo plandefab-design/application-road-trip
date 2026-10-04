@@ -8,6 +8,8 @@ import UIKit
 @MainActor
 final class FreeRideSession: ObservableObject {
     @Published private(set) var speedKmh: Double = 0
+    /// Lean angle from the gyroscope (its own refresh, observed by the badge only).
+    let lean = LeanMeter()
     @Published private(set) var distance: Double = 0          // metres ridden
     @Published private(set) var startedAt = Date()
     @Published private(set) var nextAlert: (alert: RoadAlert, distance: Double)?
@@ -72,6 +74,7 @@ final class FreeRideSession: ObservableObject {
         startedAt = Date()
         UIApplication.shared.isIdleTimerDisabled = true
         location.startNavigation()
+        lean.start()
         cancellable = location.$lastFix.compactMap { $0 }.sink { [weak self] fix in self?.handle(fix) }
         voice.say(hasPack ? "Balade libre. Radars et dangers actifs." : "Balade libre. Base radars absente : synchronise avec le PC.",
                   key: "free-start")
@@ -81,9 +84,10 @@ final class FreeRideSession: ObservableObject {
         cancellable = nil
         trafficTask?.cancel()
         location.stop()
+        lean.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         finishedRide = RideStore.log(tripId: RideStore.freeRideTripId, tripName: "Balade libre", day: 0,
-                                     points: points, times: times, speeds: speeds)
+                                     points: points, times: times, speeds: speeds, lean: lean.summary)
     }
 
     /// Guided detour to a place picked « autour de moi » (voice turns, arrival); cameras stay announced.
@@ -116,6 +120,7 @@ final class FreeRideSession: ObservableObject {
     private func handle(_ fix: LocationService.Fix) {
         guard fix.accuracy >= 0, fix.accuracy <= 150 else { return }
         speedKmh = max(0, fix.speed) * 3.6
+        lean.setSpeed(fix.speed)
         // Only precise fixes are recorded (km, track): imprecise ones would inflate the distance.
         if fix.accuracy <= 50 {
             if let last = points.last { distance += Geo.distance(last, fix.point) }

@@ -13,6 +13,8 @@ final class NavigationSession: ObservableObject {
     @Published private(set) var rejoinDistance: Double?
     @Published private(set) var rejoinBearing: Double?
     @Published private(set) var speedKmh: Double = 0
+    /// Lean angle from the gyroscope (its own refresh, observed by the badge only).
+    let lean = LeanMeter()
     /// Precise fixes only (≤ 50 m): the recorded track and the odometer are not inflated by GPS noise.
     private(set) var recorded: [GeoPoint] = []
     private var recordedTimes: [Date] = []
@@ -113,6 +115,7 @@ final class NavigationSession: ObservableObject {
     func start() {
         UIApplication.shared.isIdleTimerDisabled = true   // screen stays on while riding
         location.startNavigation()
+        lean.start()
         cancellable = location.$lastFix.compactMap { $0 }.sink { [weak self] fix in
             self?.handle(fix)
         }
@@ -126,9 +129,11 @@ final class NavigationSession: ObservableObject {
         trafficTask?.cancel()
         weatherTask?.cancel()
         location.stop()
+        lean.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         onPaceUpdate(pace)
-        finishedRide = RideStore.log(trip: trip, day: day, points: recorded, times: recordedTimes, speeds: recordedSpeeds)
+        finishedRide = RideStore.log(trip: trip, day: day, points: recorded, times: recordedTimes, speeds: recordedSpeeds,
+                                     lean: lean.summary)
         // Arrived: nothing to rejoin. Left before the end: the home screen offers « Reprendre ».
         if let snap = snapshot, snap.endOfDay.distance < 300 { ActiveRide.shared.finish() }
     }
@@ -203,6 +208,7 @@ final class NavigationSession: ObservableObject {
             recordedSpeeds.append(fix.speed)
         }
         speedKmh = max(0, fix.speed) * 3.6
+        lean.setSpeed(fix.speed)
 
         if var d = detour {
             let step = detourWayBack.follow(&d, fix: fix, routeKey: detourId)
