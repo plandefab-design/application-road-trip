@@ -22,7 +22,6 @@ struct MotoTripApp: App {
                 .onOpenURL { url in store.importFile(at: url) }   // AirDrop / "Ouvrir avec"
                 .preferredColorScheme(settings.lightTheme ? .light : .dark)
                 .task {
-                    MetricsRecorder.shared.start()                   // real battery / launch / hang figures, kept on the iPhone
                     // After each SideStore refresh the expiry moves: keep the reminder in step (if allowed).
                     if let expiry = SigningInfo.expirationDate { await Reminders.scheduleSignatureReminder(expiry: expiry) }
                     await offlineMaps.purge(trips: store.trips)      // space: maps of past or deleted trips
