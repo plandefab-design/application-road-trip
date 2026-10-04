@@ -22,10 +22,6 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution
     exactVersion: 6.31.0
-  # M4 — turn-by-turn guidance (pin exact version when integrating, spike S3):
-  # FerrostarCore:
-  #   url: https://github.com/stadiamaps/ferrostar
-  #   exactVersion: 0.57.0
 
 targets:
   MotoTrip:
