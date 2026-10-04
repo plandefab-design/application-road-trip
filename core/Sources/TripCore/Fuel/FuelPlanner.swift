@@ -28,7 +28,6 @@ public struct FuelGap: Equatable, Sendable {
 public struct FuelPlan: Equatable, Sendable {
     public let stops: [PlannedFuelStop]
     public let gaps: [FuelGap]
-    public var isFeasible: Bool { gaps.isEmpty }
 }
 
 /// Places fuel stops along a route (SPEC §5.2).

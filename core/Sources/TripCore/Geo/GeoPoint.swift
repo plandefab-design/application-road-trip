@@ -57,11 +57,4 @@ public enum Geo {
         if let ea = a.ele, let eb = b.ele { ele = ea + (eb - ea) * t } else { ele = nil }
         return GeoPoint(lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t, ele: ele)
     }
-
-    /// Local equirectangular projection around `origin`, metres (x east, y north).
-    static func toLocal(_ p: GeoPoint, origin: GeoPoint) -> (x: Double, y: Double) {
-        let x = rad(p.lon - origin.lon) * cos(rad(origin.lat)) * earthRadius
-        let y = rad(p.lat - origin.lat) * earthRadius
-        return (x, y)
-    }
 }

@@ -8,13 +8,18 @@ final class PolylinePerformanceTests: XCTestCase {
         var best = (along: 0.0, offset: Double.infinity)
         for i in 0..<(line.points.count - 1) {
             let a = line.points[i], b = line.points[i + 1]
-            let pb = Geo.toLocal(b, origin: a), pp = Geo.toLocal(p, origin: a)
+            let pb = toLocal(b, origin: a), pp = toLocal(p, origin: a)
             let len2 = pb.x * pb.x + pb.y * pb.y
             let t = len2 > 0 ? min(max((pp.x * pb.x + pp.y * pb.y) / len2, 0), 1) : 0
             let d = Geo.distance(p, Geo.interpolate(a, b, t))
             if d < best.offset { best = (line.cumulative[i] + (line.cumulative[i + 1] - line.cumulative[i]) * t, d) }
         }
         return best
+    }
+
+    /// Local equirectangular projection around `origin`, metres (x east, y north).
+    func toLocal(_ p: GeoPoint, origin: GeoPoint) -> (x: Double, y: Double) {
+        (Geo.rad(p.lon - origin.lon) * cos(Geo.rad(origin.lat)) * Geo.earthRadius, Geo.rad(p.lat - origin.lat) * Geo.earthRadius)
     }
 
     func testSameMatchAsTheExactComputation() {

@@ -23,7 +23,7 @@ final class FuelPlannerTests: XCTestCase {
         let route = Fixtures.northLine(km: 150, stepM: 500)
         let plan = FuelPlanner.plan(route: route, stations: stations(routeKm: 150, everyKm: 30), interval: 200_000)
         XCTAssertTrue(plan.stops.isEmpty)
-        XCTAssertTrue(plan.isFeasible)
+        XCTAssertTrue(plan.gaps.isEmpty)
     }
 
     func testInvariantHoldsOnLongRoute() {
@@ -31,7 +31,7 @@ final class FuelPlannerTests: XCTestCase {
             let route = Fixtures.northLine(km: routeKm, stepM: 500)
             let interval = intervalKm * 1000
             let plan = FuelPlanner.plan(route: route, stations: stations(routeKm: routeKm, everyKm: every), interval: interval)
-            XCTAssertTrue(plan.isFeasible, "route \(routeKm) km")
+            XCTAssertTrue(plan.gaps.isEmpty, "route \(routeKm) km")
             assertInvariant(plan, routeLength: route.length, interval: interval)
             XCTAssertTrue(plan.stops.allSatisfy { $0.detour <= FuelPlanner.maxDetour })
         }
@@ -48,7 +48,7 @@ final class FuelPlannerTests: XCTestCase {
         let route = Fixtures.northLine(km: 300, stepM: 500)
         let far = [FuelStation(id: "far", name: "Far", point: Fixtures.point(onNorthLineAtKm: 150, eastOffsetM: 5_000))]
         let plan = FuelPlanner.plan(route: route, stations: far, interval: 200_000)
-        XCTAssertFalse(plan.isFeasible)
+        XCTAssertFalse(plan.gaps.isEmpty)
         XCTAssertEqual(plan.gaps.first?.from ?? -1, 0, accuracy: 1e-9)
     }
 
