@@ -99,7 +99,7 @@ Couverture : **France**, **Italie**, **Espagne**, **Suisse**, **Allemagne**, **P
 ---
 
 ## Utilisation
-L'app a 4 onglets : **Rouler**, **Favoris**, **Trips**, **Réglages**.
+L'app a 5 onglets : **Rouler**, **Favoris**, **Trips**, **Groupe**, **Réglages** (le **Garage** est en haut des Réglages et sur la carte de ta moto, à l'accueil).
 
 1. **Une fois** — Réglages › **Garage** : ta moto, son **type** et son **autonomie réelle**. Réglages › **Pilote** : contact SOS.
    Optionnel : Réglages › Navigation › **Trafic TomTom** (clé gratuite developer.tomtom.com).
@@ -121,14 +121,20 @@ L'app a 4 onglets : **Rouler**, **Favoris**, **Trips**, **Réglages**.
    **SOS** : appui long = appel ; bouton message = SMS avec ta position ; 👍 = « petit point » (tout va bien + ta ville).
 7. **Entretien** — Réglages › Entretien : choisis **Ma moto**, recopie le compteur une fois ; chaque sortie ajoute ses km
    et l'accueil te prévient (vidange, chaîne, pneus, freins, révision…).
+8. **À plusieurs (facultatif)** — onglet **Groupe** : inscription par utilisateur, **voix en direct** avec ton casque
+   intercom (Bluetooth), **position des amis** sur la carte, **messages rapides** lus à voix haute, **trips partagés**.
+   Passe par Internet (4G), ni ton PC ni Claude. Mise en place du serveur gratuit : [backend/README.md](backend/README.md).
+   La navigation n'en dépend jamais.
 
 ## Développer
 ```powershell
 cd core; swift test                         # logique métier (Swift pour Windows : https://www.swift.org/install/windows/)
 cd companion\planner; python -m pytest -q   # API du PC
+powershell -ExecutionPolicy Bypass -File scripts\test-app-logic.ps1   # client et session du groupe (Docker, ~15 s)
+powershell -ExecutionPolicy Bypass -File scripts\test-backend.ps1     # règles d'accès du serveur de groupe (Docker, ~15 s)
 claude                                      # Claude Code : « Lis CLAUDE.md et SPEC.md, puis continue le milestone suivant de docs/STATUS.md »
 ```
 L'app iOS se compile uniquement dans GitHub Actions (`git push`).
 
 ## Attributions
-Cartes © contributeurs OpenStreetMap (ODbL) · fond OpenFreeMap · rendu MapLibre · routage GraphHopper (Apache 2.0) · météo Open-Meteo (CC BY 4.0) · trafic TomTom · radars Sécurité routière (Etalab), DGT (CC BY), MapAtlas (CC BY 4.0) · événements Bison Futé (Licence Ouverte), DGT (CC BY).
+Cartes © contributeurs OpenStreetMap (ODbL) · fond OpenFreeMap · rendu MapLibre · routage GraphHopper (Apache 2.0) · voix de groupe LiveKit (Apache 2.0) · comptes et messages Supabase · météo Open-Meteo (CC BY 4.0) · trafic TomTom · radars Sécurité routière (Etalab), DGT (CC BY), MapAtlas (CC BY 4.0) · événements Bison Futé (Licence Ouverte), DGT (CC BY).

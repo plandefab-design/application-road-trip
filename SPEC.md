@@ -1,7 +1,7 @@
 # SPEC — Moto Road (anciennement MotoTrip, nom de travail)
 
 Application iPhone personnelle de **création** et de **navigation** de road trips moto sur routes sinueuses.
-Utilisateur unique : FAB. Coût cible : **0 €** (hors abonnement Claude déjà existant).
+Utilisateur principal : FAB. Coût cible : **0 €** (hors abonnement Claude déjà existant). Un petit cercle d'amis (2–3 motards) peut rejoindre via les fonctions de groupe optionnelles (§13).
 
 ---
 
@@ -326,7 +326,7 @@ Les itinéraires navigables (`routes/*.json`) sont au format attendu par Ferrost
 ---
 
 ## 11. Hors périmètre V1
-Fonctions de groupe · signalements communautaires (Waze/Coyote : pas d'accès légal/gratuit) · réservation automatique · détection de chute · CarPlay · Android · publication App Store.
+Signalements communautaires (Waze/Coyote : pas d'accès légal/gratuit) · réservation automatique · détection de chute · CarPlay · Android · publication App Store.
 
 ## 12. Critères d'acceptation V1
 1. Création d'un trip de 3 jours via formulaire + chat, carte mise à jour à chaque réponse.
@@ -337,3 +337,53 @@ Fonctions de groupe · signalements communautaires (Waze/Coyote : pas d'accès l
 6. Avec réseau : météo sur la route et incidents TomTom affichés.
 7. Nouvelle version poussée sur `main` → disponible dans SideStore sans intervention sur le PC.
 8. Redémarrage du PC → companion de nouveau joignable sans intervention.
+
+---
+
+## 13. Fonctions de groupe (V2, optionnelles — milestone M10)
+
+Cercle visé : **2–3 amis**, usage en 4G, **sans passer par le PC ni par Claude**. Tout est une couche *optionnelle* : sans compte ou sans réseau, l'app se comporte exactement comme avant (principe 0.2, règle n°1 de CLAUDE.md).
+
+### 13.1 Fonctions
+| Fonction | Description |
+|---|---|
+| Comptes | Inscription par utilisateur, invitation par lien/code à un **groupe** |
+| Position en direct | Chaque membre voit les autres sur la carte pendant la navigation ou une balade libre ; envoi toutes les 4 s (20 s à l'arrêt, tout saut de 60 m part aussitôt) ; **consentement explicite** (désactivé par défaut), interrupteur « partager ma position » ; positions **invisibles après 5 min** côté serveur, effacées à l'arrêt de la balade ; un ami sans nouvelles depuis 30 s est grisé |
+| Voix en direct | Un salon par groupe ; micro du casque (intercom Bluetooth, profil mains libres) ; **micro ouvert ou « appuyer pour parler »** ; bouton micro sur la carte ; la voix guidée **baisse** les voix le temps d'une phrase ; une voix ouverte depuis la carte se ferme avec la balade ; aucune modale ni demande d'autorisation en roulant |
+| Chat | Messages courts + **8 réponses rapides** prédéfinies (J'arrive, On fait une pause ?, Attention danger…) ; en conduite : un appui, et les messages des amis sont **lus à voix haute** (jamais les siens, jamais un message de plus d'une minute) ; pas de saisie (règle n°9) |
+| Trips partagés | Partage d'un trip au groupe ; chaque ami ajoute **sa propre copie** (nouvel identifiant, pack hors ligne et coches de checklist remis à zéro, statut `validated` : il télécharge ses cartes, choisit ses repas) ; rien ne revient chez l'expéditeur |
+| Invitation | Lien `motoroad://join?u=<serveur>&k=<clé publique>&c=<code>` (un appui règle le serveur et le code) ou **« Coller l'invitation »** (message copié) ; code de 8 caractères sans 0/O/1/I/L, changeable par le créateur ; 10 membres au plus |
+| Compte | Pseudo + e-mail + mot de passe (8 caractères minimum) ; déconnexion ; **suppression du compte** (efface profil, position, messages, trips partagés) |
+
+**Écrans.** 5ᵉ onglet **Groupe** (le Garage passe en tête des Réglages et reste ouvert depuis la carte de la moto de l'accueil, pour garder 5 onglets). Onglet : serveur › compte › groupe (voix, position, messages, trips partagés, membres et invitation, mon compte). Écrans de conduite : boutons voix et message rapide dans la colonne de droite, pastilles des amis (3 plus proches, distance) au-dessus des cartes du bas, pastille « Groupe hors réseau » si besoin, amis dessinés sur la carte.
+
+### 13.2 Architecture
+| Brique | Choix | Remarque |
+|---|---|---|
+| Comptes, chat, trips partagés, positions | **Supabase** (Auth + Postgres + Realtime), offre gratuite | Pas de dépendance au PC ; mise en veille possible après inactivité (à vérifier) |
+| Voix | **LiveKit** (WebRTC, SDK Swift), **cloud gratuit** pour démarrer | Alternative : LiveKit auto-hébergé sur le PC derrière Tailscale (PC allumé, Tailscale chez chaque ami) |
+| Accès côté app | Protocole interne `GroupClient` / `VoiceClient` (règle n°4) | Permet de changer d'hébergeur sans toucher aux vues |
+
+Aucune clé dans le dépôt (règle n°5) : URL et clé publique Supabase saisies dans l'onglet Groupe (ou reçues par l'invitation) ; secrets LiveKit côté serveur uniquement, dans la fonction `livekit-token` (jeton de 6 h, un seul salon, réservé aux membres). Serveur : `backend/` (`schema.sql` testé sur PostgreSQL avec des scénarios d'isolation : un intrus ne voit rien ; mise en place : `backend/README.md`).
+
+**Appels réseau** : délais courts (5 s pour la position et les messages, jamais attendus par la navigation) ; une panne change seulement la pastille d'état. Interrogation toutes les 4 s en roulant ou onglet ouvert, toutes les 30 s sinon (pas de push, §13.3).
+
+### 13.3 Contraintes iOS (identifiant Apple gratuit, SideStore)
+- **Pas de push** (APNs), **pas de CallKit / VoIP push** : on rejoint le salon depuis l'app et on y reste connecté pendant la balade.
+- **Pas de CloudKit ni Sign in with Apple** : comptes gérés par Supabase.
+- Voix en arrière-plan via le mode audio d'iOS (`UIBackgroundModes: audio`) — **à valider (spike S8)**.
+- Qualité audio Bluetooth mains libres (mono, bande étroite) : suffisante pour parler.
+- La voix guidée de la navigation a **priorité** : elle coupe la conversation le temps de la phrase.
+- Les groupes d'intercoms (Sena, Cardo) restent locaux : l'app relie les motards éloignés, pas les casques entre eux.
+
+### 13.4 Données personnelles
+Consentement explicite pour la position, suppression du compte et de toutes les données à la demande, aucune position conservée au-delà de l'expiration.
+
+### 13.5 Statut et spike
+Implémenté (M10) : logique `TripCore/Group` (23 + 7 tests), client Supabase (15 tests contre un faux serveur), session de groupe (30 tests contre un faux serveur en mémoire), schéma SQL (35 vérifications d'isolation sur PostgreSQL). **Non encore validé sur iPhone** : l'adaptateur LiveKit et les écrans n'ont été compilés que par la CI ; la voix en arrière-plan reste à prouver (S8).
+| # | Spike | Question | Critère de sortie |
+|---|---|---|---|
+| S8 | Voix | Salon LiveKit + casque intercom Bluetooth, écran verrouillé, navigation active, 1 h, sur iPhone signé gratuitement ; quotas gratuits LiveKit/Supabase suffisants pour 3 motards | Test terrain OK + quotas chiffrés |
+
+### 13.6 Hors périmètre
+Plus de ~5 utilisateurs, messages vocaux enregistrés, appels hors salon, signalements communautaires.
