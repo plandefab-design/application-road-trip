@@ -60,15 +60,16 @@ jobs:
       - name: Publish (release « data »)
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
+          packs="$RUNNER_TEMP/packs"
           if ! gh release view data >/dev/null 2>&1; then
             gh release create data --prerelease --latest=false --title "Données Moto Road" \
-              --notes "Fichiers téléchargés par l'app chaque jour (radars, dangers, fermetures saisonnières, cols). $(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["attribution"])' "$RUNNER_TEMP/packs/manifest.json")"
+              --notes "Fichiers téléchargés par l'app chaque jour (radars, dangers, fermetures saisonnières, cols). $(python -c 'import json,sys; print(json.load(open(sys.argv[1]))["attribution"])' "$packs/manifest.json")"
           fi
-          cd "$RUNNER_TEMP/packs"
           # The packs first, the manifest last: it never names a version that is not online yet.
-          gh release upload data alerts-pack.json.deflate seasons-pack.json.deflate --clobber
-          gh release upload data manifest.json --clobber
+          gh release upload data "$packs/alerts-pack.json.deflate" "$packs/seasons-pack.json.deflate" --clobber
+          gh release upload data "$packs/manifest.json" --clobber
 
       - name: Keep the data for the next run
         if: always()
