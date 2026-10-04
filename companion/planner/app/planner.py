@@ -105,7 +105,7 @@ class Planner:
         )
 
         prompt = build_prompt(message, trip)
-        for attempt in range(MAX_REPAIR_ATTEMPTS + 1):
+        for _attempt in range(MAX_REPAIR_ATTEMPTS + 1):
             text_parts: list[str] = []
             async for msg in query(prompt=prompt, options=options):
                 if isinstance(msg, AssistantMessage):

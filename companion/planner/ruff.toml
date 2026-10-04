@@ -1,0 +1,6 @@
+# Lint kept deliberately small: real errors and likely bugs, not formatting taste.
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "B"]
+ignore = ["E501", "B905", "E731", "E741"]   # zip(a, a[1:]) pairs, tiny test lambdas and one-letter loop names are fine here
