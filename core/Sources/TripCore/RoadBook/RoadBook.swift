@@ -224,12 +224,6 @@ public struct RoadBook: Equatable, Sendable {
     static let months = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre",
                          "octobre", "novembre", "décembre"]
 
-    static func utcCalendar() -> Calendar {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        return cal
-    }
-
     /// « samedi 12 juin » for a stage date (yyyy-MM-dd); nil when unreadable.
     public static func stageDate(_ isoDate: String?) -> String? {
         isoDate.flatMap(ISODate.parse).map(weekdayDayMonth)
@@ -239,7 +233,7 @@ public struct RoadBook: Equatable, Sendable {
     public static func clockText(_ date: Date, timeZone: TimeZone = .current) -> String { clock(date, timeZone: timeZone) }
 
     static func weekdayDayMonth(_ utcMidnight: Date) -> String {
-        let c = utcCalendar().dateComponents([.weekday, .day, .month], from: utcMidnight)
+        let c = Calendar.utc.dateComponents([.weekday, .day, .month], from: utcMidnight)
         return "\(weekdays[(c.weekday ?? 1) - 1]) \(c.day ?? 0) \(months[(c.month ?? 1) - 1])"
     }
 
@@ -253,7 +247,7 @@ public struct RoadBook: Equatable, Sendable {
     static func period(_ p: TripParams) -> String {
         if p.datesToChoose { return "à choisir (\(p.dayCount) jour\(p.dayCount > 1 ? "s" : ""))" }
         guard let s = ISODate.parse(p.dateStart), let e = ISODate.parse(p.dateEnd) else { return "\(p.dateStart) → \(p.dateEnd)" }
-        let cal = utcCalendar()
+        let cal = Calendar.utc
         let cs = cal.dateComponents([.day, .month, .year], from: s), ce = cal.dateComponents([.day, .month, .year], from: e)
         let end = "\(ce.day ?? 0) \(months[(ce.month ?? 1) - 1]) \(ce.year ?? 0)"
         if s == e { return "le \(end)" }

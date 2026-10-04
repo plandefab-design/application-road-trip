@@ -51,8 +51,7 @@ public enum StageTimer {
     /// The stage's date at 9:00, local time (nil without a date).
     public static func defaultDeparture(for day: TripDay, timeZone: TimeZone = .current) -> Date? {
         guard let date = day.date, let midnightUTC = ISODate.parse(date) else { return nil }
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        var cal = Calendar.utc
         let c = cal.dateComponents([.year, .month, .day], from: midnightUTC)
         cal.timeZone = timeZone
         return cal.date(from: DateComponents(year: c.year, month: c.month, day: c.day, hour: defaultDepartureHour))

@@ -6,8 +6,7 @@ public enum Sun {
     /// Sunset on the calendar day `isoDate` (« yyyy-MM-dd ») at `point`, nil on polar day or night.
     public static func sunset(on isoDate: String, at point: GeoPoint) -> Date? {
         guard let midnightUTC = ISODate.parse(isoDate) else { return nil }
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        let cal = Calendar.utc
         guard let dayOfYear = cal.ordinality(of: .day, in: .year, for: midnightUTC) else { return nil }
 
         func rad(_ d: Double) -> Double { d * .pi / 180 }

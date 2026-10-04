@@ -111,8 +111,7 @@ public struct MaintenanceBook: Codable, Hashable, Sendable {
         }
         var remainingDays: Int?
         if let months = item.intervalMonths, months > 0, let done = item.lastDoneDate.flatMap(ISODate.parse) {
-            var utc = Calendar(identifier: .gregorian)
-            utc.timeZone = TimeZone(identifier: "UTC")!
+            let utc = Calendar.utc
             if let due = utc.date(byAdding: .month, value: months, to: done) {
                 remainingDays = Int((due.timeIntervalSince(today) / 86_400).rounded(.down))
             }

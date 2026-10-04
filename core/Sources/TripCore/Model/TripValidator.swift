@@ -93,8 +93,7 @@ public enum ISODate {
         guard parts.count == 3, (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
         var comps = DateComponents()
         comps.year = parts[0]; comps.month = parts[1]; comps.day = parts[2]
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        let cal = Calendar.utc
         guard let date = cal.date(from: comps) else { return nil }
         // Reject overflow like 2027-02-31
         let back = cal.dateComponents([.year, .month, .day], from: date)
@@ -103,8 +102,7 @@ public enum ISODate {
     }
 
     public static func format(_ d: Date) -> String {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
+        let cal = Calendar.utc
         let c = cal.dateComponents([.year, .month, .day], from: d)
         return String(format: "%04ld-%02ld-%02ld", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
@@ -114,8 +112,16 @@ public enum ISODate {
     }
 
     public static func month(_ d: Date) -> Int {
+        let cal = Calendar.utc
+        return cal.component(.month, from: d)
+    }
+}
+
+extension Calendar {
+    /// Gregorian calendar in UTC: trip dates (« yyyy-MM-dd ») are calendar days, never moments.
+    static var utc: Calendar {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!
-        return cal.component(.month, from: d)
+        return cal
     }
 }
