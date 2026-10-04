@@ -81,10 +81,7 @@ struct CompanionClient {
     func getTrip(_ id: String) async throws -> Trip {
         var r = request("trips/\(id)", timeout: 30)
         r.httpMethod = "GET"
-        let (data, response) = try await URLSession.shared.data(for: r)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
-        return try TripCodec.decode(data)
+        return try TripCodec.decode(try await fetch(r))
     }
 
     func putTrip(_ trip: Trip) async throws {
@@ -92,9 +89,7 @@ struct CompanionClient {
         r.httpMethod = "PUT"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = try TripCodec.encode(trip)
-        let (data, response) = try await URLSession.shared.data(for: r)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+        _ = try await fetch(r)
     }
 
     func putRide(id: String, body: Data) async throws {
@@ -102,9 +97,7 @@ struct CompanionClient {
         r.httpMethod = "PUT"
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         r.httpBody = body
-        let (data, response) = try await URLSession.shared.data(for: r)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+        _ = try await fetch(r)
     }
 
     struct FinalizeRequest: Encodable { let trip: Trip }
@@ -183,11 +176,14 @@ struct CompanionClient {
     }
 
     private func send<T: Decodable>(_ r: URLRequest) async throws -> T {
+        try JSONDecoder().decode(T.self, from: try await fetch(r))
+    }
+
+    /// The body of a 2xx answer; any other status is a `Failure.http`.
+    private func fetch(_ r: URLRequest) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(for: r)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(code) else {
-            throw Failure.http(code, String(data: data, encoding: .utf8) ?? "")
-        }
-        return try JSONDecoder().decode(T.self, from: data)
+        guard (200..<300).contains(code) else { throw Failure.http(code, String(data: data, encoding: .utf8) ?? "") }
+        return data
     }
 }
