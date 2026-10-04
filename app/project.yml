@@ -22,6 +22,10 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution
     exactVersion: 6.31.0
+  # Group voice (SPEC §13): WebRTC rooms. Pinned; reached only through VoiceRoom (Adapters/LiveKitVoiceRoom.swift).
+  LiveKit:
+    url: https://github.com/livekit/client-sdk-swift
+    exactVersion: 2.17.0
   # M4 — turn-by-turn guidance (pin exact version when integrating, spike S3):
   # FerrostarCore:
   #   url: https://github.com/stadiamaps/ferrostar
@@ -37,6 +41,7 @@ targets:
     dependencies:
       - package: TripCore
       - package: MapLibre
+      - package: LiveKit
     scheme:                      # shared scheme for xcodebuild in CI
       testTargets: [MotoTripTests]
     settings:
@@ -57,7 +62,11 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
         NSLocationWhenInUseUsageDescription: "Moto Road utilise ta position pour te guider et t'annoncer radars et dangers."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Moto Road continue de te guider et de t'alerter écran verrouillé pendant la navigation."
+        NSMicrophoneUsageDescription: "Moto Road utilise le micro (ou celui de ton casque intercom) pour parler avec ton groupe pendant la balade."
         UIBackgroundModes: [location, audio]
+        CFBundleURLTypes:
+          - CFBundleURLName: fr.plandefab.mototrip.group
+            CFBundleURLSchemes: [motoroad]
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: false
         CFBundleDocumentTypes:
