@@ -1,7 +1,7 @@
 import SwiftUI
 import TripCore
 
-/// Réglages: safety, riding, connections and data (the bikes and their maintenance have their own tab, Garage).
+/// Réglages: garage, safety, riding, connections and data.
 /// Coloured icons, carbon background, the PC's address in its own screen: clear at a glance.
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
@@ -14,6 +14,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink { GarageView(embedded: true) } label: {
+                        row("Garage et entretien", icon: "wrench.and.screwdriver.fill", tint: Theme.info,
+                            subtitle: "Ta moto, son autonomie, son carnet d'entretien", value: settings.primaryBike?.model)
+                    }
+                }
+
                 Section {
                     HStack(spacing: 12) {
                         IconBadge(icon: "sos", tint: Theme.camera)
@@ -89,7 +96,7 @@ struct SettingsView: View {
                 }
 
                 Section("À propos") {
-                    Text("Cartes © OpenStreetMap contributors · OpenFreeMap · MapLibre. Météo : Open-Meteo (CC BY 4.0). Trafic : TomTom. Radars : Sécurité routière (Etalab), DGT España (CC BY), OpenStreetMap (ODbL), MapAtlas (CC BY 4.0, mapatlas.eu). Événements en direct : Bison Futé (Licence Ouverte), DGT (CC BY).")
+                    Text("Cartes © OpenStreetMap contributors · OpenFreeMap · MapLibre. Météo : Open-Meteo (CC BY 4.0). Trafic : TomTom. Radars : Sécurité routière (Etalab), DGT España (CC BY), OpenStreetMap (ODbL), MapAtlas (CC BY 4.0, mapatlas.eu). Événements en direct : Bison Futé (Licence Ouverte), DGT (CC BY). Groupe : Supabase, voix LiveKit (Apache 2.0).")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

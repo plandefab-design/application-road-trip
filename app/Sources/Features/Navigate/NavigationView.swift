@@ -5,6 +5,7 @@ import UIKit
 /// Riding screen: readable at a glance, big touch targets (gloves), no modal, no text input.
 struct NavigationView: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var group: GroupSession
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: NavigationSession
     @State private var confirmQuit = false
@@ -12,6 +13,7 @@ struct NavigationView: View {
     @State private var showNearby = false
 
     private let location: LocationService
+    private let voice: VoiceService
     private let onFinished: (RideLog?) -> Void
 
     init(trip: Trip, day: TripDay, location: LocationService, voice: VoiceService, pace: PaceEstimator,
@@ -19,6 +21,7 @@ struct NavigationView: View {
          onFinished: @escaping (RideLog?) -> Void = { _ in },
          onPaceUpdate: @escaping (PaceEstimator) -> Void) {
         self.location = location
+        self.voice = voice
         self.onFinished = onFinished
         _session = StateObject(wrappedValue: NavigationSession(trip: trip, day: day, location: location, voice: voice,
                                                                pace: pace, traffic: traffic,
@@ -39,9 +42,11 @@ struct NavigationView: View {
                         MapRoundButton(icon: "scope", label: "Recentrer sur ma position") { recenter += 1 }
                         MapRoundButton(icon: "magnifyingglass", label: "Autour de moi : essence, hôtel, resto") { showNearby = true }
                         VoiceModeButton(directions: session.directionsSpoken) { session.setDirections(!session.directionsSpoken) }
+                        GroupRideButtons()
                     }
                 }
                 Spacer()
+                GroupFriendsStrip()
                 let online = [session.weatherStatus, session.trafficStatus].compactMap { $0 }
                 if !online.isEmpty {
                     Text(online.joined(separator: " · ")).font(.caption.bold())
@@ -73,6 +78,7 @@ struct NavigationView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .groupRide(location: location, voice: voice)
         .onAppear { session.start() }
         .onDisappear {
             session.stop()
@@ -82,6 +88,7 @@ struct NavigationView: View {
 
     private var mapContent: MapContent {
         var c = session.baseMap
+        c.friends = GroupFormat.mapFriends(group.friendPins)
         c.recenter = recenter
         // The detour (or its way back after a wrong turn), else the way back to the track, with its alerts.
         let extra = session.detour.map { session.detourBack?.route ?? $0.route } ?? session.rejoinRoute

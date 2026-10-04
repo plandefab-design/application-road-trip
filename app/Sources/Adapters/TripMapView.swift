@@ -22,8 +22,17 @@ struct MapContent: Equatable {
         let title: String
         let subtitle: String?
     }
+    /// A friend of the riding group: a coloured disc with his initial, moved live (never redrawn with the markers).
+    struct Friend: Equatable {
+        let id: String
+        let name: String
+        let subtitle: String
+        let point: GeoPoint
+        let stale: Bool
+    }
     var lines: [Line] = []
     var markers: [Marker] = []
+    var friends: [Friend] = []
     /// Speed cameras (red) and hazards (orange), drawn as dots in their own layers.
     var alerts: [AlertDot] = []
     /// Suggested pause spots (green dots) of the selected day.
@@ -214,6 +223,7 @@ struct TripMapView: UIViewRepresentable {
             if old == nil || content.detour != old?.detour { updateDetour(content.detour, style: style) }
             if old == nil || content.alerts != old?.alerts || content.pauses != old?.pauses { updateDots(content, style: style) }
             if old == nil || content.markers != old?.markers { updateMarkers(content.markers, map: map) }
+            if old == nil || content.friends != old?.friends { updateFriends(content.friends, map: map) }
 
             // Camera
             following = content.followUser
@@ -344,9 +354,40 @@ struct TripMapView: UIViewRepresentable {
             }
         }
 
+        private var friendPins: [String: FriendAnnotation] = [:]
+
+        /// Friends: added, moved in place and removed one by one, so the other markers and their bubbles stay.
+        private func updateFriends(_ friends: [MapContent.Friend], map: MLNMapView) {
+            let ids = Set(friends.map(\.id))
+            for (id, pin) in friendPins where !ids.contains(id) {
+                map.removeAnnotation(pin)
+                friendPins[id] = nil
+            }
+            for friend in friends {
+                let coordinate = CLLocationCoordinate2D(latitude: friend.point.lat, longitude: friend.point.lon)
+                if let pin = friendPins[friend.id] {
+                    pin.coordinate = coordinate
+                    pin.title = friend.name
+                    pin.subtitle = friend.subtitle
+                    if pin.stale != friend.stale {
+                        pin.stale = friend.stale
+                        (map.view(for: pin) as? FriendAnnotationView)?.configure(with: pin)
+                    }
+                } else {
+                    let pin = FriendAnnotation()
+                    pin.coordinate = coordinate
+                    pin.title = friend.name
+                    pin.subtitle = friend.subtitle
+                    pin.stale = friend.stale
+                    friendPins[friend.id] = pin
+                    map.addAnnotation(pin)
+                }
+            }
+        }
+
         /// Markers: round emoji badges (see viewFor).
         private func updateMarkers(_ markers: [MapContent.Marker], map: MLNMapView) {
-            if let old = map.annotations?.filter({ !($0 is MLNUserLocation) }) { map.removeAnnotations(old) }
+            if let old = map.annotations?.filter({ !($0 is MLNUserLocation) && !($0 is FriendAnnotation) }) { map.removeAnnotations(old) }
             map.addAnnotations(markers.map { m in
                 let a = MLNPointAnnotation()
                 a.coordinate = CLLocationCoordinate2D(latitude: m.point.lat, longitude: m.point.lon)
@@ -379,6 +420,12 @@ struct TripMapView: UIViewRepresentable {
             if annotation is MLNUserLocation {
                 return (mapView.dequeueReusableAnnotationView(withIdentifier: "moto") as? MotoPuckView)
                     ?? MotoPuckView(reuseIdentifier: "moto")
+            }
+            if let friend = annotation as? FriendAnnotation {
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: "friend") as? FriendAnnotationView)
+                    ?? FriendAnnotationView(reuseIdentifier: "friend")
+                view.configure(with: friend)
+                return view
             }
             guard let point = annotation as? MLNPointAnnotation else { return nil }
             let icon = point.title?.first.map { $0.isLetter || $0.isNumber ? "📍" : String($0) } ?? "📍"
@@ -493,4 +540,53 @@ final class EmojiAnnotationView: MLNAnnotationView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
+/// One look per friend, the same on the map and in the lists: his initial on a colour derived from his name.
+enum FriendStyle {
+    private static let palette: [UIColor] = [.systemBlue, .systemGreen, .systemPurple, .systemTeal, .systemPink, .systemIndigo]
+
+    static func initial(_ name: String) -> String { String(name.prefix(1)).uppercased() }
+
+    /// Stable across launches (Swift's own hash is not).
+    static func color(_ name: String) -> UIColor {
+        let seed = name.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 9_973 }
+        return palette[seed % palette.count]
+    }
+}
+
+/// A friend of the group on the map (moved live by the coordinator).
+final class FriendAnnotation: MLNPointAnnotation {
+    var stale = false
+}
+
+/// 40 pt coloured disc with the friend's initial; faded when no news for 30 s (tunnel, dead zone).
+final class FriendAnnotationView: MLNAnnotationView {
+    private let label = UILabel()
+
+    override init(reuseIdentifier: String?) {
+        super.init(reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 40, height: 40)
+        layer.cornerRadius = 20
+        layer.borderColor = UIColor.white.cgColor
+        layer.borderWidth = 3
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.35
+        layer.shadowRadius = 4
+        layer.shadowOffset = CGSize(width: 0, height: 2)
+        label.frame = bounds
+        label.textAlignment = .center
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 18, weight: .heavy)
+        addSubview(label)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    func configure(with pin: FriendAnnotation) {
+        let name = pin.title ?? "?"
+        label.text = FriendStyle.initial(name)
+        backgroundColor = FriendStyle.color(name)
+        alpha = pin.stale ? 0.45 : 1
+    }
 }
