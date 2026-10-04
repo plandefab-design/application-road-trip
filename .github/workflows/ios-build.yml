@@ -23,10 +23,17 @@ jobs:
     timeout-minutes: 45
     env:
       XCODE_APP: /Applications/Xcode_16.4.app
-      VERSION: 1.0.${{ github.run_number }}
       BUILD: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
+
+      # 1.2.0 at run 71 (the code of 1.0.67, republished), then 1.2.1, 1.2.2… one per run. The build number
+      # (CFBundleVersion) stays the run number: it only goes up.
+      - name: Version
+        run: |
+          N=$((BUILD - 71)); if [ "$N" -lt 0 ]; then N=0; fi
+          echo "VERSION=1.2.$N" >> "$GITHUB_ENV"
+          echo "Version 1.2.$N (build $BUILD)"
 
       - name: Select Xcode
         run: |

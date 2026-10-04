@@ -39,7 +39,7 @@ Le dépôt public est <https://github.com/plandefab-design/application-road-trip
 ```powershell
 git clone https://github.com/plandefab-design/application-road-trip.git
 ```
-Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin d'`iOS build` (quelques minutes), une **Release** contient `MotoRoad-1.0.N.ipa` et `distribution/source.json` est mis à jour automatiquement.
+Chaque `git push` sur `main` lance les workflows (onglet **Actions**). À la fin d'`iOS build` (quelques minutes), une **Release** contient `MotoRoad-1.2.N.ipa` et `distribution/source.json` est mis à jour automatiquement.
 Toutes les versions : <https://github.com/plandefab-design/application-road-trip/releases>
 
 ### 3. Installer l'app sur l'iPhone (sans Mac)

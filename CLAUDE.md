@@ -61,7 +61,7 @@ git push origin main        # déclenche ios-build.yml
 5. Empaquetage `Payload/*.app` → `MotoRoad-<version>.ipa` (app affichée « Moto Road » ; cible Xcode, bundle id et données inchangés).
 6. GitHub Release `v<version>` avec l'IPA.
 7. Mise à jour de `distribution/source.json` (version, date, URL de l'IPA, taille) + commit par le bot.
-Numéro de version : `1.0.<run_number>` injecté dans `Info.plist`.
+Numéro de version : `1.2.<run_number − 71>` (1.2.0 au run 71, puis +1 par run) injecté dans `Info.plist` ; le numéro de build reste le `run_number`.
 
 ## Ordre de réalisation (milestones)
 | # | Livrable | Dépend de |
