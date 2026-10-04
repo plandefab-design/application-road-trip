@@ -18,7 +18,6 @@ struct HomeView: View {
     @State private var voice = VoiceService()
     @State private var ride: Ride?
     @State private var showRides = false
-    @State private var showGarage = false
     @State private var pendingRide: RideLog?
     @State private var shownRide: RideLog?
 
@@ -59,7 +58,6 @@ struct HomeView: View {
             .toolbarBackground(.visible, for: .tabBar)
             .navigationDestination(for: String.self) { TripDetailView(tripId: $0) }
             .navigationDestination(isPresented: $showRides) { RidesListView() }
-            .navigationDestination(isPresented: $showGarage) { GarageView(embedded: true) }
             .onAppear {
                 location.requestPermissions()   // asked here, never while riding
                 location.warmUp()               // GPS already locked when « Rouler » is tapped
@@ -112,7 +110,7 @@ struct HomeView: View {
     }
 
     @ViewBuilder private var bikeCard: some View {
-        Button { showGarage = true } label: {
+        Button { tab = .garage } label: {
             HStack(spacing: 14) {
                 MotoGlyphView(size: 24)
                     .frame(width: 54, height: 54)
@@ -282,7 +280,7 @@ struct HomeView: View {
         }
         if !settings.garage.isEmpty, settings.garage.contains(where: { $0.category == nil }) {
             warning("Complète ton garage", detail: "Type de moto et autonomie réelle : routes et pleins en dépendent.",
-                    icon: "wrench.and.screwdriver.fill", color: Theme.info) { showGarage = true }
+                    icon: "wrench.and.screwdriver.fill", color: Theme.info) { tab = .garage }
         }
     }
 

@@ -36,18 +36,9 @@ final class VoiceService: NSObject, AVSpeechSynthesizerDelegate {
     private var queue: [Item] = []
     private var current: Priority?
 
-    /// true while a sentence is spoken, false when the queue is empty: the group's voices are lowered meanwhile.
-    var onSpeakingChange: ((Bool) -> Void)?
-
     override init() {
         super.init()
         synth.delegate = self
-        configureSession()
-    }
-
-    /// Playback over the music. While the group's voice room is open, its audio session stays untouched.
-    private func configureSession() {
-        guard !SharedAudio.roomOpen else { return }
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .voicePrompt,
                                                          options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
     }
@@ -73,18 +64,13 @@ final class VoiceService: NSObject, AVSpeechSynthesizerDelegate {
         queue.removeAll { now.timeIntervalSince($0.queuedAt) > $0.priority.maxWait }
         guard !queue.isEmpty else {
             current = nil
-            onSpeakingChange?(false)
-            // Give the music its volume back (the voice room, when open, keeps the session).
-            if !SharedAudio.roomOpen { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+            // Give the music its volume back.
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             return
         }
         let item = queue.removeFirst()
         current = item.priority
-        onSpeakingChange?(true)
-        if !SharedAudio.roomOpen {
-            configureSession()          // the voice room may have changed the category since the last sentence
-            try? AVAudioSession.sharedInstance().setActive(true)
-        }
+        try? AVAudioSession.sharedInstance().setActive(true)
         let u = AVSpeechUtterance(string: item.text)
         u.voice = AVSpeechSynthesisVoice(language: "fr-FR")
         u.rate = AVSpeechUtteranceDefaultSpeechRate

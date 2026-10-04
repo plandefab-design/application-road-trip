@@ -5,14 +5,14 @@ Lire **SPEC.md** et **docs/STATUS.md** avant toute tâche. SPEC.md est la source
 ## Contexte de développement
 - Machine de dev : **PC Windows, pas de Mac**. Pas de simulateur iOS, pas de Xcode local.
 - Compilation iOS : **uniquement via GitHub Actions** (runner macOS, dépôt public).
-- Utilisateur principal : FAB, iPhone, installation via SideStore (identifiant Apple gratuit). Quelques amis peuvent rejoindre via le **groupe optionnel** (SPEC §13) : comptes, voix, position, messages, trips partagés, sur Supabase + LiveKit (gratuits), jamais sur le PC ni via Claude.
+- Utilisateur final unique : FAB, iPhone, installation via SideStore (identifiant Apple gratuit).
 - Langue : code, identifiants, commits en **anglais** ; docs utilisateur et textes de l'app en **français**.
 
 ## Règles impératives
 1. **La navigation n'appelle jamais d'IA ni le companion comme dépendance.** Tout appel réseau en navigation est optionnel, avec délai d'expiration (≤ 5 s), repli local et bandeau d'état.
 2. **Toute logique métier va dans `core/` (package `TripCore`)**, sans import de `CoreLocation`, `MapKit`, `SwiftUI`, `UIKit`, `AVFoundation`. Types géographiques maison (`GeoPoint`, `Polyline`…). Objectif : `swift test` passe **sous Windows**.
 3. L'app (`app/`) ne contient que : UI, adaptateurs capteurs (GPS, voix), adaptateurs MapLibre/Ferrostar, persistance, réseau.
-4. **Ferrostar, MapLibre, GraphHopper, LiveKit, Supabase** : versions épinglées, accès uniquement via des protocoles internes (`NavigationEngine`, `MapRenderer`, `RoutingClient`, `VoiceRoom`, `GroupBackend`). Aucune API tierce appelée directement depuis les vues.
+4. **Ferrostar, MapLibre, GraphHopper** : versions épinglées, accès uniquement via des protocoles internes (`NavigationEngine`, `MapRenderer`, `RoutingClient`). Aucune API tierce appelée directement depuis les vues.
 5. **Aucun secret dans le dépôt** (dépôt public) : clé TomTom et jeton companion saisis dans l'app (trousseau iOS) ; côté PC dans `companion/.env` (ignoré par git, modèle fourni `.env.example`).
 6. **Ne rien inventer** : le planner force `verification: "unverified"` sur toute POI sans source. Ne jamais générer de données factuelles en dur (adresses, horaires de cols) dans le code ou les tests hors fixtures explicites.
 7. **Pas de `.xcodeproj` versionné** : le projet est généré par XcodeGen depuis `app/project.yml`.
@@ -28,8 +28,7 @@ Lire **SPEC.md** et **docs/STATUS.md** avant toute tâche. SPEC.md est la source
 │  └─ Sources/TripCore/Resources/{regions.json, cols.json, bikes.json}
 ├─ app/
 │  ├─ project.yml             XcodeGen
-│  └─ Sources/{App,Features/{Trips,Create,Trip,Navigate,Settings,Group},Adapters,Persistence,Networking}
-├─ backend/                   Groupe (M10) : supabase/schema.sql, functions/livekit-token, README de mise en place
+│  └─ Sources/{App,Features/{Trips,Create,Trip,Navigate,Settings},Adapters,Persistence,Networking}
 ├─ companion/
 │  ├─ docker-compose.yml      planner + graphhopper + jobs, restart: unless-stopped
 │  ├─ planner/                API + Claude Agent SDK + system_prompt.md + schéma trip.json
@@ -77,7 +76,6 @@ Numéro de version : `1.0.<run_number>` injecté dans `Info.plist`.
 | M7 | Création : formulaire guidé + contrôles de cohérence, planner Agent SDK (S6), chat + carte en direct, finalisation, GPX/PDF | M2, M3 |
 | M8 | Automatisations restantes : checklist + notifications locales (A9/A10/A14), sync (A11), jobs hebdo (A5/A6), purge des packs | M5, M7 |
 | M9 | Recette : critères d'acceptation SPEC §12, dont test complet en mode avion | tout |
-| M10 | Groupe (optionnel, SPEC §13) : onglet Groupe, comptes, position, voix, messages, trips partagés. La navigation n'en dépend jamais (règle 1) | M4 |
 
 La navigation (M4) passe **avant** la création assistée (M7) : un trip importé depuis le projet Claude existant doit être navigable le plus tôt possible.
 

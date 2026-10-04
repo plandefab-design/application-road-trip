@@ -4,14 +4,12 @@ import TripCore
 /// Riding screen without an itinerary: speed, next camera / hazard ahead, distance and time, big buttons.
 struct FreeRideView: View {
     @EnvironmentObject private var settings: AppSettings
-    @EnvironmentObject private var group: GroupSession
     @Environment(\.dismiss) private var dismiss
     @StateObject private var session: FreeRideSession
     @State private var confirmQuit = false
     @State private var recenter = 0
     @State private var showNearby = false
     private let location: LocationService
-    private let voice: VoiceService
     private let onFinished: (RideLog?) -> Void
 
     /// true = opened from « Où tu vas ? »: the route planner is shown right away.
@@ -27,7 +25,6 @@ struct FreeRideView: View {
     init(location: LocationService, voice: VoiceService, traffic: TrafficClient?, directions: Bool = true,
          startWithAddress: Bool = false, destination: FavoritePlaces.Place? = nil, onFinished: @escaping (RideLog?) -> Void) {
         self.location = location
-        self.voice = voice
         self.startWithAddress = startWithAddress
         self.destination = destination
         self.onFinished = onFinished
@@ -71,11 +68,9 @@ struct FreeRideView: View {
                         if session.detour?.route.isRoad == true {
                             VoiceModeButton(directions: session.directionsSpoken) { session.setDirections(!session.directionsSpoken) }
                         }
-                        GroupRideButtons()
                     }
                 }
                 Spacer()
-                GroupFriendsStrip()
                 if let next = session.nextAlert {
                     AlertBadge(alert: next.alert, distance: next.distance)
                 } else if let incident = session.incidentAhead {
@@ -118,7 +113,6 @@ struct FreeRideView: View {
             .environmentObject(settings)
         }
         .preferredColorScheme(.dark)
-        .groupRide(location: location, voice: voice)
         .onAppear {
             session.start()
             if let destination {
@@ -153,7 +147,6 @@ struct FreeRideView: View {
         c.followUser = true
         c.recenter = recenter
         c.detour = followed?.track.points ?? []
-        c.friends = GroupFormat.mapFriends(group.friendPins)
         return c
     }
 
