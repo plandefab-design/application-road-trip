@@ -23,6 +23,9 @@ struct CreateTripView: View {
     @State private var keptZones: [String] = []
     @State private var dateStart = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
     @State private var dateEnd = Calendar.current.date(byAdding: .day, value: 32, to: Date()) ?? Date()
+    /// No date yet: the app proposes the best period once the route is computed (schema v9).
+    @State private var flexible = false
+    @State private var flexibleDays = 3
     @State private var bikeIds: Set<String> = []
     @State private var riders: Riders = .solo
     @State private var luggage = false
@@ -233,19 +236,37 @@ struct CreateTripView: View {
 
     private var whenStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(spacing: 0) {
-                DatePicker("Départ", selection: $dateStart,
-                           in: (editing == nil ? Calendar.current.startOfDay(for: Date()) : .distantPast)...,
-                           displayedComponents: .date)
-                    .padding(.vertical, 8)
-                Divider().overlay(Theme.faint)
-                DatePicker("Retour", selection: $dateEnd, in: dateStart..., displayedComponents: .date)
-                    .padding(.vertical, 8)
+            Picker("Dates", selection: $flexible) {
+                Text("J'ai mes dates").tag(false)
+                Text("Choisis pour moi").tag(true)
             }
-            .padding(.horizontal, 14)
-            .glass(radius: 18)
-            .onChange(of: dateStart) { _, d in if dateEnd < d { dateEnd = d } }
-            bigValue("\(dayCount)", unit: dayCount > 1 ? "jours" : "jour", caption: "de road trip")
+            .pickerStyle(.segmented)
+            if flexible {
+                VStack(alignment: .leading, spacing: 10) {
+                    Stepper(value: $flexibleDays, in: 1...21) {
+                        Text("Durée du road trip").font(.subheadline.bold())
+                    }
+                    Text("Une fois le tracé calculé, Moto Road te propose les 3 meilleures périodes des 12 prochains mois : "
+                         + "cols ouverts, météo des années passées sur ta route, durée du jour. Tu choisis.")
+                        .font(.caption).foregroundStyle(Theme.muted)
+                }
+                .padding(14)
+                .glass(radius: 18)
+            } else {
+                VStack(spacing: 0) {
+                    DatePicker("Départ", selection: $dateStart,
+                               in: (editing == nil ? Calendar.current.startOfDay(for: Date()) : .distantPast)...,
+                               displayedComponents: .date)
+                        .padding(.vertical, 8)
+                    Divider().overlay(Theme.faint)
+                    DatePicker("Retour", selection: $dateEnd, in: dateStart..., displayedComponents: .date)
+                        .padding(.vertical, 8)
+                }
+                .padding(.horizontal, 14)
+                .glass(radius: 18)
+                .onChange(of: dateStart) { _, d in if dateEnd < d { dateEnd = d } }
+            }
+            bigValue("\(dayCount)", unit: dayCount > 1 ? "jours" : "jour", caption: flexible ? "dates choisies par l'app" : "de road trip")
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Km par jour, au maximum").font(.subheadline.bold())
@@ -419,7 +440,7 @@ struct CreateTripView: View {
                 summaryLine("flag.fill", start?.name ?? "—")
                 ForEach(stops.indices, id: \.self) { summaryLine("mappin.and.ellipse", stops[$0].name) }
                 summaryLine(loop ? "arrow.triangle.2.circlepath" : "flag.checkered", loop ? "Boucle, retour au départ" : (end?.name ?? "—"))
-                summaryLine("calendar", "\(dayCount) jour\(dayCount > 1 ? "s" : "") · \(Int(maxKmPerDay)) km/jour max")
+                summaryLine("calendar", "\(dayCount) jour\(dayCount > 1 ? "s" : "")\(flexible ? ", dates choisies par l'app" : "") · \(Int(maxKmPerDay)) km/jour max")
                 summaryLine("gauge.with.dots.needle.67percent",
                             availableBikes.filter { bikeIds.contains($0.id) }.map(\.model).joined(separator: ", ").nonEmpty ?? "Moto à choisir")
                 summaryLine(icon(tripStyle), "\(tripStyle.label) · \(level.label) · \(riders == .duo ? "duo" : "solo")")
@@ -539,6 +560,8 @@ struct CreateTripView: View {
         keptZones = p.zone
         if let d = ISODate.parse(p.dateStart) { dateStart = d }
         if let d = ISODate.parse(p.dateEnd) { dateEnd = max(d, dateStart) }
+        flexible = p.datesToChoose
+        flexibleDays = p.dayCount
         bikeIds = Set(p.bikes.map(\.id))
         riders = p.riders
         luggage = p.luggage
@@ -565,19 +588,26 @@ struct CreateTripView: View {
     }
 
     private var dayCount: Int {
-        max(1, (Calendar.current.dateComponents([.day], from: dateStart, to: dateEnd).day ?? 0) + 1)
+        flexible ? flexibleDays : max(1, (Calendar.current.dateComponents([.day], from: dateStart, to: dateEnd).day ?? 0) + 1)
+    }
+
+    /// Without dates, provisional ones only carry the length of the trip (the app replaces them with the chosen period).
+    private var datesToSave: (start: String, end: String) {
+        guard flexible else { return (ISODate.format(dateStart), ISODate.format(dateEnd)) }
+        let first = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        return (ISODate.format(first), ISODate.format(Calendar.current.date(byAdding: .day, value: flexibleDays - 1, to: first) ?? first))
     }
 
     private var params: TripParams {
         TripParams(start: start ?? Place(name: ""),
                    end: loop ? nil : end,
-                   dateStart: ISODate.format(dateStart), dateEnd: ISODate.format(dateEnd),
+                   dateStart: datesToSave.start, dateEnd: datesToSave.end,
                    zone: keptZones,
                    bikes: availableBikes.filter { bikeIds.contains($0.id) },
                    riders: riders, luggage: luggage, maxKmPerDay: maxKmPerDay, style: tripStyle.styleValue,
                    budgetPerDayEur: budget, mandatoryStops: stops.map { MandatoryStop(place: $0) },
                    constraints: constraints, roads: roads,
-                   tripStyle: tripStyle, level: level)
+                   tripStyle: tripStyle, level: level, flexibleDates: flexible ? true : nil)
     }
 
     private func startPlanning() {

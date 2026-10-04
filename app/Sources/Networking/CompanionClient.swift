@@ -127,6 +127,24 @@ struct CompanionClient {
         try await post("trips/\(tripId)/finalize", body: FinalizeRequest(trip: trip), timeout: 30)
     }
 
+    /// A period proposed for a trip without dates (schema v9), with its reasons and the checks of its dates.
+    struct DateOption: Decodable, Identifiable, Equatable {
+        let start: String
+        let end: String
+        let label: String
+        let reasons: [String]
+        let checks: [String]
+        var id: String { start }
+    }
+
+    private struct DateOptions: Decodable { let options: [DateOption] }
+
+    /// The three best periods of the next 12 months, from the computed routes (no Claude involved).
+    func bestDates(tripId: String, trip: Trip) async throws -> [DateOption] {
+        let reply: DateOptions = try await post("trips/\(tripId)/best-dates", body: FinalizeRequest(trip: trip), timeout: 120)
+        return reply.options
+    }
+
     /// Polls a job every 3 s until it ends; short network drops are retried.
     func waitForJob(tripId: String, jobId: String, onProgress: @escaping @MainActor (String?) -> Void) async throws -> ChatJob {
         var failures = 0

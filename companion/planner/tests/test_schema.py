@@ -67,7 +67,7 @@ def test_repair_needs_no_second_claude_turn():
     trip = repair_trip(proposed, previous)
     assert validate_trip(trip) == []
     assert trip["id"] == "t1" and trip["name"] == "Alpes" and trip["params"] == previous["params"]
-    assert trip["status"] == "proposed" and trip["schemaVersion"] == 8
+    assert trip["status"] == "proposed" and trip["schemaVersion"] == 9
     assert [d["index"] for d in trip["days"]] == [1, 2]
     assert trip["days"][0]["fuelStops"] == []                       # the iPhone places them on real stations
     assert [r["poiId"] for r in trip["days"][0]["meals"]] == ["m1"]

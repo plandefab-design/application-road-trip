@@ -45,6 +45,7 @@ struct TripDetailContent: View {
     @State private var renderingPDF = false
     @State private var viewingPDF: PDFToShow?
     @State private var editingRoute = false
+    @State private var choosingDates = false
 
     /// Days planned by Claude have no geometry (nor turn-by-turn) until the PC computes it. GPX imports
     /// (no highlights) keep their own track: rerouting them would replace the rider's GPX.
@@ -60,6 +61,7 @@ struct TripDetailContent: View {
 
     var body: some View {
         List {
+            datesSection
             mapAndRideSections
             prepareSection
             tracingSection
@@ -135,6 +137,30 @@ struct TripDetailContent: View {
             RouteEditorView(trip: store.trips.first { $0.id == trip.id } ?? trip, day: selectedDay)
                 .environmentObject(store).environmentObject(settings)
         }
+        .sheet(isPresented: $choosingDates) {
+            BestDatesSheet(tripId: trip.id).environmentObject(store).environmentObject(settings)
+        }
+    }
+
+    /// Trip created without dates: the period is chosen once the routes are known.
+    @ViewBuilder private var datesSection: some View {
+        if trip.params.datesToChoose {
+            Section {
+                Button { choosingDates = true } label: {
+                    Label("Trouver la meilleure période", systemImage: "calendar.badge.clock")
+                        .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .disabled(missingTracks || tracing)
+                .listRowBackground(Color.clear)
+            } header: {
+                Text("Dates à choisir · \(trip.params.dayCount) jour\(trip.params.dayCount > 1 ? "s" : "")")
+            } footer: {
+                Text(missingTracks ? "Calcule d'abord le tracé : la meilleure période dépend de tes routes."
+                     : "Moto Road compare les 12 prochains mois sur tes routes : cols ouverts, météo des années passées, durée du jour.")
+            }
+        }
     }
 
     // MARK: Checklist (A9)
@@ -154,6 +180,10 @@ struct TripDetailContent: View {
         if !allowed { allowed = await Reminders.requestAuthorization() }
         guard allowed else {
             remindersMessage = "Notifications refusées (Réglages iPhone › Moto Road)"
+            return
+        }
+        guard !t.params.datesToChoose else {
+            remindersMessage = "Rappels programmés une fois la période choisie"
             return
         }
         let count = await Reminders.schedule(trip: t, items: TripChecklist.merged(t))

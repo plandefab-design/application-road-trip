@@ -121,7 +121,8 @@ struct TripRow: View {
                 StatusBadge(status: trip.status)
             }
             let km = trip.days.compactMap(\.distanceKm).reduce(0, +)
-            Text("\(trip.params.dateStart) → \(trip.params.dateEnd) · \(trip.days.count) étape(s) · \(Int(km)) km")
+            let when = trip.params.datesToChoose ? "Dates à choisir" : "\(trip.params.dateStart) → \(trip.params.dateEnd)"
+            Text("\(when) · \(trip.days.count) étape(s) · \(Int(km)) km")
                 .font(.subheadline).foregroundStyle(.secondary)
         }
     }

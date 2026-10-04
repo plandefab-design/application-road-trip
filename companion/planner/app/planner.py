@@ -49,11 +49,11 @@ def without_geometry(trip: dict[str, Any]) -> dict[str, Any]:
 
 def build_prompt(message: str, trip: dict[str, Any]) -> str:
     return (
-        "Formulaire et état actuel du trip (trip.json v8) :\n"
+        "Formulaire et état actuel du trip (trip.json v9) :\n"
         f"```json\n{json.dumps(without_geometry(trip), ensure_ascii=False)}\n```\n\n"
         f"Demande du pilote : {message}\n\n"
         "Réponds d'abord en texte pour le pilote, puis termine OBLIGATOIREMENT par UN bloc ```json contenant "
-        "le trip.json v8 COMPLET mis à jour (même id). S'il manque une information indispensable, pose tes "
+        "le trip.json v9 COMPLET mis à jour (même id). S'il manque une information indispensable, pose tes "
         "questions dans le champ \"questions\" du JSON (liste de chaînes) au lieu de deviner."
     )
 
@@ -127,5 +127,5 @@ class Planner:
             if not errors:
                 return PlannerReply(text=prose, trip=proposed, questions=questions)
             # One repair attempt with the validation errors (SPEC §7: schema-validated output).
-            prompt = "Le JSON produit est invalide : " + "; ".join(errors) + ". Renvoie le trip.json v8 complet corrigé."
+            prompt = "Le JSON produit est invalide : " + "; ".join(errors) + ". Renvoie le trip.json v9 complet corrigé."
         return PlannerReply(text=prose, trip=None, questions=["Le planner n'a pas produit de trip valide : " + "; ".join(errors)])

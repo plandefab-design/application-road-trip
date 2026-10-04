@@ -21,6 +21,7 @@ from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_payl
                        instructions_from_path, route_profile)
 from .planner import Planner, is_configured
 from .radar_sources import mapatlas, merged_cameras, official_es, official_fr, refresh_loop
+from .best_dates import best_periods
 from .seasonal import cached, load_closures, load_passes, seasonal_checks
 from .trip_schema import sanitize_trip, validate_trip
 
@@ -314,6 +315,22 @@ async def start_finalize(trip_id: str, body: FinalizeRequest, background: Backgr
         return ChatReply(text=summary or "Aucune étape à tracer.", trip=sanitize_trip(trip))
 
     return start_job(trip_id, background, work)
+
+
+@app.post("/trips/{trip_id}/best-dates", dependencies=[Depends(require_token)])
+async def best_dates(trip_id: str, body: FinalizeRequest) -> dict[str, Any]:
+    """The three best periods of the next 12 months for a trip created without dates (schema v9), from its computed
+    routes: seasonal closures, weather of the past years, daylight. No Claude involved."""
+    trip_path(trip_id)
+    if not any((d.get("track") or {}).get("points") for d in body.trip.get("days") or []):
+        raise HTTPException(422, "Calcule d'abord le tracé : la meilleure période dépend des routes de chaque étape.")
+    osm = DATA_DIR / "osm"
+    async with httpx.AsyncClient(headers={"User-Agent": "MotoRoad-companion/1.0"}) as client:
+        options = await best_periods(body.trip, cached(osm / "closures.geojsonseq", load_closures),
+                                     cached(osm / "passes.geojsonseq", load_passes), client, DATA_DIR / "climate")
+    if not options:
+        raise HTTPException(404, "Aucune période possible dans les 12 prochains mois : une route du trip reste fermée.")
+    return {"options": options}
 
 
 @app.get("/trips/{trip_id}/jobs/{job_id}", dependencies=[Depends(require_token)], response_model=ChatJob)

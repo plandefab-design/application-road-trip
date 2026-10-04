@@ -19,6 +19,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 - `days[].stations` (**v4**) : stations-service OSM (`amenity=fuel`) à moins de 3 km du tracé, `[{"id", "name", "point"}]`. L'iPhone y place les `fuelStops` (SPEC §5.2, plein complet au départ de chaque jour) et signale les tronçons sans station. Jamais écrit par Claude.
 
 ### Versions
+- **v9** (optionnel) : `params.flexibleDates` (`true` = le pilote n'a pas de date ; `dateStart`/`dateEnd` ne donnent que la durée). Une fois le tracé calculé, le PC propose les 3 meilleures périodes des 12 prochains mois (fermetures saisonnières OpenStreetMap, météo des 6 dernières années Open-Meteo, durée du jour) ; le pilote en choisit une, l'iPhone fixe les dates et retire le champ. Lignes du PC dans `mustCheck` : préfixes « 📅 » (fermetures) et « 🌦 » (météo de saison).
 - **v8** (feuille de route, tous optionnels) : `days[].from`, `days[].to`, `days[].departure` ("HH:MM", départ conseillé), `days[].summary` ; `pois[].email`, `pois[].details` (lignes sourcées : spécialité, ouverture, prix, parking moto) ; `mustCheck` (points impératifs) ; `planB` (`title`, `intro`, `cases[{title, text, lines}]`, `rule`). Le tableau horaire de la feuille de route est calculé par l'iPhone sur le tracé réel.
 - **v7** : `days[].instructions[].ref` (numéro de route, « D 543 ») et `days[].instructions[].toward` (direction indiquée, « Cadenet »), optionnels : le guidage vocal dit « tournez à gauche sur la D543, direction Cadenet ». Annonces radar et danger toujours actives.
 - **v6** : `days[].speedLimits` (`[{"from", "to", "kmh"}]`, limites légales connues, OSM via GraphHopper ; tronçons inconnus absents), `days[].pauses` (`[{"along", "kind": cafe|viewpoint|water, "name", "point"}]`, un par type tous les 3 km), `updatedAt` (ISO 8601 UTC, le plus récent gagne à la synchro iPhone ↔ PC).
@@ -31,7 +32,7 @@ Source de vérité : `core/Sources/TripCore/Model/Trip.swift`. Ce document est i
 ## Exemple complet (valeurs fictives)
 ```json
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "id": "3F2A0C1E-0000-0000-0000-000000000001",
   "name": "Exemple",
   "status": "proposed",

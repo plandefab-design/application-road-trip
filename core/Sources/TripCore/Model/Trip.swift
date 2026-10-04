@@ -129,13 +129,17 @@ public struct TripParams: Codable, Hashable, Sendable {
     public var roads: RoadPreferences
     /// Hard ceiling between fuel stops from the project rules (200 km).
     public var maxFuelIntervalKm: Double
+    /// Schema v9: true while the rider lets the app choose the dates; dateStart/dateEnd then only give the length of
+    /// the trip, and the PC proposes the best period (open passes, weather of the season, daylight).
+    public var flexibleDates: Bool?
 
     public init(start: Place, end: Place? = nil, dateStart: String, dateEnd: String,
                 zone: [String] = [], bikes: [Bike] = [], riders: Riders = .solo, luggage: Bool = false,
                 maxKmPerDay: Double = 300, style: Double = 0.3, budgetPerDayEur: Double? = nil,
                 mandatoryStops: [MandatoryStop] = [], constraints: String = "",
                 roads: RoadPreferences = RoadPreferences(), maxFuelIntervalKm: Double = 200,
-                tripStyle: TripStyle? = nil, level: RiderLevel? = nil) {
+                tripStyle: TripStyle? = nil, level: RiderLevel? = nil, flexibleDates: Bool? = nil) {
+        self.flexibleDates = flexibleDates
         self.tripStyle = tripStyle
         self.level = level
         self.start = start
@@ -157,7 +161,7 @@ public struct TripParams: Codable, Hashable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case start, end, dateStart, dateEnd, zone, bikes, riders, luggage, maxKmPerDay, style
-        case budgetPerDayEur, mandatoryStops, constraints, roads, maxFuelIntervalKm, tripStyle, level
+        case budgetPerDayEur, mandatoryStops, constraints, roads, maxFuelIntervalKm, tripStyle, level, flexibleDates
     }
 
     /// Lenient: only start and dates are mandatory; everything else falls back to the project defaults.
@@ -180,6 +184,16 @@ public struct TripParams: Codable, Hashable, Sendable {
         maxFuelIntervalKm = try c.decodeIfPresent(Double.self, forKey: .maxFuelIntervalKm) ?? 200
         tripStyle = try c.decodeIfPresent(TripStyle.self, forKey: .tripStyle)
         level = try c.decodeIfPresent(RiderLevel.self, forKey: .level)
+        flexibleDates = try c.decodeIfPresent(Bool.self, forKey: .flexibleDates)
+    }
+
+    /// Dates still to be chosen (schema v9).
+    public var datesToChoose: Bool { flexibleDates == true }
+
+    /// Number of days between the two dates, both included (1 when they cannot be read).
+    public var dayCount: Int {
+        guard let a = ISODate.parse(dateStart), let b = ISODate.parse(dateEnd) else { return 1 }
+        return max(1, Int((b.timeIntervalSince(a) / 86_400).rounded()) + 1)
     }
 
     /// Group range = the most limiting bike (SPEC §4.2).
@@ -562,8 +576,9 @@ public struct TripPlanB: Codable, Hashable, Sendable {
 public struct Trip: Codable, Hashable, Identifiable, Sendable {
     /// v2 instructions, v3 alerts, v4 stations, v5 bike category + trip style + level, v6 speed limits + pauses
     /// + updatedAt, v7 instruction ref + toward, v8 road book (stage from/to/departure/summary, POI e-mail and
-    /// details, mustCheck, planB) — all additive. Older files are migrated on decode.
-    public static let currentSchemaVersion = 8
+    /// details, mustCheck, planB), v9 dates to be chosen (params.flexibleDates) — all additive. Older files are
+    /// migrated on decode.
+    public static let currentSchemaVersion = 9
 
     public var schemaVersion: Int
     public var id: String
@@ -636,7 +651,7 @@ public enum TripCodec {
             throw TripCodecError.unsupportedSchemaVersion(trip.schemaVersion)
         }
         var sanitized = trip
-        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v7 → v8: only optional fields were added
+        sanitized.schemaVersion = Trip.currentSchemaVersion   // v1…v8 → v9: only optional fields were added
         sanitized.pois = trip.pois.map { $0.sanitized() }
         return sanitized
     }

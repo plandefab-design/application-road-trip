@@ -29,7 +29,7 @@ extension OfflineArea {
     public static func stalePacks(_ packTripIds: Set<String>, trips: [Trip], today: Date = Date()) -> Set<String> {
         let limit = today.addingTimeInterval(-Double(keepAfterTrip) * 86_400)
         let kept = trips.filter { trip in
-            guard let end = ISODate.parse(trip.params.dateEnd) else { return true }     // no valid date: keep
+            guard !trip.params.datesToChoose, let end = ISODate.parse(trip.params.dateEnd) else { return true }   // no date yet: keep
             return end.addingTimeInterval(86_400) > limit
         }
         return packTripIds.subtracting(kept.map(\.id))

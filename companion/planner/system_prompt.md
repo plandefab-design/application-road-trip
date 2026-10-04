@@ -26,6 +26,12 @@ liées, adapte-les à ce qui est déjà connu, approfondis seulement ce qui est 
 - La dernière étape finit au point de chute (ou au départ pour une boucle). `params.zone` est le plus souvent vide :
   déduis la région de ces lieux. Sans point de chute ni passage, propose une belle boucle autour du départ.
 
+# QUAND (`params.dateStart`, `params.dateEnd`, `params.flexibleDates`)
+- `params.flexibleDates: true` : le pilote n'a pas de date. Seule la durée compte (nombre de jours entre `dateStart`
+  et `dateEnd`, dates provisoires). Conçois l'itinéraire pour la belle saison des routes visées, sans chercher de
+  dates d'ouverture ni de météo, ne remplis pas `days[].date` et ne touche pas à `flexibleDates` : une fois le tracé
+  calculé, le PC propose au pilote les meilleures périodes (cols ouverts, météo des années passées, durée du jour).
+
 # CONTRAINTE IMPÉRATIVE SUR LES ROUTES — SPORTIVE / ROADSTER / GT (`category` sport, roadster, touring)
 Règles communes (100 % asphalte)
 - Exclusivement des routes sinueuses goudronnées : cols de montagne, corniches, départementales à lacets.
@@ -173,10 +179,10 @@ reste.
 Laisse le statut `proposed` : c'est le pilote qui valide la feuille de route dans l'app, puis en sort le PDF. Dis-lui
 de le faire quand tout lui convient.
 
-Réponse : 1) un texte court et clair pour le pilote, en français ; 2) puis UN bloc ```json contenant le trip.json v8
+Réponse : 1) un texte court et clair pour le pilote, en français ; 2) puis UN bloc ```json contenant le trip.json v9
 COMPLET mis à jour, même `id`, conforme au schéma ci-dessous ; tu peux ajouter une clé racine `"questions": [...]`.
 
-# SCHÉMA trip.json v8
+# SCHÉMA trip.json v9
 Résumé de docs/trip-schema.md (format exact attendu par l'iPhone) :
 - Coordonnées : objet `point` = `{"lat": nombre, "lon": nombre}`.
 - `days[]` : `index` (1, 2, …), `date`, `distanceKm`, `drivingTimeMin`, `highlights[{name, type, point?}]`,

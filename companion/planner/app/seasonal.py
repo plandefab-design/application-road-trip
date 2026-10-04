@@ -242,8 +242,12 @@ def stage_date(trip: dict[str, Any], day: dict[str, Any]) -> dt.date | None:
 
 async def seasonal_checks(trip: dict[str, Any], closures: list[dict[str, Any]], passes: list[dict[str, Any]],
                           weather: bool = True) -> list[str]:
-    """Replaces the PC's previous lines in `mustCheck` with fresh ones; returns the new lines."""
+    """Replaces the PC's previous lines in `mustCheck` with fresh ones; returns the new lines. Dates still to be
+    chosen (schema v9): nothing to check yet, the best periods come with their own checks."""
     lines: list[str] = []
+    if (trip.get("params") or {}).get("flexibleDates"):
+        trip["mustCheck"] = [l for l in trip.get("mustCheck") or [] if not str(l).startswith((CLOSURE_MARK, WEATHER_MARK))]
+        return lines
     async with httpx.AsyncClient(headers={"User-Agent": "MotoRoad-companion/1.0"}) as client:
         for day in trip.get("days") or []:
             track = (day.get("track") or {}).get("points") or []

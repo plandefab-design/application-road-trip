@@ -5,8 +5,8 @@ import json
 import re
 from typing import Any
 
-SCHEMA_VERSION = 8          # v2 instructions, v3 alerts, v4 stations, v5 ride profile, v6 speed limits + pauses + updatedAt, v7 instruction ref + toward, v8 road book.
-ACCEPTED_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
+SCHEMA_VERSION = 9          # v2 instructions, v3 alerts, v4 stations, v5 ride profile, v6 speed limits + pauses + updatedAt, v7 instruction ref + toward, v8 road book, v9 dates to be chosen.
+ACCEPTED_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
 POI_TYPES = {"meal", "lodging", "fuel", "pass", "viewpoint"}
 STATUSES = {"draft", "proposed", "validated", "ready", "active", "done"}
 

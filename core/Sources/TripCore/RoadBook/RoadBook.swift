@@ -251,6 +251,7 @@ public struct RoadBook: Equatable, Sendable {
     }
 
     static func period(_ p: TripParams) -> String {
+        if p.datesToChoose { return "à choisir (\(p.dayCount) jour\(p.dayCount > 1 ? "s" : ""))" }
         guard let s = ISODate.parse(p.dateStart), let e = ISODate.parse(p.dateEnd) else { return "\(p.dateStart) → \(p.dateEnd)" }
         let cal = utcCalendar()
         let cs = cal.dateComponents([.day, .month, .year], from: s), ce = cal.dateComponents([.day, .month, .year], from: e)
@@ -300,6 +301,7 @@ extension RoadBook {
     public static func blockers(_ trip: Trip) -> [String] {
         var out: [String] = []
         if trip.days.isEmpty { out.append("Aucune étape : termine le trip avec Claude.") }
+        if trip.params.datesToChoose { out.append("Dates à choisir : touche « Trouver la meilleure période ».") }
         let untraced = trip.days.filter { $0.track == nil }.map(\.index)
         if !untraced.isEmpty {
             out.append("Tracé à calculer pour l'étape \(untraced.map(String.init).joined(separator: ", ")).")
