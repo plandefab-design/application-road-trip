@@ -45,6 +45,8 @@ struct RideLog: Codable, Identifiable, Equatable {
 @MainActor
 final class RideStore: ObservableObject {
     @Published private(set) var rides: [RideLog] = []
+    /// Set when a ride could not be written (disk full): the summary screen tells the rider.
+    @Published var lastError: String?
     private let folder: URL
 
     init() {
@@ -58,8 +60,12 @@ final class RideStore: ObservableObject {
     }
 
     func save(_ ride: RideLog) {
-        guard let data = try? JSONEncoder().encode(ride) else { return }
-        try? data.write(to: folder.appendingPathComponent("\(ride.id).json"), options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(ride)
+            try data.write(to: folder.appendingPathComponent("\(ride.id).json"), options: .atomic)
+        } catch {
+            lastError = "Sortie non enregistrée sur l'iPhone : \(error.localizedDescription)"
+        }
         if let i = rides.firstIndex(where: { $0.id == ride.id }) { rides[i] = ride } else { rides.insert(ride, at: 0) }
     }
 

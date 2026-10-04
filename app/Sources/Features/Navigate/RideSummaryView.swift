@@ -79,6 +79,11 @@ struct RideSummaryView: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("OK") { dismiss() } }
             }
             .renameRideAlert($renaming, rides: rides)
+            .alert("Erreur", isPresented: Binding(get: { rides.lastError != nil }, set: { if !$0 { rides.lastError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(rides.lastError ?? "")
+            }
         }
     }
 
