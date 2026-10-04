@@ -181,6 +181,14 @@ class ChatJob(BaseModel):
 
 JOBS: dict[str, ChatJob] = {}
 MAX_PROGRESS_LINES = 20
+JOB_KEEP_SECONDS = 3600     # a finished job stays readable for an hour (the iPhone may reconnect late), then is dropped
+
+
+def purge_jobs(now: float | None = None) -> None:
+    """Forgets finished jobs older than an hour: each one holds a whole trip in memory."""
+    limit = (time.time() if now is None else now) - JOB_KEEP_SECONDS
+    for job_id in [i for i, j in JOBS.items() if j.status != "running" and j.startedAt < limit]:
+        del JOBS[job_id]
 
 
 def geocoder() -> Geocoder:
@@ -220,6 +228,7 @@ async def add_routes(trip: dict[str, Any], on_progress) -> str:
 
 def start_job(trip_id: str, background: BackgroundTasks, work) -> ChatJob:
     """Runs `work(job, on_progress)` in the background; one job per trip at a time."""
+    purge_jobs()
     running = next((j for j in JOBS.values() if j.tripId == trip_id and j.status == "running"), None)
     if running is not None:
         return running

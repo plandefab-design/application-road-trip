@@ -199,3 +199,14 @@ def test_writes_are_atomic(client, tmp_path):
     write_atomic(target, "new")
     assert target.read_text(encoding="utf-8") == "new"
     assert [p.name for p in tmp_path.iterdir()] == ["t.json"]      # no temporary file left behind
+
+
+def test_finished_jobs_are_purged_after_an_hour():
+    from app import main
+    main.JOBS.clear()
+    main.JOBS["old"] = main.ChatJob(jobId="old", tripId="t", status="done", startedAt=1_000)
+    main.JOBS["slow"] = main.ChatJob(jobId="slow", tripId="t", status="running", startedAt=1_000)
+    main.JOBS["new"] = main.ChatJob(jobId="new", tripId="t", status="done", startedAt=9_000)
+    main.purge_jobs(now=10_000)
+    assert sorted(main.JOBS) == ["new", "slow"]      # a running job is never dropped
+    main.JOBS.clear()
