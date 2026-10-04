@@ -191,3 +191,11 @@ def test_validated_stops_become_waypoints():
     out = insert_stops([a, b], [meal, fuel, {"lat": 43.0001, "lon": 5.0}])
     assert out == [a, fuel, meal, b]          # in route order, the stop on the start not added twice
 
+
+def test_writes_are_atomic(client, tmp_path):
+    from app.fsutil import write_atomic
+    target = tmp_path / "t.json"
+    write_atomic(target, "old")
+    write_atomic(target, "new")
+    assert target.read_text(encoding="utf-8") == "new"
+    assert [p.name for p in tmp_path.iterdir()] == ["t.json"]      # no temporary file left behind

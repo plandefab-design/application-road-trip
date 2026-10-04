@@ -19,6 +19,7 @@ from .alerts import alerts_along, load_features, pauses_along, stations_along
 from .data_pack import all_cameras
 from .finalize import (PROFILE_LABELS, Geocoder, finalize_trip, graphhopper_router,
                        instructions_from_path, route_profile)
+from .fsutil import write_atomic
 from .planner import Planner, is_configured
 from .radar_sources import refresh_loop
 from .seasonal import cached, load_closures, load_passes, seasonal_checks
@@ -86,7 +87,7 @@ def store_trip(trip_id: str, trip: dict[str, Any], touch: bool = True) -> dict[s
     """Writes a trip; `updatedAt` (schema v6) drives the iPhone ↔ PC sync (most recent wins)."""
     if touch or not trip.get("updatedAt"):
         trip["updatedAt"] = now_iso()
-    trip_path(trip_id).write_text(json.dumps(trip, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    write_atomic(trip_path(trip_id), json.dumps(trip, ensure_ascii=False, separators=(",", ":")))
     return trip
 
 
@@ -114,7 +115,7 @@ def put_ride(ride_id: str, ride: dict[str, Any]) -> dict[str, str]:
     """Backup of a ride summary + real track recorded by the iPhone."""
     if not TRIP_ID.match(ride_id):
         raise HTTPException(400, "id de sortie invalide")
-    (rides_dir() / f"{ride_id}.json").write_text(json.dumps(ride, ensure_ascii=False), encoding="utf-8")
+    write_atomic(rides_dir() / f"{ride_id}.json", json.dumps(ride, ensure_ascii=False))
     return {"status": "ok"}
 
 
@@ -123,7 +124,7 @@ def list_rides() -> list[str]:
     return sorted(p.stem for p in rides_dir().glob("*.json"))
 
 
-# ---------------------------------------------------------------- offline alert pack (free ride)
+# ---------------------------------------------------------------- trips (read / write / delete)
 
 @app.get("/trips/{trip_id}", dependencies=[Depends(require_token)])
 def get_trip(trip_id: str) -> dict[str, Any]:

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from .fsutil import write_atomic
 from .trip_schema import extract_json_block, repair_trip, validate_trip
 
 SYSTEM_PROMPT_FILE = Path(__file__).resolve().parent.parent / "system_prompt.md"
@@ -71,7 +72,7 @@ class Planner:
     def _save_session(self, trip_id: str, session_id: str) -> None:
         sessions = self._sessions()
         sessions[trip_id] = session_id
-        self.sessions_file.write_text(json.dumps(sessions), encoding="utf-8")
+        write_atomic(self.sessions_file, json.dumps(sessions))
 
     async def chat(
         self, message: str, trip: dict[str, Any], on_progress: Callable[[str], None] | None = None
