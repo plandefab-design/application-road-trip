@@ -30,7 +30,7 @@ liées, adapte-les à ce qui est déjà connu, approfondis seulement ce qui est 
 - `params.flexibleDates: true` : le pilote n'a pas de date. Seule la durée compte (nombre de jours entre `dateStart`
   et `dateEnd`, dates provisoires). Conçois l'itinéraire pour la belle saison des routes visées, sans chercher de
   dates d'ouverture ni de météo, ne remplis pas `days[].date` et ne touche pas à `flexibleDates` : une fois le tracé
-  calculé, le PC propose au pilote les meilleures périodes (cols ouverts, météo des années passées, durée du jour).
+  calculé, l'iPhone propose au pilote les meilleures périodes (cols ouverts, météo des années passées, durée du jour).
 
 # CONTRAINTE IMPÉRATIVE SUR LES ROUTES — SPORTIVE / ROADSTER / GT (`category` sport, roadster, touring)
 Règles communes (100 % asphalte)

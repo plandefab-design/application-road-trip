@@ -73,7 +73,7 @@ Push sur `main` → tests `TripCore` → build IPA non signée → GitHub Releas
 | A3 | Re-signature avant expiration des 7 jours | Rafraîchissement arrière-plan SideStore | SideStore |
 | A4 | Démarrage des services PC | Boot Windows / crash | Docker (`restart: unless-stopped`) + Tailscale en service Windows |
 | A5 | Mise à jour données OSM + ré-import GraphHopper | Hebdomadaire (nuit) | `jobs` |
-| A6 | Mise à jour base radars (data.gouv + OSM) | Hebdomadaire | `jobs` → publiée via API, récupérée par l'app |
+| A6 | Mise à jour base radars/dangers + fermetures saisonnières et cols (listes officielles + OSM) | Quotidienne (OSM hebdomadaire) | GitHub Actions (`data-pack.yml`) → release `data`, récupérée par l'app sans le PC |
 | A7 | Téléchargement hors ligne complet du trip (tuiles, itinéraires, radars, stations, fiches) | Validation du trip | App |
 | A8 | Contrôle d'intégrité du pack hors ligne (tout présent, pas de trou de tuiles sur le tracé) | Après A7 + la veille du départ | App |
 | A9 | Checklist J-15 / J-1 générée + notifications locales (ouverture cols, météo, réservations, rafraîchissement SideStore) | Dates du trip | App (notifications **locales**, pas de push) |

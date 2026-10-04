@@ -3,6 +3,11 @@
 Application iPhone personnelle pour **créer** des road trips moto sur routes sinueuses (avec Claude, depuis ton PC)
 et les **suivre en temps réel** (navigation 100 % locale, sans IA, sans dépendre du PC).
 
+**Le PC ne sert qu'à créer** : le chat Claude, le tracé de chaque étape et la route sinueuse de la balade libre.
+Tout le reste marche PC éteint : rouler (trips préparés, balade libre « le plus rapide » ou « sans autoroute »
+via Apple Plans), la base radars et dangers (publiée chaque jour par GitHub), le choix des dates d'un trip, la météo,
+le trafic (Bison Futé, DGT, TomTom).
+
 - Cahier des charges : [SPEC.md](SPEC.md)
 - Consignes pour Claude Code : [CLAUDE.md](CLAUDE.md)
 - Format des trips : [docs/trip-schema.md](docs/trip-schema.md)
@@ -84,6 +89,11 @@ tailscale serve --bg 8080     # expose le planner en HTTPS sur ton réseau Tails
 ```
 Dans l'app : **Réglages › Companion** → URL affichée par `tailscale serve` (ex. `https://mon-pc.xxxx.ts.net`) + le même jeton que `PLANNER_TOKEN` → **Tester la connexion**.
 
+Radars, dangers, fermetures saisonnières et cols de l'iPhone : publiés chaque jour par GitHub (onglet **Actions** ›
+« Données iPhone (radars, cols) », OpenStreetMap relu chaque semaine pour les pays de `companion\maps.txt`), sans le PC.
+Si le dépôt reste 60 jours sans modification, GitHub met cette tâche en pause et prévient par e-mail : Actions ›
+« Données iPhone (radars, cols) » › **Enable workflow**.
+
 Couverture : **France**, **Italie**, **Espagne**, **Suisse**, **Allemagne**, **Portugal** et **Pays-Bas**. Les cartes sont listées dans `companion\maps.txt` : pour ajouter un pays ou une région, ajoute sa ligne Geofabrik (ex. `europe/spain`) puis lance le script ci-dessous. Hors de ces cartes, le calcul du tracé l'indique clairement ; les radars, eux, couvrent déjà l'Europe. Mise à jour automatique toutes les 4 semaines, le dimanche à 13 h (ou dès que le PC est allumé) : tâche Windows « MotoTrip - mise a jour cartes et radars » (cartes, radars, dangers, stations, pauses, puis nouveau calcul du routage construit à côté de l'ancien : le calcul de route reste disponible pendant ce temps). Journal : `companion\data\update_osm.log`. Lancement manuel : `powershell -ExecutionPolicy Bypass -File companion\jobs\update_osm.ps1`.
 
 ---
@@ -104,7 +114,7 @@ L'app a 4 onglets : **Rouler**, **Favoris**, **Trips**, **Réglages**.
    coche **trajet / étapes / lieux**, **Valider**, puis **Créer le PDF** (cartes, horaires, adresses) à garder ou envoyer.
    Si le trip change ensuite (Claude, tracé, paramètres), l'app te demande de revalider.
 5. **Le jour J** — fiche du trip › **Préparer** : tracé, trafic, météo, carte hors ligne, entretien, rappels, en un appui
-   (Wi-Fi + Tailscale). Puis **Rouler — Étape N**.
+   (réseau ; le PC seulement si un tracé reste à calculer). Puis **Rouler — Étape N**.
 6. **En roulant** — la voix annonce virages, radars (500 m puis « maintenant »), dangers (300 m), accidents et bouchons
    (20 km puis 1 km), limitation dépassée, pleins, pauses, météo. Un radar ou un virage passe toujours avant un message
    trafic, et ta musique reprend son volume après chaque annonce. Rien ne dépend du PC en roulant.
