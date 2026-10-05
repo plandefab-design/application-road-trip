@@ -57,17 +57,29 @@ foreach ($extract in $Extracts) {
 Step "Fusion et extraction des points (radars, dangers, stations, pauses)"
 $sh = @"
 set -e
+export LC_ALL=C
 apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null 2>&1
 cd /osm
 osmium merge $($files -join ' ') -o region.new.osm.pbf --overwrite
-osmium tags-filter region.new.osm.pbf n/highway=speed_camera n/hazard nwr/amenity=fuel nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/poi.pbf --overwrite
-osmium tags-filter /tmp/poi.pbf n/highway=speed_camera -o /tmp/c.pbf --overwrite && osmium export /tmp/c.pbf -f geojsonseq -o speed_cameras.new --overwrite
-osmium tags-filter /tmp/poi.pbf n/hazard -o /tmp/h.pbf --overwrite && osmium export /tmp/h.pbf -f geojsonseq -o hazards.new --overwrite
-osmium tags-filter /tmp/poi.pbf nwr/amenity=fuel -o /tmp/f.pbf --overwrite && osmium export /tmp/f.pbf -f geojsonseq -o fuel_stations.new --overwrite
-osmium tags-filter /tmp/poi.pbf nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/p.pbf --overwrite && osmium export /tmp/p.pbf -f geojsonseq -o pauses.new --overwrite
-osmium tags-filter region.new.osm.pbf w/access:conditional w/motor_vehicle:conditional w/vehicle:conditional w/motorcar:conditional w/motorcycle:conditional n/mountain_pass=yes -o /tmp/s.pbf --overwrite
-osmium tags-filter /tmp/s.pbf w/highway -o /tmp/closed.pbf --overwrite && osmium export /tmp/closed.pbf -f geojsonseq -o closures.new --overwrite
-osmium tags-filter /tmp/s.pbf n/mountain_pass=yes -o /tmp/passes.pbf --overwrite && osmium export /tmp/passes.pbf -f geojsonseq -o passes.new --overwrite
+rm -f *.all
+# Points are extracted from each country file on its own, then de-duplicated: objects on a border are in two extracts,
+# and osmium export refuses a merged file holding the same node twice (« Node ID twice in input »).
+for f in $($files -join ' '); do
+  osmium tags-filter `$f n/highway=speed_camera n/hazard nwr/amenity=fuel nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/poi.pbf --overwrite
+  osmium tags-filter /tmp/poi.pbf n/highway=speed_camera -o /tmp/c.pbf --overwrite && osmium export /tmp/c.pbf -f geojsonseq -o /tmp/c.seq --overwrite && cat /tmp/c.seq >> speed_cameras.all
+  osmium tags-filter /tmp/poi.pbf n/hazard -o /tmp/h.pbf --overwrite && osmium export /tmp/h.pbf -f geojsonseq -o /tmp/h.seq --overwrite && cat /tmp/h.seq >> hazards.all
+  osmium tags-filter /tmp/poi.pbf nwr/amenity=fuel -o /tmp/f.pbf --overwrite && osmium export /tmp/f.pbf -f geojsonseq -o /tmp/f.seq --overwrite && cat /tmp/f.seq >> fuel_stations.all
+  osmium tags-filter /tmp/poi.pbf nwr/amenity=cafe nwr/tourism=viewpoint n/amenity=drinking_water -o /tmp/p.pbf --overwrite && osmium export /tmp/p.pbf -f geojsonseq -o /tmp/p.seq --overwrite && cat /tmp/p.seq >> pauses.all
+  osmium tags-filter `$f w/access:conditional w/motor_vehicle:conditional w/vehicle:conditional w/motorcar:conditional w/motorcycle:conditional n/mountain_pass=yes -o /tmp/s.pbf --overwrite
+  osmium tags-filter /tmp/s.pbf w/highway -o /tmp/closed.pbf --overwrite && osmium export /tmp/closed.pbf -f geojsonseq -o /tmp/cl.seq --overwrite && cat /tmp/cl.seq >> closures.all
+  osmium tags-filter /tmp/s.pbf n/mountain_pass=yes -o /tmp/passes.pbf --overwrite && osmium export /tmp/passes.pbf -f geojsonseq -o /tmp/pa.seq --overwrite && cat /tmp/pa.seq >> passes.all
+  rm -f /tmp/*.pbf /tmp/*.seq
+done
+for n in speed_cameras hazards fuel_stations pauses closures passes; do
+  touch `$n.all
+  sort -u `$n.all -o `$n.new
+  rm -f `$n.all
+done
 "@
 $sh = $sh -replace "`r", ""     # a checkout with Windows line endings must not reach sh (« set: Illegal option »)
 Run "Échec de la fusion / extraction osmium" { docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c $sh }
