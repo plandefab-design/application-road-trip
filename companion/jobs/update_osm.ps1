@@ -69,6 +69,7 @@ osmium tags-filter region.new.osm.pbf w/access:conditional w/motor_vehicle:condi
 osmium tags-filter /tmp/s.pbf w/highway -o /tmp/closed.pbf --overwrite && osmium export /tmp/closed.pbf -f geojsonseq -o closures.new --overwrite
 osmium tags-filter /tmp/s.pbf n/mountain_pass=yes -o /tmp/passes.pbf --overwrite && osmium export /tmp/passes.pbf -f geojsonseq -o passes.new --overwrite
 "@
+$sh = $sh -replace "`r", ""     # a checkout with Windows line endings must not reach sh (« set: Illegal option »)
 Run "Échec de la fusion / extraction osmium" { docker run --rm -v "${osmDir}:/osm" debian:bookworm-slim sh -c $sh }
 Move-Item -Force (Join-Path $osmDir "region.new.osm.pbf") (Join-Path $osmDir "region.osm.pbf")
 # The downloads are merged into region.osm.pbf and fetched fresh next time: free the disk.
