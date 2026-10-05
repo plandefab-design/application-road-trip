@@ -61,6 +61,8 @@ export LC_ALL=C
 apt-get update -qq >/dev/null && apt-get install -y -qq osmium-tool >/dev/null 2>&1
 cd /osm
 osmium merge $($files -join ' ') -o region.new.osm.pbf --overwrite
+# Extracts cut on different days hold the same node in two versions: keep the latest one only (GraphHopper refuses duplicates).
+osmium time-filter region.new.osm.pbf 2099-01-01T00:00:00Z -o region.tf.pbf --overwrite && mv region.tf.pbf region.new.osm.pbf
 rm -f *.all
 # Points are extracted from each country file on its own, then de-duplicated: objects on a border are in two extracts,
 # and osmium export refuses a merged file holding the same node twice (« Node ID twice in input »).
