@@ -134,4 +134,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add distribution/source.json
           git commit -m "chore(distribution): Moto Road $VERSION [skip ci]"
+          git pull --rebase origin main   # main may have moved during the 7 min build
           git push
