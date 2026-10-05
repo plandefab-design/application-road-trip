@@ -44,4 +44,24 @@ final class StopGuideTests: XCTestCase {
         XCTAssertTrue(u.announcements.contains { $0.text == "Étape atteinte : Village test." })
         XCTAssertFalse(TurnGuide.isDirection(u.announcements.first { $0.text.hasPrefix("Étape") }!))   // said in alerts mode too
     }
+
+    func testSkipDropsTheNextStopAndResumesBeyondIt() throws {
+        let stops = StopGuide.stops(for: trip().days[0], in: trip())
+        let s = try XCTUnwrap(StopGuide.skip(stops, progress: 10_000))
+        XCTAssertEqual(s.skipped.name, "Station test")
+        XCTAssertEqual(s.remaining.map(\.name), ["Le Cours", "Les Alizés"])
+        XCTAssertGreaterThan(s.resumeAt, s.skipped.along + StopGuide.arrivedWithin)
+        XCTAssertLessThan(s.resumeAt, s.remaining[0].along)
+        // Skipping again goes to the following stop; nothing is left after the last one.
+        let t = try XCTUnwrap(StopGuide.skip(s.remaining, progress: 10_000))
+        XCTAssertEqual(t.skipped.name, "Le Cours")
+        let u = try XCTUnwrap(StopGuide.skip(t.remaining, progress: 10_000))
+        XCTAssertTrue(u.remaining.isEmpty)
+        XCTAssertNil(StopGuide.skip(u.remaining, progress: 10_000))
+    }
+
+    func testSkipIgnoresStopsAlreadyPassed() throws {
+        let stops = StopGuide.stops(for: trip().days[0], in: trip())
+        XCTAssertEqual(StopGuide.skip(stops, progress: 60_000)?.skipped.name, "Le Cours")
+    }
 }

@@ -54,6 +54,15 @@ public enum StopGuide {
         stops.first { $0.along - progress > -arrivedWithin }.map { ($0, max(0, $0.along - progress)) }
     }
 
+    /// The rider drops the next stop (fuel, restaurant, hotel, waypoint): what is left, and where the route resumes,
+    /// just beyond the dropped stop, so a way back never leads to the stop that was given up. Stops at the same place
+    /// are dropped together. nil when no stop is left.
+    public static func skip(_ stops: [RouteStop], progress: Double) -> (skipped: RouteStop, resumeAt: Double, remaining: [RouteStop])? {
+        guard let next = next(stops, progress: progress)?.stop else { return nil }
+        let resumeAt = next.along + arrivedWithin + 20
+        return (next, resumeAt, stops.filter { $0.along > resumeAt })
+    }
+
     /// Announcements due at `progress`; keys are unique per stop and phase.
     public static func announcements(_ stops: [RouteStop], progress: Double) -> [TurnGuide.Announcement] {
         stops.enumerated().compactMap { i, stop in

@@ -60,6 +60,7 @@ struct NavigationView: View {
                     .buttonBorderShape(.roundedRectangle(radius: 18))
                 } else {
                     bottomCards
+                    skipStopButton
                 }
                 controls
             }
@@ -252,6 +253,22 @@ struct NavigationView: View {
             }
             .padding(10)
             .glass(radius: 20, tint: Theme.ok)
+        }
+    }
+
+    /// « Passer l'étape »: one tap drops the next stop; shown off the track (to stop the way back toward it) and when
+    /// the stop is close (< 5 km). Same size as the other controls (gloves), no confirmation, no modal.
+    @ViewBuilder private var skipStopButton: some View {
+        if let stop = session.upcomingStop, session.offRoute || session.nextStop != nil {
+            Button { session.skipNextStop() } label: {
+                Label("Passer : \(stop.name)", systemImage: "forward.end.fill")
+                    .font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.info)
+            .buttonBorderShape(.roundedRectangle(radius: 18))
+            .accessibilityLabel("Passer l'étape \(stop.name)")
         }
     }
 

@@ -18,6 +18,7 @@ struct FreeRideView: View {
     /// Stops of the current route, in order (the last one is the destination), to edit it again.
     @State private var plannedStops: [FavoritePlaces.Place] = []
     @State private var routeNote: String?
+    @State private var skipping = false
 
     /// Favourite destination to be guided to right away (Favoris tab).
     private let destination: FavoritePlaces.Place?
@@ -82,6 +83,18 @@ struct FreeRideView: View {
                     StopBadge(stop: stop.stop, distance: stop.distance)
                 }
                 if session.detour != nil {
+                    if let next = remainingStops.first, remainingStops.count > 1 {
+                        Button { skipNextStop() } label: {
+                            Label(skipping ? "Nouvel itinéraire…" : "Passer : \(next.name)", systemImage: "forward.end.fill")
+                                .font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.7)
+                                .frame(maxWidth: .infinity, minHeight: 52)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Theme.info)
+                        .buttonBorderShape(.roundedRectangle(radius: 18))
+                        .disabled(skipping)
+                        .accessibilityLabel("Passer l'étape \(next.name)")
+                    }
                     Button { session.endDetour(); plannedStops = []; routeNote = nil } label: {
                         Label("Arrêter le guidage", systemImage: "xmark.circle.fill")
                             .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 52)
@@ -158,6 +171,23 @@ struct FreeRideView: View {
         }
         out.append(.init(id: "destination", point: route.destination, title: "🏁 \(route.name)", subtitle: nil))
         return out
+    }
+
+    /// « Passer l'étape »: the next stop is given up; the route is recomputed from here through the others, so the
+    /// guidance stops pulling back toward it.
+    private func skipNextStop() {
+        let stops = Array(remainingStops.dropFirst())
+        guard !stops.isEmpty, !skipping else { return }
+        skipping = true
+        Task {
+            defer { skipping = false }
+            guard let from = await location.currentPosition() else { return }
+            let result = await RideRouter.route(from: from, through: stops, mode: settings.rideMode, settings: settings)
+            plannedStops = stops
+            routeNote = result.note
+            session.startDetour(result.route)
+            recenter += 1
+        }
     }
 
     /// Stops not reached yet, to change the route on the way.

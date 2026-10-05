@@ -64,11 +64,13 @@ final class NavigationSession: ObservableObject {
     /// Pause spots re-positioned on the track (same fix as the alerts).
     private let pauses: [PauseSpot]
     /// Validated stops of the day on the track (fuel, chosen restaurant, hotel), announced like GPS waypoints.
-    let stops: [RouteStop]
+    private(set) var stops: [RouteStop]
     /// Next stop within 5 km (or just reached), for the banner.
     @Published private(set) var nextStop: (stop: RouteStop, distance: Double)?
+    /// Next stop still planned, wherever it is (the « Passer l'étape » button; nil: nothing left to skip).
+    @Published private(set) var upcomingStop: RouteStop?
 
-    private let computer: NavigationComputer
+    private var computer: NavigationComputer
     private var pace: PaceEstimator
     private var lastProgress: Double?
     private var lastFixTime: Date?
@@ -102,14 +104,37 @@ final class NavigationSession: ObservableObject {
         self.onPaceUpdate = onPaceUpdate
 
         // The same validated stops feed the voice (StopGuide) and the times on the cards (fuel, stop, arrival).
-        computer = NavigationComputer(route: r,
-                                      fuelStops: stops.filter { $0.kind == .fuel }.map { (name: $0.name, along: $0.along) },
-                                      stops: stops.filter { $0.kind == .meal || $0.kind == .lodging }.map {
-                                          (name: $0.name, along: $0.along, duration: $0.kind == .meal ? StageTimer.mealStop : 0)
-                                      },
-                                      plannedDuration: day.drivingTimeMin.map { $0 * 60 },
-                                      dayStart: nil)
+        computer = Self.makeComputer(route: r, stops: stops, day: day)
         if traffic != nil { trafficStatus = "Trafic : en attente du réseau" }
+    }
+
+    private static func makeComputer(route: Polyline, stops: [RouteStop], day: TripDay) -> NavigationComputer {
+        NavigationComputer(route: route,
+                           fuelStops: stops.filter { $0.kind == .fuel }.map { (name: $0.name, along: $0.along) },
+                           stops: stops.filter { $0.kind == .meal || $0.kind == .lodging }.map {
+                               (name: $0.name, along: $0.along, duration: $0.kind == .meal ? StageTimer.mealStop : 0)
+                           },
+                           plannedDuration: day.drivingTimeMin.map { $0 * 60 },
+                           dayStart: nil)
+    }
+
+    /// « Passer l'étape »: the rider gave up the next stop. It is dropped from the announcements and the cards; if the
+    /// rider is off the track the way back now leads beyond it, so no endless « retour sur l'itinéraire » toward a
+    /// place they no longer want. On the track the route itself is left as it is.
+    func skipNextStop() {
+        let here = offRoute ? (lastProgress ?? snapshot?.progress ?? 0) : (snapshot?.progress ?? 0)
+        guard let skip = StopGuide.skip(stops, progress: here) else { return }
+        stops = skip.remaining
+        upcomingStop = skip.remaining.first
+        nextStop = nil
+        computer = Self.makeComputer(route: route, stops: stops, day: day)
+        if offRoute {
+            lastProgress = min(max(lastProgress ?? 0, skip.resumeAt), route.length)
+            wayBack.reset()
+            rejoinRoute = nil
+            rejoinUpdate = nil
+        }
+        voice.say("Étape passée : \(skip.skipped.name).", key: "skip-\(Int(skip.skipped.along))", cooldown: 5)
     }
 
     func start() {
@@ -305,6 +330,7 @@ final class NavigationSession: ObservableObject {
         }
 
         // Validated stops (fuel, restaurant, hotel): 5 km, 500 m, arrival. Said in « alertes uniquement » too.
+        upcomingStop = StopGuide.next(stops, progress: offRoute ? (lastProgress ?? snap.progress) : snap.progress)?.stop
         if !offRoute {
             for a in StopGuide.announcements(stops, progress: snap.progress) { say(a) }
             nextStop = StopGuide.next(stops, progress: snap.progress).flatMap { $0.distance <= StopGuide.farWarning ? $0 : nil }
