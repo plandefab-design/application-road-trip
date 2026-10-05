@@ -50,7 +50,8 @@ enum RideRouter {
         }
         let points = [here] + stops.map(\.point)
         if let pc = CompanionClient(urlString: settings.companionURL, token: settings.companionToken),
-           let r = try? await pc.rideRoute(points: points, mode: mode.rawValue), r.track.count > 1 {
+           let r = try? await pc.rideRoute(points: points, mode: mode.rawValue,
+                                       offroad: settings.primaryBike?.category?.offroadLevel ?? 0), r.track.count > 1 {
             var route = DetourRoute(name: last.name, destination: last.point, track: Polyline(r.track),
                                     instructions: r.instructions, isRoad: true)
             route.stops = zip(stops.dropLast(), r.via).map { RouteStop(kind: .waypoint, name: $0.name, along: $1) }

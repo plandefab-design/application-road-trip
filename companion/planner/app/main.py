@@ -305,9 +305,19 @@ async def get_chat_job(trip_id: str, job_id: str) -> ChatJob:
 RIDE_MODES = {"curvy": ("moto_curvy", True), "nomotorway": ("moto_fast", True), "fast": ("moto_fast", False)}
 
 
+def ride_profile(mode: str, offroad: int) -> tuple[str, bool]:
+    """GraphHopper profile of a free ride: the bike's type decides which roads are acceptable (0 = asphalt only,
+    1 = trail: good tracks, 2 = enduro) on the sinuous mode; the fast modes stay on roads."""
+    profile, avoid = RIDE_MODES[mode]
+    if mode == "curvy" and offroad:
+        profile = {1: "moto_adventure", 2: "moto_enduro"}[offroad]
+    return profile, avoid
+
+
 class RideRouteRequest(BaseModel):
     points: list[tuple[float, float]] = Field(min_length=2, max_length=12, description="[[lat, lon], ...] start, stops, end")
     mode: str = Field(default="curvy", pattern="^(curvy|nomotorway|fast)$")
+    offroad: int = Field(default=0, ge=0, le=2, description="bike type: 0 asphalt only, 1 trail, 2 enduro")
 
 
 @app.post("/ride-route", dependencies=[Depends(require_token)])
@@ -317,7 +327,7 @@ async def ride_route(req: RideRouteRequest) -> dict[str, Any]:
     for lat, lon in req.points:
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise HTTPException(422, "coordonnées invalides")
-    profile, avoid = RIDE_MODES[req.mode]
+    profile, avoid = ride_profile(req.mode, req.offroad)
     route = graphhopper_router(GRAPHHOPPER_URL, profile, avoid)
     try:
         path = await route([{"lat": lat, "lon": lon} for lat, lon in req.points])

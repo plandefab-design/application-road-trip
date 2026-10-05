@@ -149,9 +149,10 @@ struct CompanionClient {
     }
 
     /// Road route through `points` (start, stops, end): « curvy », « nomotorway » or « fast » (10 s max).
-    func rideRoute(points: [GeoPoint], mode: String) async throws -> RideRoute {
-        struct Body: Encodable { let points: [[Double]]; let mode: String }
-        return try await post("ride-route", body: Body(points: points.map { [$0.lat, $0.lon] }, mode: mode), timeout: 10)
+    /// `offroad`: the bike's type (0 asphalt only, 1 trail, 2 enduro), which decides the roads taken.
+    func rideRoute(points: [GeoPoint], mode: String, offroad: Int = 0) async throws -> RideRoute {
+        struct Body: Encodable { let points: [[Double]]; let mode: String; let offroad: Int }
+        return try await post("ride-route", body: Body(points: points.map { [$0.lat, $0.lon] }, mode: mode, offroad: offroad), timeout: 10)
     }
 
     // MARK: - Transport

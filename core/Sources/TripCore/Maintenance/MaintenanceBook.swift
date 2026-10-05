@@ -103,7 +103,7 @@ public struct MaintenanceBook: Codable, Hashable, Sendable {
         }
     }
 
-    /// « Soon »: within 10 % of the km interval (at least 300 km), or within a quarter of the time interval (max 30 days).
+    /// « Soon »: within 10 % of the km interval (at least 300 km, at most a quarter of the interval), or within a quarter of the time interval (max 30 days).
     public func status(of item: MaintenanceItem, today: Date = Date()) -> Status {
         var remainingKm: Double?
         if let interval = item.intervalKm, interval > 0 {
@@ -125,7 +125,9 @@ public struct MaintenanceBook: Codable, Hashable, Sendable {
             if let days, days <= softDays { return .soon }
             return .ok
         }
-        let soft = max(300, (item.intervalKm ?? 0) * 0.1)
+        // Never more than a quarter of the interval: a 300 km item (chain greasing off-road) is not « soon » the day it is done.
+        let interval = item.intervalKm ?? 0
+        let soft = interval > 0 ? min(max(300, interval * 0.1), interval * 0.25) : 300
         let softDays = min(30, (item.intervalMonths ?? 12) * 30 / 4)
         return Status(level: level(km: remainingKm, days: remainingDays, softKm: soft, softDays: softDays), remainingKm: remainingKm, remainingDays: remainingDays)
     }

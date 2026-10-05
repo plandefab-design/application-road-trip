@@ -46,25 +46,25 @@ struct GarageView: View {
                 if !settings.garage.isEmpty {
                     Section {
                         ForEach(settings.garage) { bike in
-                            NavigationLink { MaintenanceView(bike: bike) } label: { bikeCard(bike) }
+                            HStack(spacing: 10) {
+                                Button { settings.primaryBikeId = bike.id } label: { selector(bike) }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(settings.primaryBike?.id == bike.id ? "\(bike.model), moto sélectionnée" : "Sélectionner \(bike.model)")
+                                NavigationLink { MaintenanceView(bike: bike) } label: { bikeCard(bike) }
+                            }
                                 .swipeActions(edge: .trailing) {
                                     Button("Supprimer", role: .destructive) { deleting = bike }
                                     Button("Modifier") { bikeSheet = .edit(bike) }.tint(Theme.info)
                                 }
                                 .contextMenu {
                                     Button { bikeSheet = .edit(bike) } label: { Label("Modifier la moto", systemImage: "pencil") }
-                                    if settings.primaryBike?.id != bike.id {
-                                        Button { settings.primaryBikeId = bike.id } label: {
-                                            Label("Compter mes sorties sur celle-ci", systemImage: "gauge.with.needle")
-                                        }
-                                    }
                                     Button(role: .destructive) { deleting = bike } label: { Label("Supprimer", systemImage: "trash") }
                                 }
                         }
                     } header: {
                         Text("Mes motos")
                     } footer: {
-                        Text("Touche une moto pour son carnet d'entretien. Glisse ou appui long pour la modifier.")
+                        Text("Touche le rond pour choisir la moto du jour : elle s'affiche à l'accueil, son type règle les routes de la navigation et ses sorties s'ajoutent à son compteur. Touche la moto pour son carnet d'entretien ; glisse pour la modifier.")
                     }
 
                     let upcoming = nextJobs
@@ -131,6 +131,17 @@ struct GarageView: View {
         .prefix(6).map { $0 }
     }
 
+    /// Round selector: the selected bike is the one shown on the home screen, whose type sets the roads and whose odometer
+    /// the rides advance.
+    private func selector(_ bike: Bike) -> some View {
+        let on = settings.primaryBike?.id == bike.id
+        return Image(systemName: on ? "checkmark.circle.fill" : "circle")
+            .font(.title)
+            .foregroundStyle(on ? Theme.accent : Theme.muted)
+            .frame(width: 44, height: 56)
+            .contentShape(Rectangle())
+    }
+
     private func bikeCard(_ bike: Bike) -> some View {
         let book = maintenance.books[bike.id]
         let urgent = book?.attention().first
@@ -144,7 +155,7 @@ struct GarageView: View {
                 HStack(spacing: 6) {
                     Text(bike.model).font(.headline).lineLimit(1)
                     if primary {
-                        Text("MA MOTO").font(.caption2.weight(.heavy)).foregroundStyle(Theme.accent)
+                        Text("SÉLECTIONNÉE").font(.caption2.weight(.heavy)).foregroundStyle(Theme.accent)
                     }
                 }
                 Text("\(bike.category?.label ?? "Type à renseigner") · \(Int(bike.usableRangeMeters / 1000)) km d'autonomie utile")

@@ -181,6 +181,13 @@ def test_ride_route_modes_and_stops(client, monkeypatch):
     assert data["distanceKm"] == 12.3 and data["timeMin"] == 15 and len(data["track"]) == 3
     assert len(data["via"]) == 1 and 5_000 < data["via"][0] < 6_000
     assert client.post("/ride-route", headers=AUTH, json={**body, "mode": "teleport"}).status_code == 422
+    # The bike's type picks the profile of the sinuous mode; asphalt bikes never get a track profile.
+    for offroad, expected in [(0, "moto_curvy"), (1, "moto_adventure"), (2, "moto_enduro")]:
+        client.post("/ride-route", headers=AUTH, json={**body, "mode": "curvy", "offroad": offroad})
+        assert seen["profile"] == expected
+    client.post("/ride-route", headers=AUTH, json={**body, "mode": "fast", "offroad": 2})
+    assert seen["profile"] == "moto_fast"
+    assert client.post("/ride-route", headers=AUTH, json={**body, "offroad": 3}).status_code == 422
 
 
 def test_validated_stops_become_waypoints():

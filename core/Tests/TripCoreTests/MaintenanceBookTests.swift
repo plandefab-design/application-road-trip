@@ -10,6 +10,20 @@ final class MaintenanceBookTests: XCTestCase {
                                                 lastDoneKm: lastKm, lastDoneDate: lastDate)])
     }
 
+    /// Every standard item is « ok » on a new book, whatever the bike type (chain greasing every 300 km off-road was
+    /// « soon » from the day it was done), and « soon » again as the interval nears its end.
+    func testFreshBookIsUpToDateForEveryBikeType() {
+        for category in BikeCategory.allCases {
+            let fresh = MaintenanceBook.starter(bikeId: "b", category: category, odometerKm: 12_000, today: "2027-06-01")
+            XCTAssertTrue(fresh.attention(today: today).isEmpty, "\(category)")
+        }
+        var chain = MaintenanceBook.starter(bikeId: "b", category: .enduro, today: "2027-06-01")
+        chain.addRide(km: 240)
+        XCTAssertEqual(chain.status(of: chain.items.first { $0.id == "chain-lube" }!, today: today).level, .soon)
+        chain.markDone("chain-lube", today: "2027-06-01")
+        XCTAssertEqual(chain.status(of: chain.items.first { $0.id == "chain-lube" }!, today: today).level, .ok)
+    }
+
     func testLevelsByKm() {
         // Interval 6 000 km, soft window max(300, 600) = 600 km.
         XCTAssertEqual(book(odometer: 10_000, lastKm: 10_000, intervalKm: 6_000).status(of: .init(id: "x", label: "", intervalKm: 6_000, lastDoneKm: 10_000), today: today).level, .ok)

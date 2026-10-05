@@ -142,6 +142,14 @@ struct HomeView: View {
             .glass(radius: 22)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            // Several bikes: switch from here too (appui long).
+            ForEach(settings.garage) { bike in
+                Button { settings.primaryBikeId = bike.id } label: {
+                    Label(bike.model, systemImage: settings.primaryBike?.id == bike.id ? "checkmark.circle.fill" : "circle")
+                }
+            }
+        }
     }
 
     private func statusPill(_ text: String, color: Color) -> some View {
